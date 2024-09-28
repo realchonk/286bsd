@@ -801,7 +801,7 @@ enum x86_reg src;
 	case R_PARAM:
 		return error (0, "store(R_PARAM)");
 	case R_LABEL:
-		return error (0, "store(R_PARAM)");
+		return error (0, "store(R_LABEL)");
 	}
 	return 0;
 }

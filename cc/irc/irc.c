@@ -129,6 +129,7 @@ enum dtype_type {
 	DT_BYTE,
 	DT_WORD,
 	DT_PTR,
+	DT_LABEL,
 };
 
 struct dtype {
@@ -167,10 +168,13 @@ enum ir_type {
 	IR_LET,
 	IR_WRITE,
 	IR_RET,
+	IR_LABEL,
+	IR_GOTO,
 };
 
 struct ir {
-	struct ir *next, *prev;
+	struct ir *next, *prev;		// next/prev IR in current block
+	struct ir *bnext, *bprev;	// next/prev block of IR
 	enum ir_type type;
 	int line;
 
@@ -221,6 +225,7 @@ struct dtype *dt;
 		return 1;
 	case DT_WORD:
 	case DT_PTR:
+	case DT_LABEL:
 		return 2;
 	}
 }
@@ -349,16 +354,32 @@ struct expr *e;
 	return 0;
 }
 
+// return:
+// 0 = normal IR
+// 1 = end of basic block (e.g. goto)
+// 2 = start of basic block (label)
 stmt (fn, ir, tk)
 struct func *fn;
 struct ir *ir;
 {
 	struct reg *r;
 
+	ir->line = linenum;
+
+	if (tk == TK_INT) {
+		ir->type = IR_LABEL;
+		ir->reg = lval.i;
+		expect (':');
+
+		r = &fn->regs[ir->reg];
+		r->type = R_LABEL;
+		r->dt.type = DT_LABEL;
+		r->off = ir->reg;
+		return 2;
+	}
+
 	if (tk != TK_IDENT)
 		goto err;
-
-	ir->line = linenum;
 
 	if (strcmp (lval.s, "let") == 0) {
 		ir->type = IR_LET;
@@ -374,6 +395,7 @@ struct ir *ir;
 		r->dt = ir->let.dt;
 		stalloc (fn, sizeof_dt (&r->dt));
 		r->off = fn->stoff;
+		return 0;
 	} else if (strcmp (lval.s, "write") == 0) {
 		ir->type = IR_WRITE;
 		expect (TK_REG);
@@ -384,6 +406,7 @@ struct ir *ir;
 		expect (';');
 
 		assert_dt_ptr (&fn->regs[ir->write.dest].dt, &fn->regs[ir->write.src].dt);
+		return 0;
 	} else if (strcmp (lval.s, "ret") == 0) {
 		ir->type = IR_RET;
 		expect (TK_REG);
@@ -391,12 +414,18 @@ struct ir *ir;
 		expect (';');
 
 		assert_dt_eq (&fn->dt, &fn->regs[ir->reg].dt);
+		return 0;
+	} else if (strcmp (lval.s, "goto") == 0) {
+		ir->type = IR_GOTO;
+		expect (TK_REG);
+		ir->reg = lval.i;
+		expect (';');
+		return 2;
 	} else {
 	err:
 		printf ("%d\n", tk);
-		error (linenum, "expected IR stmt");
+		return error (linenum, "expected IR stmt");
 	}
-	return 0;
 }
 
 func (fn)
@@ -497,6 +526,9 @@ struct dtype *dt;
 		putchar ('*');
 		print_dt (dt->inner);
 		break;
+	case DT_LABEL:
+		printf ("label");
+		break;
 	}
 	return 0;
 }
@@ -545,6 +577,12 @@ struct ir *ir;
 	case IR_RET:
 		printf ("ret $%d;\n", ir->reg);
 		break;
+	case IR_LABEL:
+		printf ("%d:\n", ir->reg);
+		break;
+	case IR_GOTO:
+		printf ("goto $%d;\n", ir->reg);
+		break;
 	}
 	return 0;
 }
@@ -580,6 +618,7 @@ struct dtype *dt;
 		break;
 	case DT_WORD:
 	case DT_PTR:
+	case DT_LABEL:
 		switch (reg) {
 		case AX:
 			return "ax";
@@ -605,6 +644,7 @@ struct dtype *dt;
 		return "byte";
 	case DT_WORD:
 	case DT_PTR:
+	case DT_LABEL:
 		return "word";
 	}
 }
@@ -617,18 +657,20 @@ struct reg *src;
 {
 	char *reg, *size;
 
+	reg = dt_reg (dest, &src->dt);
+
 	switch (src->type) {
 	case R_NONE:
 		return error (0, "load(R_NONE)");
 	case R_LOCAL:
 	case R_PARAM:
-		reg = dt_reg (dest, &src->dt);
 		size = dt_size (&src->dt);
 		printf ("\tmov %s, %s [bp + %d]\n",
 			reg, size, src->off);
 		break;
 	case R_LABEL:
-		error (0, "todo: load(R_LABEL)");
+		printf ("\tlea %s, [.L%d]\n", reg, src->off);
+		break;
 	}
 	return 0;
 }
@@ -692,6 +734,7 @@ struct expr *e;
 			case DT_BYTE:
 			case DT_WORD:
 			case DT_PTR:
+			case DT_LABEL:
 				load (AX, r);
 				puts ("\tpush ax");
 				break;
@@ -730,6 +773,12 @@ struct ir *ir;
 		load (AX, &fn->regs[ir->reg]);
 		if (ir->next != NULL)
 			puts ("\tjmp .ret");
+		break;
+	case IR_LABEL:
+		printf (".L%d:\n", ir->reg);
+		break;
+	case IR_GOTO:
+		printf ("\tjmp .L%d\n", ir->reg);
 		break;
 	}
 	puts ("");

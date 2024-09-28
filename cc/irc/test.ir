@@ -36,3 +36,11 @@ fn main ($0: word, $1: **byte): word {
 	let $10: word = read $4;
 	ret $10;
 }
+
+fn blocks (): word {
+	let $0: word = 42;
+	goto $1;
+
+1:
+	ret $0;
+}

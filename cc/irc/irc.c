@@ -1,8 +1,8 @@
+#include <assert.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-
 
 // LEXER
 
@@ -143,6 +143,7 @@ enum expr_type {
 	EX_ADD,
 	EX_READ,
 	EX_CALL,
+	EX_PHI,
 };
 
 struct expr {
@@ -161,6 +162,9 @@ struct expr {
 			int nargs;
 			int args[8];
 		} call;
+		struct {
+			int from[8], val[8], num;
+		} phi;
 	};
 };
 
@@ -170,11 +174,13 @@ enum ir_type {
 	IR_RET,
 	IR_LABEL,
 	IR_GOTO,
+	IR_BR,
 };
 
 struct ir {
 	struct ir *next, *prev;		// next/prev IR in current block
 	struct ir *bnext, *bprev;	// next/prev block of IR
+	struct ir *bhead;		// head of current IR block
 	enum ir_type type;
 	int line;
 
@@ -188,6 +194,9 @@ struct ir {
 		struct {
 			int dest, src;
 		} write;
+		struct {
+			int cond, yes, no;
+		} br;
 	};
 };
 
@@ -201,6 +210,10 @@ enum reg_type {
 struct reg {
 	enum reg_type type;
 	struct dtype dt;
+	struct ir *ir;
+
+	// R_LOCAL/R_PARAM: stack offset
+	// R_LABEL: self-reference
 	int off;
 };
 
@@ -249,6 +262,14 @@ struct dtype *ptr, *to;
 		return error (linenum, "not a pointer");
 
 	return assert_dt_eq (ptr->inner, to);
+}
+
+assert_dt_label (line, dt)
+struct dtype *dt;
+{
+	if (dt->type != DT_LABEL)
+		return error (line, "not a label");
+	return 0;
 }
 
 
@@ -347,6 +368,32 @@ struct expr *e;
 			error (linenum, "invalid call");
 
 		// TODO: assert_dt_*
+	} else if (strcmp (lval.s, "phi") == 0) {
+		e->type = EX_PHI;
+		expect ('(');
+		expect (TK_REG);
+		e->phi.from[0] = lval.i;
+		expect (':');
+		expect (TK_REG);
+		e->phi.val[0] = lval.i;
+		expect (')');
+		e->phi.num = 1;
+
+		while ((tk = lex ()) == ',') {
+			expect ('(');
+			expect (TK_REG);
+			e->phi.from[e->phi.num] = lval.i;
+			expect (':');
+			expect (TK_REG);
+			e->phi.val[e->phi.num] = lval.i;
+			expect (')');
+			++e->phi.num;
+		}
+		
+		if (tk != ';')
+			error (linenum, "invalid phi");
+
+		// TODO: assert_dt_o*
 	} else {
 	err:
 		error (linenum, "expected expr");
@@ -375,6 +422,7 @@ struct ir *ir;
 		r->type = R_LABEL;
 		r->dt.type = DT_LABEL;
 		r->off = ir->reg;
+		r->ir = ir;
 		return 2;
 	}
 
@@ -395,6 +443,7 @@ struct ir *ir;
 		r->dt = ir->let.dt;
 		stalloc (fn, sizeof_dt (&r->dt));
 		r->off = fn->stoff;
+		r->ir = ir;
 		return 0;
 	} else if (strcmp (lval.s, "write") == 0) {
 		ir->type = IR_WRITE;
@@ -419,6 +468,18 @@ struct ir *ir;
 		ir->type = IR_GOTO;
 		expect (TK_REG);
 		ir->reg = lval.i;
+		expect (';');
+		return 1;
+	} else if (strcmp (lval.s, "br") == 0) {
+		ir->type = IR_BR;
+		expect (TK_REG);
+		ir->br.cond = lval.i;
+		expect (',');
+		expect (TK_REG);
+		ir->br.yes = lval.i;
+		expect (',');
+		expect (TK_REG);
+		ir->br.no = lval.i;
 		expect (';');
 		return 1;
 	} else {
@@ -484,6 +545,7 @@ rt:
 
 			ir->prev = prev;
 			ir->bprev = bprev;
+			ir->bhead = bhead;
 
 			if (prev != NULL)
 				prev->next = ir;
@@ -498,6 +560,7 @@ rt:
 
 			ir->prev = prev;
 			ir->bprev = bprev;
+			ir->bhead = bhead;
 			bprev = bhead;
 			bhead = NULL;
 			prev = NULL;
@@ -508,6 +571,7 @@ rt:
 
 			ir->prev = NULL;
 			ir->bprev = bprev;
+			ir->bhead = ir;
 
 			for (tmp = bprev; tmp != NULL; tmp = tmp->next)
 				tmp->bnext = ir;
@@ -592,6 +656,11 @@ struct expr *e;
 		for (i = 0; i < e->call.nargs; ++i)
 			printf (", $%d", e->call.args[i]);
 		break;
+	case EX_PHI:
+		printf ("phi ($%d: $%d)", e->phi.from[0], e->phi.val[0]);
+		for (i = 1; i < e->phi.num; ++i)
+			printf (", ($%d: $%d)", e->phi.from[i], e->phi.val[i]);
+		break;
 	}
 	return 0;
 }
@@ -618,6 +687,9 @@ struct ir *ir;
 		break;
 	case IR_GOTO:
 		printf ("goto $%d;\n", ir->reg);
+		break;
+	case IR_BR:
+		printf ("br $%d, $%d, $%d;\n", ir->br.cond, ir->br.yes, ir->br.no);
 		break;
 	}
 	return 0;
@@ -781,8 +853,62 @@ struct expr *e;
 		printf ("\tcall %s\n", e->call.fn);
 		printf ("\tadd sp, %d\n", cnt);
 		break;
+	case EX_PHI:
+		// TODO: check that all sources actually jump to this phi.
+		// It's correct that this is empty,
+		// since the value is set in the jumping instruction.
+		break;
 	}
 	return 0;
+}
+
+// phi's are crazy. I'm surprised this actually works.
+check_phi (fn, from, to)
+struct func *fn;
+struct ir *from;
+struct reg *to;
+{
+	struct ir *phi;
+	struct expr *e;
+	int i, mylbl;
+
+	// check for corruption of basic block structure
+	assert (from->bhead != NULL && from->bhead->prev == NULL);
+
+	// check that the destination is actually a label
+	assert_dt_label (from->line, &to->dt);
+
+	// check if this jump can be referenced in a phi
+	if (from->bhead->type != IR_LABEL) {
+		if (from->bhead->bprev != NULL) {
+			// this should never happen
+			error (from->line, "broken basic block");
+		} else {
+			// first instruction of a function
+			return 0;
+		}
+	}
+
+	// origin basic block label
+	mylbl = from->bhead->reg;
+
+	phi = to->ir->next;
+	assert (phi != NULL);
+	
+	// only the first instruction after a label can be a phi
+	if (phi->type != IR_LET || phi->let.val.type != EX_PHI)
+		return 0;
+
+	e = &phi->let.val;
+
+	for (i = 0; i < e->phi.num; ++i) {
+		if (e->phi.from[i] == mylbl) {
+			load (AX, &fn->regs[e->phi.val[i]]);
+			return 0;
+		}
+	}
+
+	return error (from->line, "invalid jump to phi");
 }
 
 gen_ir (fn, ir)
@@ -790,6 +916,7 @@ struct func *fn;
 struct ir *ir;
 {
 	struct dtype *dt;
+	char *reg;
 
 	printf ("\t; ");
 	print_ir (ir);
@@ -807,14 +934,25 @@ struct ir *ir;
 		break;
 	case IR_RET:
 		load (AX, &fn->regs[ir->reg]);
-		if (ir->next != NULL)
+		assert (ir->next == NULL);
+		if (ir->bnext != NULL)
 			puts ("\tjmp .ret");
 		break;
 	case IR_LABEL:
 		printf (".L%d:\n", ir->reg);
 		break;
 	case IR_GOTO:
+		check_phi (fn, ir, &fn->regs[ir->reg]);
 		printf ("\tjmp .L%d\n", ir->reg);
+		break;
+	case IR_BR:
+		load (AX, &fn->regs[ir->br.cond]);
+		reg = dt_reg (AX, &fn->regs[ir->br.cond].dt);
+		printf ("\ttest %s, %s\n", reg, reg);
+		check_phi (fn, ir, &fn->regs[ir->br.yes]);
+		printf ("\tjnz .L%d\n", ir->br.yes);
+		check_phi (fn, ir, &fn->regs[ir->br.no]);
+		printf ("\tjmp .L%d\n", ir->br.no);
 		break;
 	}
 	puts ("");

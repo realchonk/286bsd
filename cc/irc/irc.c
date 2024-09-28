@@ -414,13 +414,13 @@ struct ir *ir;
 		expect (';');
 
 		assert_dt_eq (&fn->dt, &fn->regs[ir->reg].dt);
-		return 0;
+		return 1;
 	} else if (strcmp (lval.s, "goto") == 0) {
 		ir->type = IR_GOTO;
 		expect (TK_REG);
 		ir->reg = lval.i;
 		expect (';');
-		return 2;
+		return 1;
 	} else {
 	err:
 		printf ("%d\n", tk);
@@ -431,7 +431,7 @@ struct ir *ir;
 func (fn)
 struct func *fn;
 {
-	struct ir *ir = NULL;
+	struct ir *bprev = NULL, *bhead = NULL, *prev = NULL, *ir, *tmp;
 	int tk, i, stoff;
 
 	expect (TK_IDENT);
@@ -470,16 +470,52 @@ rt:
 	fn->stoff = 0;
 
 	while ((tk = lex ()) != '}') {
-		if (ir == NULL) {
-			ir = new (struct ir);
+		ir = new (struct ir);
+
+		if (fn->body == NULL) {
 			fn->body = ir;
-		} else {
-			ir->next = new (struct ir);
-			ir->next->prev = ir;
-			ir = ir->next;
+			bhead = ir;
 		}
 
-		stmt (fn, ir, tk);
+		switch (stmt (fn, ir, tk)) {
+		case 0: // normal IR
+			if (bhead == NULL)
+				error (linenum, "dead instruction");
+
+			ir->prev = prev;
+			ir->bprev = bprev;
+
+			if (prev != NULL)
+				prev->next = ir;
+
+			prev = ir;
+			break;
+		case 1: // end of basic block
+			if (prev == NULL || bhead == NULL)
+				error (linenum, "invalid end of a basic block");
+
+			prev->next = ir;
+
+			ir->prev = prev;
+			ir->bprev = bprev;
+			bprev = bhead;
+			bhead = NULL;
+			prev = NULL;
+			break;
+		case 2: // start of basic block
+			if (prev != NULL || bhead != NULL)
+				error (linenum, "invalid start of a basic block");
+
+			ir->prev = NULL;
+			ir->bprev = bprev;
+
+			for (tmp = bprev; tmp != NULL; tmp = tmp->next)
+				tmp->bnext = ir;
+
+			bhead = ir;
+			prev = ir;
+			break;
+		}
 	}
 
 	return 0;
@@ -796,7 +832,7 @@ struct func *fn;
 	printf ("\tsub sp, %d\n", -fn->stoff);
 	puts ("");
 
-	for (ir = fn->body; ir != NULL; ir = ir->next)
+	for (ir = fn->body; ir != NULL; ir = ir->next ? ir->next : ir->bnext)
 		gen_ir (fn, ir);
 
 	puts (".ret:");

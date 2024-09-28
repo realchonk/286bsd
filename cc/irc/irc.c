@@ -393,7 +393,8 @@ struct expr *e;
 		if (tk != ';')
 			error (linenum, "invalid phi");
 
-		// TODO: assert_dt_o*
+		// TODO: assert_dt_*
+		// TODO: check that there are no instructions (except IR_LABEL) before this
 	} else {
 	err:
 		error (linenum, "expected expr");
@@ -484,7 +485,6 @@ struct ir *ir;
 		return 1;
 	} else {
 	err:
-		printf ("%d\n", tk);
 		return error (linenum, "expected IR stmt");
 	}
 }

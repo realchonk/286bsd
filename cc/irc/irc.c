@@ -420,6 +420,8 @@ struct ir *ir;
 		expect (':');
 
 		r = &fn->regs[ir->reg];
+		if (r->type != R_NONE)
+			error (linenum, "cannot reassign to register");
 		r->type = R_LABEL;
 		r->dt.type = DT_LABEL;
 		r->off = ir->reg;
@@ -440,6 +442,8 @@ struct ir *ir;
 		expr (fn, &ir->let.dt, &ir->let.val);
 
 		r = &fn->regs[ir->let.dest];
+		if (r->type != R_NONE)
+			error (linenum, "cannot reassign to register");
 		r->type = R_LOCAL;
 		r->dt = ir->let.dt;
 		stalloc (fn, sizeof_dt (&r->dt));

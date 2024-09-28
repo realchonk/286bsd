@@ -1,0 +1,38 @@
+
+fn add ($0: word, $1: word): word {
+	# int res;
+	let $2: *word = alloca 1;
+
+	# res = $0 + $1;
+	let $3: word = add $0, $1;
+	write $2, $3;
+
+	# return res;
+	let $4: word = read $2;
+	ret $4;
+}
+
+fn main ($0: word, $1: **byte): word {
+	# int x, y, z;
+	let $2: *word = alloca 1;	# x
+	let $3: *word = alloca 1;	# y
+	let $4: *word = alloca 1;	# z
+
+	# x = 3;
+	let $5: word = 3;
+	write $2, $5;
+
+	# y = 2;
+	let $6: word = 2;
+	write $3, $6;
+
+	# z = add(x, y);
+	let $7: word = read $2;
+	let $8: word = read $3;
+	let $9: word = call add, $7, $8;
+	write $4, $9;
+
+	# return z;
+	let $10: word = read $4;
+	ret $10;
+}

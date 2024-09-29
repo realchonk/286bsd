@@ -88,3 +88,12 @@ fn regimm2 (): word {
 	let $3: dword = call otherfunc, $2, 42;
 	ret $3;
 }
+
+fn ptradd (): dword {
+	let $0: *dword = alloca 16;
+	let $1: word = 5;
+	let $2: *dword = ptradd $0, $1;
+	let $3: dword = read $2;
+	let $4: *word = ptradd $0, 0;
+	ret $3;
+}

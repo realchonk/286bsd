@@ -205,6 +205,7 @@ enum expr_type {
 	EX_READ,
 	EX_CALL,
 	EX_PHI,
+	EX_PTRADD,
 };
 
 struct expr {
@@ -450,6 +451,17 @@ struct expr *e;
 
 		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
 		assert_dt_eq (dt, e->bin.r.dt);
+	} else if (strcmp (lval.s, "ptradd") == 0) {
+		e->type = EX_PTRADD;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &default_dt);
+		expect (';');
+
+		assert_dt_is_ptr (dt);
+		if (e->bin.r.dt->type != DT_WORD)
+			error ("ptradd requires word as second argument");
 	} else if (strcmp (lval.s, "read") == 0) {
 		e->type = EX_READ;
 		expect (TK_REG);
@@ -778,6 +790,10 @@ struct expr *e;
 		printf ("add $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
 		break;
+	case EX_PTRADD:
+		printf ("ptradd $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
 	case EX_READ:
 		printf ("read $%d", e->reg);
 		break;
@@ -1017,6 +1033,30 @@ int off;
 	return 0;
 }
 
+// constant multiply
+cmul (reg, i)
+enum x86_reg16 reg;
+{
+	char *r;
+	int x;
+
+	r = reg16[reg];
+
+	x = ffs (i);
+	if (x == 0) {
+		printf ("\txor %s, %s\n", r, r);
+		return 0;
+	}
+
+	if (i == (1 << (x - 1))) {
+		printf ("\tshr %s, %d\n", r, (x - 1));
+		return 0;
+	}
+
+	error ("cmul() not implemented for arbitrary constants");
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1024,7 +1064,7 @@ struct expr *e;
 {
 	struct regimm *ri;
 	char *s;
-	int i, cnt;
+	int i, cnt, sz;
 
 	switch (e->type) {
 	case EX_INT:
@@ -1053,6 +1093,20 @@ struct expr *e;
 		case DT_FPTR:
 			error ("cannot add pointers");
 			break;
+		}
+		break;
+	case EX_PTRADD:
+		load ("mov", &fn->regs[e->bin.l]);
+
+		sz = sizeof_dt (fn->regs[e->bin.l].dt.inner);
+
+		if (e->bin.r.is_imm) {
+			if (e->bin.r.imm != 0)
+				printf ("\tadd ax, %d\n", (int)(e->bin.r.imm & 0xffff) * sz);
+		} else {
+			loadw ("mov", CX, &fn->regs[e->bin.r.reg]);
+			cmul (CX, sz);
+			puts ("\tadd ax, cx");
 		}
 		break;
 	case EX_READ:

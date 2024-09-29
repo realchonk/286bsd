@@ -1,0 +1,28 @@
+- plain copy
+  let $0: word = 0;
+  let $1: word = $0;
+- constructing fat pointers
+  let $0: word = 24;
+  let $1: word = 0;
+  let $2: !byte = $0:$1;
+- pointer casts (between types)
+  let $0: *word = 0;
+  let $1: *byte = pcast $0;
+- fat pointer manipulation
+  let $0: !word = 0;
+  let $1: word = fatoff $0;
+  let $2: word = fatseg $0;
+- integer casts
+  let $0: word = 0;
+  let $1: dword = sext $0; # sign extend
+  let $2: dword = zext $0; # zero extend
+  let $3: byte = trunc $0; # truncate
+- pointer-integer casts
+  let $0: word = 0;
+  let $1: *word = cast $0;
+  let $2: word = cast $1;
+- more ALU ops
+- type inference
+  let $0: word = 0;
+  let $1: word = 2;
+  let $2 = add $0, $1;

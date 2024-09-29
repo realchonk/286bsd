@@ -4,6 +4,41 @@
 #include <stdio.h>
 #include <ctype.h>
 
+// use an arena to speed up memory allocations
+#define USE_ARENA 1
+
+// MEMORY
+
+#if USE_ARENA
+char arena[32768];
+size_t alen = 0;
+
+void *
+alloc (num)
+size_t num;
+{
+	void *ptr;
+
+	// TODO: consider returning heap memory
+	if (alen + num > sizeof (arena))
+		errx (1, "out of memory");
+
+	ptr = (void *)((size_t)arena + alen);
+	alen += num;
+	memset (ptr, 0, num);
+	return ptr;
+}
+
+reset (void)
+{
+	alen = 0;
+	return 0;
+}
+#else
+# define alloc(num) calloc (1, (num))
+# define reset()
+#endif
+
 // LEXER
 
 enum {
@@ -64,7 +99,7 @@ char *msg;
 lex (void)
 {
 	size_t cap, len;
-	char *s;
+	char *s, *t;
 	long i;
 	int ch;
 
@@ -80,12 +115,13 @@ begin:
 	} else if (isalpha (ch) || ch == '_') {
 		cap = 10;
 		len = 0;
-		s = malloc (cap + 1);
+		s = alloc (cap + 1);
 
 		while (isname (peekch ())) {
 			if (len == cap) {
 				cap *= 2;
-				s = realloc (s, cap + 1);
+				t = alloc (cap + 1);
+				memcpy (t, s, len);
 			}
 			s[len++] = nextch ();
 		}
@@ -275,7 +311,7 @@ struct dtype *dt;
 
 // PARSER
 
-#define new(T) ((T *)calloc (1, sizeof (T)))
+#define new(T) ((T *)alloc (sizeof (T)))
 #define expect(exp) (lex () != (exp) ? error (linenum, "expected " #exp) : 0)
 #define stalloc(fn, nbytes) ((fn)->stoff -= (((nbytes) + 1) & ~1))
 
@@ -602,6 +638,7 @@ parse (void)
 			memset (&fn, 0, sizeof (fn));
 			func (&fn);
 			gen (&fn);
+			reset ();
 		} else {
 		err:
 			error (linenum, "expected fn");

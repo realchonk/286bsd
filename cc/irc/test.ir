@@ -53,3 +53,12 @@ fn blocks (): word {
 	let $6: word = phi ($1: $4), ($2: $5);
 	ret $6;
 }
+
+fn long ($0: dword, $1: dword): dword {
+	let $2: *dword = alloca 1;
+	let $3: dword = add $0, $1;
+	write $2, $3;
+
+	let $4: dword = read $2;
+	ret $4;
+}

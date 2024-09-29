@@ -164,6 +164,7 @@ enum dtype_type {
 	DT_NONE,
 	DT_BYTE,
 	DT_WORD,
+	DT_DWORD,
 	DT_PTR,
 	DT_LABEL,
 };
@@ -276,6 +277,8 @@ struct dtype *dt;
 	case DT_PTR:
 	case DT_LABEL:
 		return 2;
+	case DT_DWORD:
+		return 4;
 	}
 }
 
@@ -335,6 +338,8 @@ struct dtype *dt;
 		dt->type = DT_BYTE;
 	} else if (strcmp (lval.s, "word") == 0) {
 		dt->type = DT_WORD;
+	} else if (strcmp (lval.s, "dword") == 0) {
+		dt->type = DT_DWORD;
 	} else {
 	err:
 		error (linenum, "expected dtype");
@@ -663,6 +668,9 @@ struct dtype *dt;
 	case DT_WORD:
 		printf ("word");
 		break;
+	case DT_DWORD:
+		printf ("dword");
+		break;
 	case DT_PTR:
 		putchar ('*');
 		print_dt (dt->inner);
@@ -738,113 +746,114 @@ struct ir *ir;
 
 // ASM MISC
 
-enum x86_reg {
+enum x86_reg8 {
+	AL,
+	BL,
+	CL,
+	DL,
+};
+
+enum x86_reg16 {
 	AX,
 	BX,
 	CX,
 	DX,
 };
 
-char *
-dt_reg (reg, dt)
-enum x86_reg reg;
-struct dtype *dt;
-{
-	switch (dt->type) {
-	case DT_NONE:
-		return error (0, "dt_reg(DT_NONE)"), NULL;
-	case DT_BYTE:
-		switch (reg) {
-		case AX:
-			return "al";
-		case BX:
-			return "bl";
-		case CX:
-			return "cl";
-		case DX:
-			return "dl";
-		}
-		break;
-	case DT_WORD:
-	case DT_PTR:
-	case DT_LABEL:
-		switch (reg) {
-		case AX:
-			return "ax";
-		case BX:
-			return "bx";
-		case CX:
-			return "cx";
-		case DX:
-			return "dx";
-		}
-		break;
-	}
-}
-
-char *
-dt_size (dt)
-struct dtype *dt;
-{
-	switch (dt->type) {
-	case DT_NONE:
-		return error (0, "dt_size(DT_NONE)"), NULL;
-	case DT_BYTE:
-		return "byte";
-	case DT_WORD:
-	case DT_PTR:
-	case DT_LABEL:
-		return "word";
-	}
-}
+char *reg16[] = { "ax", "bx", "cx", "dx" };
+char *reg8[] = { "al", "bl", "cl", "dl" };
 
 // ASM GEN
 
-load (dest, src)
-enum x86_reg dest;
+loadb (instr, dest, src)
+char *instr;
+enum x86_reg8 dest;
 struct reg *src;
 {
-	char *reg, *size;
-
-	reg = dt_reg (dest, &src->dt);
-
+	assert (sizeof_dt (&src->dt) == 1);
 	switch (src->type) {
 	case R_NONE:
-		return error (0, "load(R_NONE)");
+	case R_LABEL:
+		abort ();
+		break;
 	case R_LOCAL:
 	case R_PARAM:
-		size = dt_size (&src->dt);
-		printf ("\tmov %s, %s [bp + %d]\n",
-			reg, size, src->off);
-		break;
-	case R_LABEL:
-		printf ("\tlea %s, [.L%d]\n", reg, src->off);
+		printf ("\t%s %s, byte [bp + %d]\n",
+			instr, reg8[dest], src->off);
 		break;
 	}
 	return 0;
 }
 
-store (dest, src)
-struct reg *dest;
-enum x86_reg src;
+loadw (instr, dest, src)
+char *instr;
+enum x86_reg16 dest;
+struct reg *src;
 {
-	char *reg, *size;
-
-	switch (dest->type) {
+	assert (sizeof_dt (&src->dt) == 2);
+	switch (src->type) {
 	case R_NONE:
-		return error (0, "store(R_NONE)");
-	case R_LOCAL:
-		reg = dt_reg (src, &dest->dt);
-		size = dt_size (&dest->dt);
-		printf ("\tmov %s [bp + %d], %s\n",
-			size, dest->off, reg);
+		abort ();
 		break;
+	case R_LOCAL:
 	case R_PARAM:
-		return error (0, "store(R_PARAM)");
+		printf ("\t%s %s, word [bp + %d]\n",
+			instr, reg16[dest], src->off);
+		break;
 	case R_LABEL:
-		return error (0, "store(R_LABEL)");
+		printf ("\tlea %s, [.L%d]\n",
+			reg16[dest], src->off);
+		break;
 	}
 	return 0;
+}
+
+loadpw (instr, dest, src, off)
+char *instr;
+enum x86_reg16 dest;
+struct reg *src;
+{
+	switch (src->type) {
+	case R_NONE:
+	case R_LABEL:
+		abort ();
+		break;
+	case R_LOCAL:
+	case R_PARAM:
+		printf ("\t%s %s, word [bp + %d + %d]\n",
+			instr, reg16[dest], src->off, off);
+		break;
+	}
+	return 0;
+}
+
+loaddw (instr, src)
+char *instr;
+struct reg *src;
+{
+	assert (sizeof_dt (&src->dt) == 4);
+	loadpw (instr, AX, src, 0);
+	loadpw (instr, DX, src, 2);
+	return 0;
+}
+
+load (instr, src)
+char *instr;
+struct reg *src;
+{
+	switch (src->dt.type) {
+	case DT_NONE:
+		abort ();
+		return 0;
+	case DT_BYTE:
+		return loadb (instr, AL, src);
+	case DT_WORD:
+	case DT_PTR:
+	case DT_LABEL:
+		return loadw (instr, AX, src);
+	case DT_DWORD:
+		return loaddw (instr, src);
+	}
 }
 
 gen_expr (fn, dt, e)
@@ -857,19 +866,67 @@ struct expr *e;
 
 	switch (e->type) {
 	case EX_INT:
-		printf ("\tmov ax, %d\n", e->i);
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+			abort ();
+			break;
+		case DT_BYTE:
+			printf ("\tmov al, %d\n", e->i);
+			break;
+		case DT_WORD:
+		case DT_PTR:
+			printf ("\tmov ax, %d\n", e->i);
+			break;
+		case DT_DWORD:
+			printf ("\tmov ax, %d\n", (int)(e->i & 0xffff));
+			printf ("\tmov dx, %d\n", (int)(e->i >> 16));
+			break;
+		}
 		break;
 	case EX_ALLOCA:
+		assert (dt->type == DT_PTR);
 		printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
 		break;
 	case EX_ADD:
-		load (AX, &fn->regs[e->bin.l]);
-		load (DX, &fn->regs[e->bin.l]);
-		puts ("\tadd ax, dx");
+		load ("mov", &fn->regs[e->bin.l]);
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+			abort ();
+			break;
+		case DT_BYTE:
+			loadb ("add", AL, &fn->regs[e->bin.r]);
+			break;
+		case DT_WORD:
+		case DT_PTR:
+			loadw ("add", AX, &fn->regs[e->bin.r]);
+			break;
+		case DT_DWORD:
+			loadpw ("add", AX, &fn->regs[e->bin.r], 0);
+			loadpw ("adc", DX, &fn->regs[e->bin.r], 2);
+			break;
+		}
 		break;
 	case EX_READ:
-		load (BX, &fn->regs[e->i]);
-		printf ("\tmov %s, %s [bx]\n", dt_reg (AX, dt), dt_size (dt));
+		loadw ("mov", BX, &fn->regs[e->i]);
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+			abort ();
+			break;
+		case DT_BYTE:
+			puts ("\tmov al, byte [bx]");
+			break;
+		case DT_WORD:
+		case DT_PTR:
+			puts ("\tmov ax, word [bx]");
+			break;
+		case DT_DWORD:
+			puts ("\tmov ax, word [bx + 0]");
+			puts ("\tmov dx, word [bx + 2]");
+			break;
+		}
 		break;
 	case EX_CALL:
 		cnt = 0;
@@ -878,13 +935,18 @@ struct expr *e;
 			
 			switch (r->dt.type) {
 			case DT_NONE:
-				error (0, "gen_expr(): call with DT_NONE");
+				abort ();
 				break;
 			case DT_BYTE:
 			case DT_WORD:
 			case DT_PTR:
 			case DT_LABEL:
-				load (AX, r);
+				loadw ("mov", AX, r);
+				puts ("\tpush ax");
+				break;
+			case DT_DWORD:
+				loaddw ("mov", r);
+				puts ("\tpush dx");
 				puts ("\tpush ax");
 				break;
 			}
@@ -944,7 +1006,7 @@ struct reg *to;
 
 	for (i = 0; i < e->phi.num; ++i) {
 		if (e->phi.from[i] == mylbl) {
-			load (AX, &fn->regs[e->phi.val[i]]);
+			loadw ("mov", AX, &fn->regs[e->phi.val[i]]);
 			return 0;
 		}
 	}
@@ -956,7 +1018,7 @@ gen_ir (fn, ir)
 struct func *fn;
 struct ir *ir;
 {
-	struct dtype *dt;
+	struct reg *r;
 	char *reg;
 
 	printf ("\t; ");
@@ -964,18 +1026,59 @@ struct ir *ir;
 
 	switch (ir->type) {
 	case IR_LET:
-		gen_expr (fn, &fn->regs[ir->let.dest].dt, &ir->let.val);
-		store (&fn->regs[ir->let.dest], AX);
+		r = &fn->regs[ir->let.dest];
+		if (r->type != R_LOCAL)
+			goto err;
+		gen_expr (fn, &r->dt, &ir->let.val);
+
+		switch (r->dt.type) {
+		case DT_NONE:
+		case DT_LABEL:
+		err:
+			error (ir->line, "broken let");
+		case DT_BYTE:
+			printf ("\tmov byte [bp + %d], al\n", r->off);
+			break;
+		case DT_WORD:
+		case DT_PTR:
+			printf ("\tmov word [bp + %d], ax\n", r->off);
+			break;
+		case DT_DWORD:
+			printf ("\tmov word [bp + %d + 0], ax\n", r->off);
+			printf ("\tmov word [bp + %d + 2], dx\n", r->off);
+			break;
+		}
 		break;
 	case IR_WRITE:
-		load (AX, &fn->regs[ir->write.src]);
-		load (BX, &fn->regs[ir->write.dest]);
-		dt = &fn->regs[ir->write.src].dt;
-		printf ("\tmov %s [bx], %s\n", dt_size (dt), dt_reg (AX, dt));
+		loadw ("mov", BX, &fn->regs[ir->write.dest]);
+
+		r = &fn->regs[ir->write.src];
+		switch (r->dt.type) {
+		case DT_NONE:
+		case DT_LABEL:
+			abort ();
+			break;
+		case DT_BYTE:
+			loadb ("mov", AL, r);
+			puts ("\tmov byte [bx], al");
+			break;
+		case DT_WORD:
+		case DT_PTR:
+			loadw ("mov", AX, r);
+			puts ("\tmov word [bx], ax");
+			break;
+		case DT_DWORD:
+			loaddw ("mov", r);
+			puts ("\tmov word [bx + 0], ax");
+			puts ("\tmov word [bx + 2], dx");
+			break;
+		}
 		break;
 	case IR_RET:
-		load (AX, &fn->regs[ir->reg]);
 		assert (ir->next == NULL);
+
+		r = &fn->regs[ir->reg];
+		load ("mov", r);
 		if (ir->bnext != NULL)
 			puts ("\tjmp .ret");
 		break;
@@ -987,9 +1090,26 @@ struct ir *ir;
 		printf ("\tjmp .L%d\n", ir->reg);
 		break;
 	case IR_BR:
-		load (AX, &fn->regs[ir->br.cond]);
-		reg = dt_reg (AX, &fn->regs[ir->br.cond].dt);
-		printf ("\ttest %s, %s\n", reg, reg);
+		r = &fn->regs[ir->br.cond];
+		load ("mov", r);
+
+		switch (r->dt.type) {
+		case DT_NONE:
+		case DT_LABEL:
+			abort ();
+			break;
+		case DT_BYTE:
+			puts ("\ttest al, al");
+			break;
+		case DT_DWORD:
+			puts ("\tor ax, dx");
+			// fallthrough
+		case DT_WORD:
+		case DT_PTR:
+			puts ("\ttest ax, ax");
+			break;
+		}
+
 		check_phi (fn, ir, &fn->regs[ir->br.yes]);
 		printf ("\tjnz .L%d\n", ir->br.yes);
 		check_phi (fn, ir, &fn->regs[ir->br.no]);

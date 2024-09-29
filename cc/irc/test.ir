@@ -75,3 +75,11 @@ fn farptr (): word {
 fn regimm (): word {
 	ret 4;
 }
+
+fn regimm2 (): word {
+	let $0: *dword = alloca 1;
+	write $0, 42;
+	let $1: dword = read $0;
+	let $2: dword = add $1, 3;
+	ret $2;
+}

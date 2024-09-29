@@ -185,6 +185,15 @@ struct dtype {
 	struct dtype *inner;
 };
 
+struct regimm {
+	int is_imm;
+	struct dtype *dt;
+	union {
+		int reg;
+		long imm;
+	};
+};
+
 enum expr_type {
 	EX_INT,
 	EX_ALLOCA,
@@ -204,7 +213,8 @@ struct expr {
 			int off;
 		} alloca;
 		struct {
-			int l, r;
+			int l;
+			struct regimm r;
 		} bin;
 		struct {
 			char *fn;
@@ -214,15 +224,6 @@ struct expr {
 		struct {
 			int from[8], val[8], num;
 		} phi;
-	};
-};
-
-struct regimm {
-	int is_imm;
-	struct dtype *dt;
-	union {
-		int reg;
-		long imm;
 	};
 };
 
@@ -381,6 +382,30 @@ struct dtype *dt;
 	return 0;
 }
 
+regimm (ri, dt)
+struct regimm *ri;
+struct dtype *dt;
+{
+	int tk;
+
+	ri->dt = dt;
+
+	tk = lex ();
+	switch (tk) {
+	case TK_REG:
+		ri->is_imm = 0;
+		ri->reg = lval.i;
+		break;
+	case TK_INT:
+		ri->is_imm = 1;
+		ri->imm = lval.i;
+		break;
+	default:
+		error ("expected register or immediate");
+	}
+	return 0;
+}
+
 expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -415,12 +440,11 @@ struct expr *e;
 		expect (TK_REG);
 		e->bin.l = lval.i;
 		expect (',');
-		expect (TK_REG);
-		e->bin.r = lval.i;
+		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
 		expect (';');
 
 		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		assert_dt_eq (dt, &fn->regs[e->bin.r].dt);
+		assert_dt_eq (dt, e->bin.r.dt);
 	} else if (strcmp (lval.s, "read") == 0) {
 		e->type = EX_READ;
 		expect (TK_REG);
@@ -473,30 +497,6 @@ struct expr *e;
 	} else {
 	err:
 		error ("expected expr");
-	}
-	return 0;
-}
-
-regimm (ri, dt)
-struct regimm *ri;
-struct dtype *dt;
-{
-	int tk;
-
-	ri->dt = dt;
-
-	tk = lex ();
-	switch (tk) {
-	case TK_REG:
-		ri->is_imm = 0;
-		ri->reg = lval.i;
-		break;
-	case TK_INT:
-		ri->is_imm = 1;
-		ri->imm = lval.i;
-		break;
-	default:
-		error ("expected register or immediate");
 	}
 	return 0;
 }
@@ -744,6 +744,17 @@ struct dtype *dt;
 	return 0;
 }
 
+print_ri (ri)
+struct regimm *ri;
+{
+	if (ri->is_imm) {
+		printf ("%ld", ri->imm);
+	} else {
+		printf ("$%d", ri->reg);
+	}
+	return 0;
+}
+
 print_ex (e)
 struct expr *e;
 {
@@ -757,7 +768,8 @@ struct expr *e;
 		printf ("alloca %d", e->alloca.num);
 		break;
 	case EX_ADD:
-		printf ("add $%d, $%d", e->bin.l, e->bin.r);
+		printf ("add $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
 		break;
 	case EX_READ:
 		printf ("read $%d", e->reg);
@@ -772,17 +784,6 @@ struct expr *e;
 		for (i = 1; i < e->phi.num; ++i)
 			printf (", ($%d: $%d)", e->phi.from[i], e->phi.val[i]);
 		break;
-	}
-	return 0;
-}
-
-print_ri (ri)
-struct regimm *ri;
-{
-	if (ri->is_imm) {
-		printf ("%ld", ri->imm);
-	} else {
-		printf ("$%d", ri->reg);
 	}
 	return 0;
 }
@@ -990,6 +991,23 @@ struct regimm *ri;
 	}
 }
 
+// yes, this function is absolutely ridiculous
+loadpwri (fn, instr, dest, src, off)
+struct func *fn;
+char *instr;
+enum x86_reg16 dest;
+struct regimm *src;
+int off;
+{
+	if (src->is_imm) {
+		printf ("\t%s %s, %d\n", instr, reg16[dest],
+			(int)((src->imm >> (off * 8)) & 0xffff));
+	} else {
+		loadpw (instr, dest, &fn->regs[src->reg], off);
+	}
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1016,11 +1034,11 @@ struct expr *e;
 			break;
 		case DT_BYTE:
 		case DT_WORD:
-			load ("add", &fn->regs[e->bin.r]);
+			loadri (fn, "add", &e->bin.r);
 			break;
 		case DT_DWORD:
-			loadpw ("add", AX, &fn->regs[e->bin.r], 0);
-			loadpw ("adc", DX, &fn->regs[e->bin.r], 2);
+			loadpwri (fn, "add", AX, &e->bin.r, 0);
+			loadpwri (fn, "adc", DX, &e->bin.r, 2);
 			break;
 		case DT_PTR:
 		case DT_FPTR:

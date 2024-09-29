@@ -114,3 +114,8 @@ fn alu ($0: qword, $1: qword): qword {
 
 	ret 0;
 }
+
+fn copy ($0: word): word {
+	let $1: word = $0;
+	ret $1;
+}

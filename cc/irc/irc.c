@@ -200,6 +200,7 @@ struct regimm {
 };
 
 enum expr_type {
+	EX_REG,
 	EX_INT,
 	EX_ALLOCA,
 	EX_ADD,
@@ -433,6 +434,11 @@ struct expr *e;
 	if (tk == TK_INT) {
 		e->type = EX_INT;
 		e->i = lval.i;
+		expect (';');
+		return 0;
+	} else if (tk == TK_REG) {
+		e->type = EX_REG;
+		e->reg = lval.i;
 		expect (';');
 		return 0;
 	}
@@ -835,6 +841,9 @@ struct expr *e;
 	case EX_INT:
 		printf ("%ld", e->i);
 		break;
+	case EX_REG:
+		printf ("$%d", e->reg);
+		break;
 	case EX_ALLOCA:
 		printf ("alloca %d", e->alloca.num);
 		break;
@@ -1217,6 +1226,9 @@ struct expr *e;
 	switch (e->type) {
 	case EX_INT:
 		loadimm ("mov", dt, e->i);
+		break;
+	case EX_REG:
+		load ("mov", &fn->regs[e->reg]);
 		break;
 	case EX_ALLOCA:
 		assert (dt->type == DT_PTR);

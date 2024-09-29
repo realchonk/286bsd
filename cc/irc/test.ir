@@ -54,11 +54,20 @@ fn blocks (): word {
 	ret $6;
 }
 
-fn long ($0: dword, $1: dword): dword {
+fn _long ($0: dword, $1: dword): dword {
 	let $2: *dword = alloca 1;
 	let $3: dword = add $0, $1;
 	write $2, $3;
 
 	let $4: dword = read $2;
 	ret $4;
+}
+
+fn farptr (): word {
+	let $0: word = 0;
+	let $1: !byte = 0;
+	let $2: byte = 42;
+	write $1, $2;
+
+	ret $0;
 }

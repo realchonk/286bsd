@@ -142,6 +142,7 @@ begin:
 	case ',':
 	case '=':
 	case '*':
+	case '!':
 		return nextch ();
 	case '#':
 		while (1) {
@@ -166,6 +167,7 @@ enum dtype_type {
 	DT_WORD,
 	DT_DWORD,
 	DT_PTR,
+	DT_FPTR,
 	DT_LABEL,
 };
 
@@ -279,6 +281,7 @@ struct dtype *dt;
 	case DT_LABEL:
 		return 2;
 	case DT_DWORD:
+	case DT_FPTR:
 		return 4;
 	}
 }
@@ -298,7 +301,7 @@ struct dtype *a, *b;
 assert_dt_ptr (ptr, to)
 struct dtype *ptr, *to;
 {
-	if (ptr->type != DT_PTR)
+	if (ptr->type != DT_PTR && ptr->type != DT_FPTR)
 		return error (linenum, "not a pointer");
 
 	return assert_dt_eq (ptr->inner, to);
@@ -328,6 +331,10 @@ struct dtype *dt;
 
 	if (tk == '*') {
 		dt->type = DT_PTR;
+		dt->inner = new (struct dtype);
+		return dtype (dt->inner);
+	} else if (tk == '!') {
+		dt->type = DT_FPTR;
 		dt->inner = new (struct dtype);
 		return dtype (dt->inner);
 	}
@@ -676,6 +683,10 @@ struct dtype *dt;
 		putchar ('*');
 		print_dt (dt->inner);
 		break;
+	case DT_FPTR:
+		putchar ('&');
+		print_dt (dt->inner);
+		break;
 	case DT_LABEL:
 		printf ("label");
 		break;
@@ -853,7 +864,26 @@ struct reg *src;
 	case DT_LABEL:
 		return loadw (instr, AX, src);
 	case DT_DWORD:
+	case DT_FPTR:
 		return loaddw (instr, src);
+	}
+}
+
+char *
+loadptr (ptr)
+struct reg *ptr;
+{
+	switch (ptr->dt.type) {
+	case DT_PTR:
+		loadw ("mov", BX, ptr);
+		return "bx";
+	case DT_FPTR:
+		loadpw ("mov", BX, ptr, 0);
+		loadpw ("mov", DX, ptr, 2);
+		puts ("\tmov es, dx");
+		return "es:bx";
+	default:
+		return abort (), NULL;
 	}
 }
 
@@ -863,6 +893,7 @@ struct dtype *dt;
 struct expr *e;
 {
 	struct reg *r;
+	char *s;
 	int i, cnt;
 
 	switch (e->type) {
@@ -888,6 +919,7 @@ struct expr *e;
 			}
 			break;
 		case DT_DWORD:
+		case DT_FPTR:
 			printf ("\tmov ax, %d\n", (int)(e->i & 0xffff));
 			printf ("\tmov dx, %d\n", (int)(e->i >> 16));
 			break;
@@ -906,32 +938,36 @@ struct expr *e;
 			break;
 		case DT_BYTE:
 		case DT_WORD:
-		case DT_PTR:
 			load ("add", &fn->regs[e->bin.r]);
 			break;
 		case DT_DWORD:
 			loadpw ("add", AX, &fn->regs[e->bin.r], 0);
 			loadpw ("adc", DX, &fn->regs[e->bin.r], 2);
 			break;
+		case DT_PTR:
+		case DT_FPTR:
+			error (0, "cannot add pointers");
+			break;
 		}
 		break;
 	case EX_READ:
-		loadw ("mov", BX, &fn->regs[e->reg]);
+		s = loadptr (&fn->regs[e->reg]);
 		switch (dt->type) {
 		case DT_NONE:
 		case DT_LABEL:
 			abort ();
 			break;
 		case DT_BYTE:
-			puts ("\tmov al, byte [bx]");
+			printf ("\tmov al, byte [%s]\n", s);
 			break;
 		case DT_WORD:
 		case DT_PTR:
-			puts ("\tmov ax, word [bx]");
+			printf ("\tmov ax, word [%s]\n", s);
 			break;
 		case DT_DWORD:
-			puts ("\tmov ax, word [bx + 0]");
-			puts ("\tmov dx, word [bx + 2]");
+		case DT_FPTR:
+			printf ("\tmov ax, word [%s + 0]\n", s);
+			printf ("\tmov dx, word [%s + 2]\n", s);
 			break;
 		}
 		break;
@@ -952,6 +988,7 @@ struct expr *e;
 				puts ("\tpush ax");
 				break;
 			case DT_DWORD:
+			case DT_FPTR:
 				loaddw ("mov", r);
 				puts ("\tpush dx");
 				puts ("\tpush ax");
@@ -1051,13 +1088,14 @@ struct ir *ir;
 			printf ("\tmov word [bp + %d], ax\n", r->off);
 			break;
 		case DT_DWORD:
+		case DT_FPTR:
 			printf ("\tmov word [bp + %d + 0], ax\n", r->off);
 			printf ("\tmov word [bp + %d + 2], dx\n", r->off);
 			break;
 		}
 		break;
 	case IR_WRITE:
-		loadw ("mov", BX, &fn->regs[ir->write.dest]);
+		reg = loadptr (&fn->regs[ir->write.dest]);
 
 		r = &fn->regs[ir->write.src];
 		switch (r->dt.type) {
@@ -1067,17 +1105,18 @@ struct ir *ir;
 			break;
 		case DT_BYTE:
 			loadb ("mov", AL, r);
-			puts ("\tmov byte [bx], al");
+			printf ("\tmov byte [%s], al\n", reg);
 			break;
 		case DT_WORD:
 		case DT_PTR:
 			loadw ("mov", AX, r);
-			puts ("\tmov word [bx], ax");
+			printf ("\tmov word [%s], ax\n", reg);
 			break;
 		case DT_DWORD:
+		case DT_FPTR:
 			loaddw ("mov", r);
-			puts ("\tmov word [bx + 0], ax");
-			puts ("\tmov word [bx + 2], dx");
+			printf ("\tmov word [%s + 0], ax\n", reg);
+			printf ("\tmov word [%s + 2], dx\n", reg);
 			break;
 		}
 		break;
@@ -1109,6 +1148,7 @@ struct ir *ir;
 			puts ("\ttest al, al");
 			break;
 		case DT_DWORD:
+		case DT_FPTR:
 			puts ("\tor ax, dx");
 			// fallthrough
 		case DT_WORD:

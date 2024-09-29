@@ -183,7 +183,11 @@ enum dtype_type {
 struct dtype {
 	enum dtype_type type;
 	struct dtype *inner;
+} default_dt = {
+	DT_WORD,
+	NULL	
 };
+
 
 struct regimm {
 	int is_imm;
@@ -219,7 +223,7 @@ struct expr {
 		struct {
 			char *fn;
 			int nargs;
-			int args[8];
+			struct regimm args[8];
 		} call;
 		struct {
 			int from[8], val[8], num;
@@ -411,6 +415,7 @@ struct func *fn;
 struct dtype *dt;
 struct expr *e;
 {
+	struct regimm *ri;
 	int tk;
 
 	tk = lex ();
@@ -459,8 +464,10 @@ struct expr *e;
 		e->call.nargs = 0;
 
 		while ((tk = lex ()) == ',') {
-			expect (TK_REG);
-			e->call.args[e->call.nargs++] = lval.i;
+			ri = &e->call.args[e->call.nargs++];
+			regimm (ri, &default_dt);
+			if (!ri->is_imm)
+				ri->dt = &fn->regs[ri->reg].dt;
 		}
 
 		if (tk != ';')
@@ -776,8 +783,10 @@ struct expr *e;
 		break;
 	case EX_CALL:
 		printf ("call %s", e->call.fn);
-		for (i = 0; i < e->call.nargs; ++i)
-			printf (", $%d", e->call.args[i]);
+		for (i = 0; i < e->call.nargs; ++i) {
+			printf (", ");
+			print_ri (&e->call.args[i]);
+		}
 		break;
 	case EX_PHI:
 		printf ("phi ($%d: $%d)", e->phi.from[0], e->phi.val[0]);
@@ -1013,7 +1022,7 @@ struct func *fn;
 struct dtype *dt;
 struct expr *e;
 {
-	struct reg *r;
+	struct regimm *ri;
 	char *s;
 	int i, cnt;
 
@@ -1070,9 +1079,10 @@ struct expr *e;
 	case EX_CALL:
 		cnt = 0;
 		for (i = e->call.nargs - 1; i >= 0; --i) {
-			r = &fn->regs[e->call.args[i]];
+			ri = &e->call.args[i];
+			loadri (fn, "mov", ri);
 			
-			switch (r->dt.type) {
+			switch (ri->dt->type) {
 			case DT_NONE:
 				abort ();
 				break;
@@ -1080,18 +1090,16 @@ struct expr *e;
 			case DT_WORD:
 			case DT_PTR:
 			case DT_LABEL:
-				loadw ("mov", AX, r);
 				puts ("\tpush ax");
 				break;
 			case DT_DWORD:
 			case DT_FPTR:
-				loaddw ("mov", r);
 				puts ("\tpush dx");
 				puts ("\tpush ax");
 				break;
 			}
 
-			cnt += sizeof_dt (&r->dt);
+			cnt += sizeof_dt (ri->dt);
 		}
 		printf ("\tcall %s\n", e->call.fn);
 		printf ("\tadd sp, %d\n", cnt);

@@ -105,9 +105,12 @@ fn qwords (): qword {
 	ret $2;
 }
 
-fn alu ($0: word, $1: word): word {
-	let $2: word = add $0, $1;
-	let $3: word = sub $0, $1;
+fn alu ($0: qword, $1: qword): qword {
+	let $2: qword = add $0, $1;
+	let $3: qword = sub $0, $1;
+	let $4: qword = and $0, $1;
+	let $5: qword = or  $0, $1;
+	let $6: qword = xor $0, $1;
 
 	ret 0;
 }

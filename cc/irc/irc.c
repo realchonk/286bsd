@@ -204,6 +204,9 @@ enum expr_type {
 	EX_ALLOCA,
 	EX_ADD,
 	EX_SUB,
+	EX_AND,
+	EX_OR,
+	EX_XOR,
 	EX_READ,
 	EX_CALL,
 	EX_PHI,
@@ -459,6 +462,36 @@ struct expr *e;
 		assert_dt_eq (dt, e->bin.r.dt);
 	} else if (strcmp (lval.s, "sub") == 0) {
 		e->type = EX_SUB;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
+		expect (';');
+
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		assert_dt_eq (dt, e->bin.r.dt);
+	} else if (strcmp (lval.s, "and") == 0) {
+		e->type = EX_AND;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
+		expect (';');
+
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		assert_dt_eq (dt, e->bin.r.dt);
+	} else if (strcmp (lval.s, "or") == 0) {
+		e->type = EX_OR;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
+		expect (';');
+
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		assert_dt_eq (dt, e->bin.r.dt);
+	} else if (strcmp (lval.s, "xor") == 0) {
+		e->type = EX_XOR;
 		expect (TK_REG);
 		e->bin.l = lval.i;
 		expect (',');
@@ -813,6 +846,18 @@ struct expr *e;
 		printf ("sub $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
 		break;
+	case EX_AND:
+		printf ("and $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_OR:
+		printf ("or $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_XOR:
+		printf ("xor $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
 	case EX_PTRADD:
 		printf ("ptradd $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
@@ -1134,6 +1179,32 @@ struct expr *e;
 	return 0;
 }
 
+alu (instr, fn, dt, e)
+char *instr;
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+{
+	load ("mov", &fn->regs[e->bin.l]);
+	switch (dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+		abort ();
+		break;
+	case DT_PTR:
+	case DT_FPTR:
+		error ("invalid alu operation on pointers");
+		break;
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DWORD:
+	case DT_QWORD:
+		loadri (fn, instr, &e->bin.r);
+		break;
+	}
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1155,7 +1226,16 @@ struct expr *e;
 		addsub ("add", "adc", fn, dt, e);
 		break;
 	case EX_SUB:
-		addsub ("sub", "sbc", fn, dt, e);
+		addsub ("sub", "sbb", fn, dt, e);
+		break;
+	case EX_AND:
+		alu ("and", fn, dt, e);
+		break;
+	case EX_OR:
+		alu ("or", fn, dt, e);
+		break;
+	case EX_XOR:
+		alu ("xor", fn, dt, e);
 		break;
 	case EX_PTRADD:
 		load ("mov", &fn->regs[e->bin.l]);

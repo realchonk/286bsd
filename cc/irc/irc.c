@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <err.h>
 
 // use an arena to speed up memory allocations
 #define USE_ARENA 1
@@ -101,8 +102,7 @@ isname (ch)
 error (msg)
 char *msg;
 {
-	fprintf (stderr, "%d: error: %s\n", linenum, msg);
-	exit (1);
+	err (1, "%d: error: %s\n", linenum, msg);
 	return -1;
 }
 
@@ -110,7 +110,6 @@ lex (void)
 {
 	size_t cap, len;
 	char *s, *t;
-	long i;
 	int ch;
 
 begin:

@@ -71,3 +71,7 @@ fn farptr (): word {
 
 	ret $0;
 }
+
+fn regimm (): word {
+	ret 4;
+}

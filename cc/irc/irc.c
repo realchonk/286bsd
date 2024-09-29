@@ -102,7 +102,7 @@ isname (ch)
 error (msg)
 char *msg;
 {
-	err (1, "%d: error: %s\n", linenum, msg);
+	errx (1, "%d: error: %s", linenum, msg);
 	return -1;
 }
 
@@ -563,7 +563,7 @@ struct ir *ir;
 		regimm (&ir->ri, &fn->dt);
 		expect (';');
 
-		assert_dt_eq (&fn->dt, &fn->regs[ir->reg].dt);
+		assert_dt_eq (&fn->dt, ir->ri.dt);
 		return 1;
 	} else if (strcmp (lval.s, "goto") == 0) {
 		ir->type = IR_GOTO;
@@ -654,10 +654,11 @@ rt:
 			prev = ir;
 			break;
 		case 1: // end of basic block
-			if (prev == NULL || bhead == NULL)
+			if (bhead == NULL)
 				error ("invalid end of a basic block");
 
-			prev->next = ir;
+			if (prev != NULL)
+				prev->next = ir;
 
 			ir->prev = prev;
 			ir->bprev = bprev;
@@ -688,6 +689,7 @@ rt:
 
 parse (void)
 {
+	extern gen ();
 	struct func fn;
 	int tk;
 
@@ -803,7 +805,9 @@ struct ir *ir;
 		puts (";");
 		break;
 	case IR_RET:
-		printf ("ret $%d;\n", ir->reg);
+		printf ("ret ");
+		print_ri (&ir->ri);
+		puts (";");
 		break;
 	case IR_LABEL:
 		printf ("%d:\n", ir->reg);
@@ -1196,8 +1200,7 @@ struct ir *ir;
 	case IR_RET:
 		assert (ir->next == NULL);
 
-		r = &fn->regs[ir->reg];
-		load ("mov", r);
+		loadri (fn, "mov", &ir->ri);
 		if (ir->bnext != NULL)
 			puts ("\tjmp .ret");
 		break;

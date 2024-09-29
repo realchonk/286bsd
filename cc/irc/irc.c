@@ -208,13 +208,22 @@ struct expr {
 	};
 };
 
+struct regimm {
+	int is_imm;
+	struct dtype *dt;
+	union {
+		int reg;
+		long imm;
+	};
+};
+
 enum ir_type {
-	IR_LET,
-	IR_WRITE,
-	IR_RET,
-	IR_LABEL,
-	IR_GOTO,
-	IR_BR,
+	IR_LET,		// .let
+	IR_WRITE,	// .write
+	IR_RET,		// .ri
+	IR_LABEL,	// .reg
+	IR_GOTO,	// .reg
+	IR_BR,		// .br
 };
 
 struct ir {
@@ -226,13 +235,15 @@ struct ir {
 
 	union {
 		int reg;
+		struct regimm ri;
 		struct {
 			int dest;
 			struct dtype dt;
 			struct expr val;
 		} let;
 		struct {
-			int dest, src;
+			int dest;
+			struct regimm src;
 		} write;
 		struct {
 			int cond, yes, no;
@@ -298,12 +309,18 @@ struct dtype *a, *b;
 	return 0;
 }
 
-assert_dt_ptr (ptr, to)
-struct dtype *ptr, *to;
+assert_dt_is_ptr (ptr)
+struct dtype *ptr;
 {
 	if (ptr->type != DT_PTR && ptr->type != DT_FPTR)
 		return error (linenum, "not a pointer");
+	return 0;
+}
 
+assert_dt_ptr (ptr, to)
+struct dtype *ptr, *to;
+{
+	assert_dt_is_ptr (ptr);
 	return assert_dt_eq (ptr->inner, to);
 }
 
@@ -451,6 +468,30 @@ struct expr *e;
 	return 0;
 }
 
+regimm (ri, dt)
+struct regimm *ri;
+struct dtype *dt;
+{
+	int tk;
+
+	ri->dt = dt;
+
+	tk = lex ();
+	switch (tk) {
+	case TK_REG:
+		ri->is_imm = 0;
+		ri->reg = lval.i;
+		break;
+	case TK_INT:
+		ri->is_imm = 1;
+		ri->imm = lval.i;
+		break;
+	default:
+		error (linenum, "expected register or immediate");
+	}
+	return 0;
+}
+
 // return:
 // 0 = normal IR
 // 1 = end of basic block (e.g. goto)
@@ -504,16 +545,15 @@ struct ir *ir;
 		expect (TK_REG);
 		ir->write.dest = lval.i;
 		expect (',');
-		expect (TK_REG);
-		ir->write.src = lval.i;
+		assert_dt_is_ptr (&fn->regs[ir->write.dest].dt);
+		regimm (&ir->write.src, fn->regs[ir->write.dest].dt.inner);
 		expect (';');
 
-		assert_dt_ptr (&fn->regs[ir->write.dest].dt, &fn->regs[ir->write.src].dt);
+		assert_dt_ptr (&fn->regs[ir->write.dest].dt, ir->write.src.dt);
 		return 0;
 	} else if (strcmp (lval.s, "ret") == 0) {
 		ir->type = IR_RET;
-		expect (TK_REG);
-		ir->reg = lval.i;
+		regimm (&ir->ri, &fn->dt);
 		expect (';');
 
 		assert_dt_eq (&fn->dt, &fn->regs[ir->reg].dt);
@@ -726,6 +766,17 @@ struct expr *e;
 	return 0;
 }
 
+print_ri (ri)
+struct regimm *ri;
+{
+	if (ri->is_imm) {
+		printf ("%ld", ri->imm);
+	} else {
+		printf ("$%d", ri->reg);
+	}
+	return 0;
+}
+
 print_ir (ir)
 struct ir *ir;
 {
@@ -738,7 +789,9 @@ struct ir *ir;
 		puts (";");
 		break;
 	case IR_WRITE:
-		printf ("write $%d, $%d;\n", ir->write.dest, ir->write.src);
+		printf ("write $%d, ", ir->write.dest);
+		print_ri (&ir->write.src);
+		puts (";");
 		break;
 	case IR_RET:
 		printf ("ret $%d;\n", ir->reg);
@@ -887,6 +940,43 @@ struct reg *ptr;
 	}
 }
 
+loadimm (instr, dt, imm)
+char *instr;
+struct dtype *dt;
+long imm;
+{
+	switch (dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+		abort ();
+	case DT_BYTE:
+		printf ("\t%s al, %d\n", instr, (int)imm);
+		break;
+	case DT_WORD:
+	case DT_PTR:
+		printf ("\t%s ax, %d\n", instr, (int)imm);
+		break;
+	case DT_DWORD:
+	case DT_FPTR:
+		printf ("\t%s ax, %d\n", instr, (int)(imm & 0xffff));
+		printf ("\t%s dx, %d\n", instr, (int)(imm >> 16));
+		break;
+	}
+	return 0;
+}
+
+loadri (fn, instr, ri)
+struct func *fn;
+char *instr;
+struct regimm *ri;
+{
+	if (ri->is_imm) {
+		return loadimm (instr, ri->dt, ri->imm);
+	} else {
+		return load (instr, &fn->regs[ri->reg]);
+	}
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -898,32 +988,7 @@ struct expr *e;
 
 	switch (e->type) {
 	case EX_INT:
-		switch (dt->type) {
-		case DT_NONE:
-		case DT_LABEL:
-			abort ();
-			break;
-		case DT_BYTE:
-			if (e->i != 0) {
-				printf ("\tmov al, %d\n", (int)(e->i));
-			} else {
-				puts ("\txor al, al");
-			}
-			break;
-		case DT_WORD:
-		case DT_PTR:
-			if (e->i != 0) {
-				printf ("\tmov ax, %d\n", (int)(e->i));
-			} else {
-				puts ("\txor ax, ax");
-			}
-			break;
-		case DT_DWORD:
-		case DT_FPTR:
-			printf ("\tmov ax, %d\n", (int)(e->i & 0xffff));
-			printf ("\tmov dx, %d\n", (int)(e->i >> 16));
-			break;
-		}
+		loadimm ("mov", dt, e->i);
 		break;
 	case EX_ALLOCA:
 		assert (dt->type == DT_PTR);
@@ -946,7 +1011,7 @@ struct expr *e;
 			break;
 		case DT_PTR:
 		case DT_FPTR:
-			error (0, "cannot add pointers");
+			error (linenum, "cannot add pointers");
 			break;
 		}
 		break;
@@ -1097,24 +1162,21 @@ struct ir *ir;
 	case IR_WRITE:
 		reg = loadptr (&fn->regs[ir->write.dest]);
 
-		r = &fn->regs[ir->write.src];
-		switch (r->dt.type) {
+		loadri (fn, "mov", &ir->write.src);
+		switch (ir->write.src.dt->type) {
 		case DT_NONE:
 		case DT_LABEL:
 			abort ();
 			break;
 		case DT_BYTE:
-			loadb ("mov", AL, r);
 			printf ("\tmov byte [%s], al\n", reg);
 			break;
 		case DT_WORD:
 		case DT_PTR:
-			loadw ("mov", AX, r);
 			printf ("\tmov word [%s], ax\n", reg);
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
-			loaddw ("mov", r);
 			printf ("\tmov word [%s + 0], ax\n", reg);
 			printf ("\tmov word [%s + 2], dx\n", reg);
 			break;

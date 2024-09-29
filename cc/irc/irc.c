@@ -53,22 +53,32 @@ union {
 	char *s;
 } lval;
 
-int linenum = 1;
+int linenum = 1, peekd = EOF;
 
-peekch (void)
-{
-	int ch;
-	ch = getchar ();
-	ungetc (ch, stdin);
-	return ch;
-}
-
-nextch (void)
+readch (void)
 {
 	int ch;
 	ch = getchar ();
 	if (ch == '\n')
 		++linenum;
+	return ch;
+}
+peekch (void)
+{
+	if (peekd == EOF)
+		peekd = readch ();
+	return peekd;
+}
+
+nextch (void)
+{
+	int ch;
+	if (peekd != EOF) {
+		ch = peekd;
+		peekd = EOF;
+	} else {
+		ch = readch ();
+	}
 	return ch;
 }
 
@@ -88,10 +98,10 @@ isname (ch)
 	return isalnum (ch) || ch == '_';
 }
 
-error (line, msg)
+error (msg)
 char *msg;
 {
-	fprintf (stderr, "%d: error: %s\n", line, msg);
+	fprintf (stderr, "%d: error: %s\n", linenum, msg);
 	exit (1);
 	return -1;
 }
@@ -155,7 +165,7 @@ begin:
 	case EOF:
 		return TK_EOF;
 	default:
-		return error (linenum, "invalid input");
+		return error ("invalid input");
 	}
 }
 
@@ -284,7 +294,7 @@ struct dtype *dt;
 {
 	switch (dt->type) {
 	case DT_NONE:
-		return error (linenum, "sizeof_dt(DT_NONE)");
+		return error ("sizeof_dt(DT_NONE)");
 	case DT_BYTE:
 		return 1;
 	case DT_WORD:
@@ -301,7 +311,7 @@ assert_dt_eq (a, b)
 struct dtype *a, *b;
 {
 	if (a->type != b->type)
-		return error (linenum, "type mismatch");
+		return error ("type mismatch");
 
 	if (a->type == DT_PTR)
 		return assert_dt_eq (a->inner, b->inner);
@@ -313,7 +323,7 @@ assert_dt_is_ptr (ptr)
 struct dtype *ptr;
 {
 	if (ptr->type != DT_PTR && ptr->type != DT_FPTR)
-		return error (linenum, "not a pointer");
+		return error ("not a pointer");
 	return 0;
 }
 
@@ -324,11 +334,11 @@ struct dtype *ptr, *to;
 	return assert_dt_eq (ptr->inner, to);
 }
 
-assert_dt_label (line, dt)
+assert_dt_label (dt)
 struct dtype *dt;
 {
 	if (dt->type != DT_LABEL)
-		return error (line, "not a label");
+		return error ("not a label");
 	return 0;
 }
 
@@ -336,7 +346,7 @@ struct dtype *dt;
 // PARSER
 
 #define new(T) ((T *)alloc (sizeof (T)))
-#define expect(exp) (lex () != (exp) ? error (linenum, "expected " #exp) : 0)
+#define expect(exp) (lex () != (exp) ? error ("expected " #exp) : 0)
 #define stalloc(fn, nbytes) ((fn)->stoff -= (((nbytes) + 1) & ~1))
 
 dtype (dt)
@@ -367,7 +377,7 @@ struct dtype *dt;
 		dt->type = DT_DWORD;
 	} else {
 	err:
-		error (linenum, "expected dtype");
+		error ("expected dtype");
 	}
 	return 0;
 }
@@ -393,7 +403,7 @@ struct expr *e;
 
 	if (strcmp (lval.s, "alloca") == 0) {
 		if (dt->type != DT_PTR)
-			error (linenum, "the result of alloca must be stored in a pointer");
+			error ("the result of alloca must be stored in a pointer");
 
 		e->type = EX_ALLOCA;
 		expect (TK_INT);
@@ -431,7 +441,7 @@ struct expr *e;
 		}
 
 		if (tk != ';')
-			error (linenum, "invalid call");
+			error ("invalid call");
 
 		// TODO: assert_dt_*
 	} else if (strcmp (lval.s, "phi") == 0) {
@@ -457,13 +467,13 @@ struct expr *e;
 		}
 		
 		if (tk != ';')
-			error (linenum, "invalid phi");
+			error ("invalid phi");
 
 		// TODO: assert_dt_*
 		// TODO: check that there are no instructions (except IR_LABEL) before this
 	} else {
 	err:
-		error (linenum, "expected expr");
+		error ("expected expr");
 	}
 	return 0;
 }
@@ -487,7 +497,7 @@ struct dtype *dt;
 		ri->imm = lval.i;
 		break;
 	default:
-		error (linenum, "expected register or immediate");
+		error ("expected register or immediate");
 	}
 	return 0;
 }
@@ -502,8 +512,6 @@ struct ir *ir;
 {
 	struct reg *r;
 
-	ir->line = linenum;
-
 	if (tk == TK_INT) {
 		ir->type = IR_LABEL;
 		ir->reg = lval.i;
@@ -511,7 +519,7 @@ struct ir *ir;
 
 		r = &fn->regs[ir->reg];
 		if (r->type != R_NONE)
-			error (linenum, "cannot reassign to register");
+			error ("cannot reassign to register");
 		r->type = R_LABEL;
 		r->dt.type = DT_LABEL;
 		r->off = ir->reg;
@@ -533,7 +541,7 @@ struct ir *ir;
 
 		r = &fn->regs[ir->let.dest];
 		if (r->type != R_NONE)
-			error (linenum, "cannot reassign to register");
+			error ("cannot reassign to register");
 		r->type = R_LOCAL;
 		r->dt = ir->let.dt;
 		stalloc (fn, sizeof_dt (&r->dt));
@@ -578,7 +586,7 @@ struct ir *ir;
 		return 1;
 	} else {
 	err:
-		return error (linenum, "expected IR stmt");
+		return error ("expected IR stmt");
 	}
 }
 
@@ -612,7 +620,7 @@ struct func *fn;
 			break;
 		default:
 			printf ("%d\n", tk);
-			error (linenum, "invalid parameter list");
+			error ("invalid parameter list");
 		}
 	}
 
@@ -625,6 +633,7 @@ rt:
 
 	while ((tk = lex ()) != '}') {
 		ir = new (struct ir);
+		ir->line = linenum;
 
 		if (fn->body == NULL) {
 			fn->body = ir;
@@ -634,7 +643,7 @@ rt:
 		switch (stmt (fn, ir, tk)) {
 		case 0: // normal IR
 			if (bhead == NULL)
-				error (linenum, "dead instruction");
+				error ("dead instruction");
 
 			ir->prev = prev;
 			ir->bprev = bprev;
@@ -647,7 +656,7 @@ rt:
 			break;
 		case 1: // end of basic block
 			if (prev == NULL || bhead == NULL)
-				error (linenum, "invalid end of a basic block");
+				error ("invalid end of a basic block");
 
 			prev->next = ir;
 
@@ -660,7 +669,7 @@ rt:
 			break;
 		case 2: // start of basic block
 			if (prev != NULL || bhead != NULL)
-				error (linenum, "invalid start of a basic block");
+				error ("invalid start of a basic block");
 
 			ir->prev = NULL;
 			ir->bprev = bprev;
@@ -694,7 +703,7 @@ parse (void)
 			reset ();
 		} else {
 		err:
-			error (linenum, "expected fn");
+			error ("expected fn");
 		}
 	}
 
@@ -708,7 +717,7 @@ struct dtype *dt;
 {
 	switch (dt->type) {
 	case DT_NONE:
-		error (0, "print_dt(DT_NONE)");
+		error ("print_dt(DT_NONE)");
 		break;
 	case DT_BYTE:
 		printf ("byte");
@@ -780,6 +789,7 @@ struct regimm *ri;
 print_ir (ir)
 struct ir *ir;
 {
+	printf ("%d: ", ir->line);
 	switch (ir->type) {
 	case IR_LET:
 		printf ("let $%d: ", ir->let.dest);
@@ -1011,7 +1021,7 @@ struct expr *e;
 			break;
 		case DT_PTR:
 		case DT_FPTR:
-			error (linenum, "cannot add pointers");
+			error ("cannot add pointers");
 			break;
 		}
 		break;
@@ -1088,13 +1098,13 @@ struct reg *to;
 	assert (from->bhead != NULL && from->bhead->prev == NULL);
 
 	// check that the destination is actually a label
-	assert_dt_label (from->line, &to->dt);
+	assert_dt_label (&to->dt);
 
 	// check if this jump can be referenced in a phi
 	if (from->bhead->type != IR_LABEL) {
 		if (from->bhead->bprev != NULL) {
 			// this should never happen
-			error (from->line, "broken basic block");
+			error ("broken basic block");
 		} else {
 			// first instruction of a function
 			return 0;
@@ -1120,7 +1130,7 @@ struct reg *to;
 		}
 	}
 
-	return error (from->line, "invalid jump to phi");
+	return error ("invalid jump to phi");
 }
 
 gen_ir (fn, ir)
@@ -1129,6 +1139,8 @@ struct ir *ir;
 {
 	struct reg *r;
 	char *reg;
+
+	linenum = ir->line;
 
 	printf ("\t; ");
 	print_ir (ir);
@@ -1144,7 +1156,7 @@ struct ir *ir;
 		case DT_NONE:
 		case DT_LABEL:
 		err:
-			error (ir->line, "broken let");
+			error ("broken let");
 		case DT_BYTE:
 			printf ("\tmov byte [bp + %d], al\n", r->off);
 			break;

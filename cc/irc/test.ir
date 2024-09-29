@@ -104,3 +104,10 @@ fn qwords (): qword {
 	let $2: qword = add $0, $1;
 	ret $2;
 }
+
+fn alu ($0: word, $1: word): word {
+	let $2: word = add $0, $1;
+	let $3: word = sub $0, $1;
+
+	ret 0;
+}

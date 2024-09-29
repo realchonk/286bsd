@@ -203,6 +203,7 @@ enum expr_type {
 	EX_INT,
 	EX_ALLOCA,
 	EX_ADD,
+	EX_SUB,
 	EX_READ,
 	EX_CALL,
 	EX_PHI,
@@ -448,6 +449,16 @@ struct expr *e;
 		expect (';');
 	} else if (strcmp (lval.s, "add") == 0) {
 		e->type = EX_ADD;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
+		expect (';');
+
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		assert_dt_eq (dt, e->bin.r.dt);
+	} else if (strcmp (lval.s, "sub") == 0) {
+		e->type = EX_SUB;
 		expect (TK_REG);
 		e->bin.l = lval.i;
 		expect (',');
@@ -798,6 +809,10 @@ struct expr *e;
 		printf ("add $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
 		break;
+	case EX_SUB:
+		printf ("sub $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
 	case EX_PTRADD:
 		printf ("ptradd $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
@@ -1085,6 +1100,40 @@ enum x86_reg16 reg;
 	return 0;
 }
 
+addsub (instr1, instrn, fn, dt, e)
+char *instr1, *instrn;
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+{
+	load ("mov", &fn->regs[e->bin.l]);
+	switch (dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+		abort ();
+		break;
+	case DT_BYTE:
+	case DT_WORD:
+		loadri (fn, instr1, &e->bin.r);
+		break;
+	case DT_DWORD:
+		loadpwri (fn, instr1, AX, &e->bin.r, 0);
+		loadpwri (fn, instrn, DX, &e->bin.r, 2);
+		break;
+	case DT_QWORD:
+		loadpwri (fn, instr1, AX, &e->bin.r, 0);
+		loadpwri (fn, instrn, DX, &e->bin.r, 2);
+		loadpwri (fn, instrn, BX, &e->bin.r, 4);
+		loadpwri (fn, instrn, CX, &e->bin.r, 6);
+		break;
+	case DT_PTR:
+	case DT_FPTR:
+		error ("cannot add/sub pointers");
+		break;
+	}
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1103,31 +1152,10 @@ struct expr *e;
 		printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
 		break;
 	case EX_ADD:
-		load ("mov", &fn->regs[e->bin.l]);
-		switch (dt->type) {
-		case DT_NONE:
-		case DT_LABEL:
-			abort ();
-			break;
-		case DT_BYTE:
-		case DT_WORD:
-			loadri (fn, "add", &e->bin.r);
-			break;
-		case DT_DWORD:
-			loadpwri (fn, "add", AX, &e->bin.r, 0);
-			loadpwri (fn, "adc", DX, &e->bin.r, 2);
-			break;
-		case DT_QWORD:
-			loadpwri (fn, "add", AX, &e->bin.r, 0);
-			loadpwri (fn, "adc", DX, &e->bin.r, 2);
-			loadpwri (fn, "adc", BX, &e->bin.r, 4);
-			loadpwri (fn, "adc", CX, &e->bin.r, 6);
-			break;
-		case DT_PTR:
-		case DT_FPTR:
-			error ("cannot add pointers");
-			break;
-		}
+		addsub ("add", "adc", fn, dt, e);
+		break;
+	case EX_SUB:
+		addsub ("sub", "sbc", fn, dt, e);
 		break;
 	case EX_PTRADD:
 		load ("mov", &fn->regs[e->bin.l]);

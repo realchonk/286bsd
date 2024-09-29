@@ -684,7 +684,7 @@ struct dtype *dt;
 		print_dt (dt->inner);
 		break;
 	case DT_FPTR:
-		putchar ('&');
+		putchar ('!');
 		print_dt (dt->inner);
 		break;
 	case DT_LABEL:
@@ -1194,6 +1194,9 @@ struct func *fn;
 
 main (void)
 {
+	puts ("[bits 16]");
+	puts ("[cpu 286]");
+	puts ("");
 	parse ();
 	return 0;
 }

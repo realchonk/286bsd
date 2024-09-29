@@ -186,7 +186,8 @@ enum expr_type {
 struct expr {
 	enum expr_type type;
 	union {
-		int i;
+		int reg;
+		long i;
 		struct {
 			int num;
 			int off;
@@ -390,7 +391,7 @@ struct expr *e;
 	} else if (strcmp (lval.s, "read") == 0) {
 		e->type = EX_READ;
 		expect (TK_REG);
-		e->i = lval.i;
+		e->reg = lval.i;
 		expect (';');
 
 		assert_dt_ptr (&fn->regs[e->i].dt, dt);
@@ -689,7 +690,7 @@ struct expr *e;
 
 	switch (e->type) {
 	case EX_INT:
-		printf ("%d", e->i);
+		printf ("%ld", e->i);
 		break;
 	case EX_ALLOCA:
 		printf ("alloca %d", e->alloca.num);
@@ -698,7 +699,7 @@ struct expr *e;
 		printf ("add $%d, $%d", e->bin.l, e->bin.r);
 		break;
 	case EX_READ:
-		printf ("read $%d", e->i);
+		printf ("read $%d", e->reg);
 		break;
 	case EX_CALL:
 		printf ("call %s", e->call.fn);
@@ -872,11 +873,19 @@ struct expr *e;
 			abort ();
 			break;
 		case DT_BYTE:
-			printf ("\tmov al, %d\n", e->i);
+			if (e->i != 0) {
+				printf ("\tmov al, %d\n", (int)(e->i));
+			} else {
+				puts ("\txor al, al");
+			}
 			break;
 		case DT_WORD:
 		case DT_PTR:
-			printf ("\tmov ax, %d\n", e->i);
+			if (e->i != 0) {
+				printf ("\tmov ax, %d\n", (int)(e->i));
+			} else {
+				puts ("\txor ax, ax");
+			}
 			break;
 		case DT_DWORD:
 			printf ("\tmov ax, %d\n", (int)(e->i & 0xffff));
@@ -896,11 +905,9 @@ struct expr *e;
 			abort ();
 			break;
 		case DT_BYTE:
-			loadb ("add", AL, &fn->regs[e->bin.r]);
-			break;
 		case DT_WORD:
 		case DT_PTR:
-			loadw ("add", AX, &fn->regs[e->bin.r]);
+			load ("add", &fn->regs[e->bin.r]);
 			break;
 		case DT_DWORD:
 			loadpw ("add", AX, &fn->regs[e->bin.r], 0);
@@ -909,7 +916,7 @@ struct expr *e;
 		}
 		break;
 	case EX_READ:
-		loadw ("mov", BX, &fn->regs[e->i]);
+		loadw ("mov", BX, &fn->regs[e->reg]);
 		switch (dt->type) {
 		case DT_NONE:
 		case DT_LABEL:

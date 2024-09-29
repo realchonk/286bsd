@@ -178,6 +178,7 @@ enum dtype_type {
 	DT_PTR,
 	DT_FPTR,
 	DT_LABEL,
+	DT_QWORD,
 };
 
 struct dtype {
@@ -309,6 +310,8 @@ struct dtype *dt;
 	case DT_DWORD:
 	case DT_FPTR:
 		return 4;
+	case DT_QWORD:
+		return 8;
 	}
 }
 
@@ -380,6 +383,8 @@ struct dtype *dt;
 		dt->type = DT_WORD;
 	} else if (strcmp (lval.s, "dword") == 0) {
 		dt->type = DT_DWORD;
+	} else if (strcmp (lval.s, "qword") == 0) {
+		dt->type = DT_QWORD;
 	} else {
 	err:
 		error ("expected dtype");
@@ -748,6 +753,9 @@ struct dtype *dt;
 	case DT_DWORD:
 		printf ("dword");
 		break;
+	case DT_QWORD:
+		printf ("qword");
+		break;
 	case DT_PTR:
 		putchar ('*');
 		print_dt (dt->inner);
@@ -941,6 +949,18 @@ struct reg *src;
 	return 0;
 }
 
+loadqw (instr, src)
+char *instr;
+struct reg *src;
+{
+	assert (sizeof_dt (&src->dt) == 8);
+	loadpw (instr, AX, src, 0);
+	loadpw (instr, DX, src, 2);
+	loadpw (instr, BX, src, 4);
+	loadpw (instr, CX, src, 6);
+	return 0;
+}
+
 load (instr, src)
 char *instr;
 struct reg *src;
@@ -958,6 +978,8 @@ struct reg *src;
 	case DT_DWORD:
 	case DT_FPTR:
 		return loaddw (instr, src);
+	case DT_QWORD:
+		return loadqw (instr, src);
 	}
 }
 
@@ -999,6 +1021,12 @@ long imm;
 	case DT_FPTR:
 		printf ("\t%s ax, %d\n", instr, (int)(imm & 0xffff));
 		printf ("\t%s dx, %d\n", instr, (int)(imm >> 16));
+		break;
+	case DT_QWORD:
+		printf ("\t%s ax, %d\n", instr, (int)(imm & 0xffff));
+		printf ("\t%s dx, %d\n", instr, (int)((imm >> 16) & 0xffff));
+		printf ("\t%s bx, %d\n", instr, (int)((imm >> 32) & 0xffff));
+		printf ("\t%s cx, %d\n", instr, (int)(imm >> 48));
 		break;
 	}
 	return 0;
@@ -1089,6 +1117,12 @@ struct expr *e;
 			loadpwri (fn, "add", AX, &e->bin.r, 0);
 			loadpwri (fn, "adc", DX, &e->bin.r, 2);
 			break;
+		case DT_QWORD:
+			loadpwri (fn, "add", AX, &e->bin.r, 0);
+			loadpwri (fn, "adc", DX, &e->bin.r, 2);
+			loadpwri (fn, "adc", BX, &e->bin.r, 4);
+			loadpwri (fn, "adc", CX, &e->bin.r, 6);
+			break;
 		case DT_PTR:
 		case DT_FPTR:
 			error ("cannot add pointers");
@@ -1128,6 +1162,12 @@ struct expr *e;
 			printf ("\tmov ax, word [%s + 0]\n", s);
 			printf ("\tmov dx, word [%s + 2]\n", s);
 			break;
+		case DT_QWORD:
+			printf ("\tmov ax, word [%s + 0]\n", s);
+			printf ("\tmov dx, word [%s + 2]\n", s);
+			printf ("\tmov bx, word [%s + 4]\n", s);
+			printf ("\tmov cx, word [%s + 6]\n", s);
+			break;
 		}
 		break;
 	case EX_CALL:
@@ -1148,6 +1188,12 @@ struct expr *e;
 				break;
 			case DT_DWORD:
 			case DT_FPTR:
+				puts ("\tpush dx");
+				puts ("\tpush ax");
+				break;
+			case DT_QWORD:
+				puts ("\tpush cx");
+				puts ("\tpush bx");
 				puts ("\tpush dx");
 				puts ("\tpush ax");
 				break;
@@ -1252,6 +1298,12 @@ struct ir *ir;
 			printf ("\tmov word [bp + %d + 0], ax\n", r->off);
 			printf ("\tmov word [bp + %d + 2], dx\n", r->off);
 			break;
+		case DT_QWORD:
+			printf ("\tmov word [bp + %d + 0], ax\n", r->off);
+			printf ("\tmov word [bp + %d + 2], dx\n", r->off);
+			printf ("\tmov word [bp + %d + 4], bx\n", r->off);
+			printf ("\tmov word [bp + %d + 6], cx\n", r->off);
+			break;
 		}
 		break;
 	case IR_WRITE:
@@ -1274,6 +1326,12 @@ struct ir *ir;
 		case DT_FPTR:
 			printf ("\tmov word [%s + 0], ax\n", reg);
 			printf ("\tmov word [%s + 2], dx\n", reg);
+			break;
+		case DT_QWORD:
+			printf ("\tmov word [%s + 0], ax\n", reg);
+			printf ("\tmov word [%s + 2], dx\n", reg);
+			printf ("\tmov word [%s + 4], bx\n", reg);
+			printf ("\tmov word [%s + 6], cx\n", reg);
 			break;
 		}
 		break;
@@ -1303,6 +1361,10 @@ struct ir *ir;
 		case DT_BYTE:
 			puts ("\ttest al, al");
 			break;
+		case DT_QWORD:
+			puts ("\tor ax, bx");
+			puts ("\tor ax, cx");
+			// fallthrough
 		case DT_DWORD:
 		case DT_FPTR:
 			puts ("\tor ax, dx");

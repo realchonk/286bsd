@@ -97,3 +97,10 @@ fn ptradd (): dword {
 	let $4: *word = ptradd $0, 0;
 	ret $3;
 }
+
+fn qwords (): qword {
+	let $0: qword = 3;
+	let $1: qword = 2;
+	let $2: qword = add $0, $1;
+	ret $2;
+}

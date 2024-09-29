@@ -772,8 +772,8 @@ enum x86_reg16 {
 	DX,
 };
 
-char *reg16[] = { "ax", "bx", "cx", "dx" };
 char *reg8[] = { "al", "bl", "cl", "dl" };
+char *reg16[] = { "ax", "bx", "cx", "dx" };
 
 // ASM GEN
 

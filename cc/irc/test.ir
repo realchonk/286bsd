@@ -119,3 +119,11 @@ fn copy ($0: word): word {
 	let $1: word = $0;
 	ret $1;
 }
+
+fn casts (): word {
+	let $0: word = 42;
+	let $1: qword = zext $0;
+	let $2: qword = sext $0;
+	let $3: byte = trunc $0;
+	ret 0;
+}

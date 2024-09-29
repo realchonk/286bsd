@@ -172,12 +172,12 @@ begin:
 
 enum dtype_type {
 	DT_NONE,
-	DT_BYTE,
-	DT_WORD,
-	DT_DWORD,
 	DT_PTR,
 	DT_FPTR,
 	DT_LABEL,
+	DT_BYTE,
+	DT_WORD,
+	DT_DWORD,
 	DT_QWORD,
 };
 
@@ -212,6 +212,9 @@ enum expr_type {
 	EX_CALL,
 	EX_PHI,
 	EX_PTRADD,
+	EX_ZEXT,
+	EX_SEXT,
+	EX_TRUNC,
 };
 
 struct expr {
@@ -355,6 +358,22 @@ struct dtype *dt;
 	return 0;
 }
 
+assert_is_int (dt)
+struct dtype *dt;
+{
+	switch (dt->type) {
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DWORD:
+	case DT_QWORD:
+		return 0;
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_PTR:
+	case DT_FPTR:
+		return error ("this operation is only supported for integers (byte, word, dword, qword)");
+	}
+}
 
 // PARSER
 
@@ -568,6 +587,36 @@ struct expr *e;
 
 		// TODO: assert_dt_*
 		// TODO: check that there are no instructions (except IR_LABEL) before this
+	} else if (strcmp (lval.s, "zext") == 0) {
+		e->type = EX_ZEXT;
+		expect (TK_REG);
+		e->reg = lval.i;
+		expect (';');
+
+		assert_is_int (dt);
+		assert_is_int (&fn->regs[e->reg].dt);
+		if (dt->type <= fn->regs[e->reg].dt.type)
+			error ("invalid zext");
+	} else if (strcmp (lval.s, "sext") == 0) {
+		e->type = EX_SEXT;
+		expect (TK_REG);
+		e->reg = lval.i;
+		expect (';');
+
+		assert_is_int (dt);
+		assert_is_int (&fn->regs[e->reg].dt);
+		if (dt->type <= fn->regs[e->reg].dt.type)
+			error ("invalid sext");
+	} else if (strcmp (lval.s, "trunc") == 0) {
+		e->type = EX_TRUNC;
+		expect (TK_REG);
+		e->reg = lval.i;
+		expect (';');
+
+		assert_is_int (dt);
+		assert_is_int (&fn->regs[e->reg].dt);
+		if (dt->type >= fn->regs[e->reg].dt.type)
+			error ("invalid trunc");
 	} else {
 	err:
 		error ("expected expr");
@@ -886,6 +935,15 @@ struct expr *e;
 		for (i = 1; i < e->phi.num; ++i)
 			printf (", ($%d: $%d)", e->phi.from[i], e->phi.val[i]);
 		break;
+	case EX_ZEXT:
+		printf ("zext $%d", e->reg);
+		break;
+	case EX_SEXT:
+		printf ("sext $%d", e->reg);
+		break;
+	case EX_TRUNC:
+		printf ("trunc $%d", e->reg);
+		break;
 	}
 	return 0;
 }
@@ -1003,6 +1061,25 @@ struct reg *src;
 	case R_PARAM:
 		printf ("\t%s %s, word [bp + %d + %d]\n",
 			instr, reg16[dest], src->off, off);
+		break;
+	}
+	return 0;
+}
+
+loadpb (instr, dest, src, off)
+char *instr;
+enum x86_reg8 dest;
+struct reg *src;
+{
+	switch (src->type) {
+	case R_NONE:
+	case R_LABEL:
+		abort ();
+		break;
+	case R_LOCAL:
+	case R_PARAM:
+		printf ("\t%s %s, byte [bp + %d + %d]\n",
+			instr, reg8[dest], src->off, off);
 		break;
 	}
 	return 0;
@@ -1220,6 +1297,7 @@ struct dtype *dt;
 struct expr *e;
 {
 	struct regimm *ri;
+	struct reg *r;
 	char *s;
 	int i, cnt, sz;
 
@@ -1328,6 +1406,80 @@ struct expr *e;
 		// TODO: check that all sources actually jump to this phi.
 		// It's correct that this is empty,
 		// since the value is set in the jumping instruction.
+		break;
+	case EX_ZEXT:
+		load ("mov", &fn->regs[e->reg]);
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+		case DT_PTR:
+		case DT_FPTR:
+		case DT_BYTE:
+			abort ();
+			break;
+		case DT_WORD:
+			puts ("\txor ah, ah");
+			break;
+		case DT_DWORD:
+			puts ("\txor dx, dx");
+			break;
+		case DT_QWORD:
+			puts ("\txor bx, bx");
+			puts ("\txor cx, cx");
+			break;
+		}
+		break;
+	case EX_SEXT:
+		r = &fn->regs[e->reg];
+		load ("mov", r);
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+		case DT_PTR:
+		case DT_FPTR:
+		case DT_BYTE:
+			abort ();
+			break;
+		case DT_WORD:
+			puts ("\tcbw");
+			break;
+		case DT_DWORD:
+			if (r->dt.type == DT_BYTE) {
+				puts ("\tcbw");
+			}
+			puts ("\tcwd");
+			break;
+		case DT_QWORD:
+			if (r->dt.type == DT_BYTE)
+				puts ("\tcbw");
+			if (r->dt.type <= DT_WORD)
+				puts ("\tcwd");
+			puts ("\tmov bx, dx");
+			puts ("\tsar bx, 15");
+			puts ("\tmov cx, bx");
+			break;
+		}
+		break;
+	case EX_TRUNC:
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+		case DT_PTR:
+		case DT_FPTR:
+		case DT_QWORD:
+			abort ();
+			break;
+		case DT_DWORD:
+			loadpw ("mov", AX, &fn->regs[e->reg], 0);
+			loadpw ("mov", DX, &fn->regs[e->reg], 2);
+			break;
+		case DT_WORD:
+			loadpw ("mov", AX, &fn->regs[e->reg], 0);
+			break;
+		case DT_BYTE:
+			loadpb ("mov", AL, &fn->regs[e->reg], 0);
+			break;
+		}
 		break;
 	}
 	return 0;

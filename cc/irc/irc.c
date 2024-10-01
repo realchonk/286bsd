@@ -6,11 +6,11 @@
 #include <err.h>
 
 // use an arena to speed up memory allocations
-#define USE_ARENA 1
+#define ENABLE_ARENA 1
 
 // MEMORY
 
-#if USE_ARENA
+#if ENABLE_ARENA
 char arena[32768];
 size_t alen = 0;
 

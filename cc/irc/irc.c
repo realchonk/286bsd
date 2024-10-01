@@ -1123,6 +1123,7 @@ load (instr, src)
 char *instr;
 struct reg *src;
 {
+	assert (instr != NULL);
 	switch (src->dt.type) {
 	case DT_NONE:
 		abort ();
@@ -1159,6 +1160,18 @@ struct reg *ptr;
 	}
 }
 
+loadimmr (instr, dest, imm)
+char *instr, *dest;
+long imm;
+{
+	if (imm != 0 || instr != NULL) {
+		printf ("\t%s %s, %ld\n", instr != NULL ? instr : "mov", dest, imm);
+	} else {
+		printf ("\txor %s, %s\n", dest, dest);
+	}
+	return 0;
+}
+
 loadimm (instr, dt, imm)
 char *instr;
 struct dtype *dt;
@@ -1169,22 +1182,22 @@ long imm;
 	case DT_LABEL:
 		abort ();
 	case DT_BYTE:
-		printf ("\t%s al, %d\n", instr, (int)imm);
+		loadimmr (instr, "al", imm & 0xff);
 		break;
 	case DT_WORD:
 	case DT_PTR:
-		printf ("\t%s ax, %d\n", instr, (int)imm);
+		loadimmr (instr, "ax", imm & 0xffff);
 		break;
 	case DT_DWORD:
 	case DT_FPTR:
-		printf ("\t%s ax, %d\n", instr, (int)(imm & 0xffff));
-		printf ("\t%s dx, %d\n", instr, (int)(imm >> 16));
+		loadimmr (instr, "ax", imm & 0xffff);
+		loadimmr (instr, "dx", (imm >> 16) & 0xffff);
 		break;
 	case DT_QWORD:
-		printf ("\t%s ax, %d\n", instr, (int)(imm & 0xffff));
-		printf ("\t%s dx, %d\n", instr, (int)((imm >> 16) & 0xffff));
-		printf ("\t%s bx, %d\n", instr, (int)((imm >> 32) & 0xffff));
-		printf ("\t%s cx, %d\n", instr, (int)(imm >> 48));
+		loadimmr (instr, "ax", imm & 0xffff);
+		loadimmr (instr, "dx", (imm >> 16) & 0xffff);
+		loadimmr (instr, "bx", (imm >> 32) & 0xffff);
+		loadimmr (instr, "cx", (imm >> 48) & 0xffff);
 		break;
 	}
 	return 0;
@@ -1198,7 +1211,7 @@ struct regimm *ri;
 	if (ri->is_imm) {
 		return loadimm (instr, ri->dt, ri->imm);
 	} else {
-		return load (instr, &fn->regs[ri->reg]);
+		return load (instr != NULL ? instr : "mov", &fn->regs[ri->reg]);
 	}
 }
 
@@ -1315,7 +1328,7 @@ struct expr *e;
 
 	switch (e->type) {
 	case EX_INT:
-		loadimm ("mov", dt, e->i);
+		loadimm (NULL, dt, e->i);
 		break;
 	case EX_REG:
 	case EX_PCAST:
@@ -1385,7 +1398,7 @@ struct expr *e;
 		cnt = 0;
 		for (i = e->call.nargs - 1; i >= 0; --i) {
 			ri = &e->call.args[i];
-			loadri (fn, "mov", ri);
+			loadri (fn, NULL, ri);
 			
 			switch (ri->dt->type) {
 			case DT_NONE:
@@ -1413,7 +1426,8 @@ struct expr *e;
 			cnt += sizeof_dt (ri->dt);
 		}
 		printf ("\tcall %s\n", e->call.fn);
-		printf ("\tadd sp, %d\n", cnt);
+		if (cnt != 0)
+			printf ("\tadd sp, %d\n", cnt);
 		break;
 	case EX_PHI:
 		// TODO: check that all sources actually jump to this phi.
@@ -1594,7 +1608,7 @@ struct ir *ir;
 	case IR_WRITE:
 		reg = loadptr (&fn->regs[ir->write.dest]);
 
-		loadri (fn, "mov", &ir->write.src);
+		loadri (fn, NULL, &ir->write.src);
 		switch (ir->write.src.dt->type) {
 		case DT_NONE:
 		case DT_LABEL:
@@ -1623,7 +1637,7 @@ struct ir *ir;
 	case IR_RET:
 		assert (ir->next == NULL);
 
-		loadri (fn, "mov", &ir->ri);
+		loadri (fn, NULL, &ir->ri);
 		if (ir->bnext != NULL)
 			puts ("\tjmp .ret");
 		break;
@@ -1678,14 +1692,16 @@ struct func *fn;
 	printf ("%s:\n", fn->name);
 	puts ("\tpush bp");
 	puts ("\tmov bp, sp");
-	printf ("\tsub sp, %d\n", -fn->stoff);
+	if (fn->stoff != 0)
+		printf ("\tsub sp, %d\n", -fn->stoff);
 	puts ("");
 
 	for (ir = fn->body; ir != NULL; ir = ir->next ? ir->next : ir->bnext)
 		gen_ir (fn, ir);
 
 	puts (".ret:");
-	printf ("\tadd sp, %d\n", -fn->stoff);
+	if (fn->stoff != 0)
+		printf ("\tadd sp, %d\n", -fn->stoff);
 	puts ("\tpop bp");
 	puts ("\tret");
 	puts ("");

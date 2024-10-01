@@ -1723,6 +1723,12 @@ struct func *fn;
 
 main (void)
 {
+#if ENABLE_DEBUG
+	fprintf (stderr, "sizeof (struct ir) = %zu\n", sizeof (struct ir));
+	fprintf (stderr, "sizeof (struct expr) = %zu\n", sizeof (struct expr));
+	fprintf (stderr, "sizeof (struct regimm) = %zu\n", sizeof (struct regimm));
+	fprintf (stderr, "sizeof (struct dtype) = %zu\n", sizeof (struct dtype));
+#endif
 	linenum = 1;
 	puts ("[bits 16]");
 	puts ("[cpu 286]");

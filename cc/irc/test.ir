@@ -127,6 +127,6 @@ fn casts (): word {
 	let $3: byte = trunc $0;
 	let $4: *word = alloca 1;
 	let $5: *byte = pcast $4;
-	let $6: *byte = $6;
+	let $6: *byte = $5;
 	ret 0;
 }

@@ -6,7 +6,8 @@ clean:
 	rm -f irc *.core test.asm
 
 run: all
-	./irc < test.ir | tee test.asm
+	./irc < test.ir > test.asm
+	cat test.asm
 	nasm -fbin -o /dev/null test.asm
 
 

@@ -7,6 +7,20 @@
 // use an arena to speed up memory allocations
 #define ENABLE_ARENA 1
 
+// enable debugging prints
+#define ENABLE_DEBUG 1
+
+// ERROR HANDLING
+
+int linenum;
+
+error (msg)
+char *msg;
+{
+	fprintf (stderr, "irc: %d: error: %s\n", linenum, msg);
+	return exit (1), -1;
+}
+
 // MEMORY
 
 #if ENABLE_ARENA
@@ -21,7 +35,7 @@ size_t num;
 
 	// TODO: consider returning heap memory
 	if (alen + num > sizeof (arena))
-		errx (1, "out of memory");
+		error ("arena out of memory");
 
 	ptr = (void *)((size_t)arena + alen);
 	alen += num;
@@ -31,6 +45,9 @@ size_t num;
 
 reset (void)
 {
+# if ENABLE_DEBUG
+	fprintf (stderr, "irc: debug: arena usage: %zu/%zu bytes\n", alen, sizeof (arena));
+# endif
 	alen = 0;
 	return 0;
 }
@@ -53,7 +70,7 @@ union {
 	char *s;
 } lval;
 
-int linenum = 1, peekd = EOF;
+int peekd = EOF;
 
 readch (void)
 {
@@ -96,13 +113,6 @@ parse_int (void)
 isname (ch)
 {
 	return isalnum (ch) || ch == '_';
-}
-
-error (msg)
-char *msg;
-{
-	fprintf (stderr, "irc: %d: error: %s\n", linenum, msg);
-	return exit (1), -1;
 }
 
 lex (void)
@@ -1713,6 +1723,7 @@ struct func *fn;
 
 main (void)
 {
+	linenum = 1;
 	puts ("[bits 16]");
 	puts ("[cpu 286]");
 	puts ("");

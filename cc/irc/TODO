@@ -19,3 +19,4 @@
 - direct registers (si, di)
 - EX_INT16 (int), EX_INT32 (long), EX_INT64 (llong) (for performance reasons)
 - register refcnt
+- optimize memory footprint of irc itself

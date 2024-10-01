@@ -125,5 +125,8 @@ fn casts (): word {
 	let $1: qword = zext $0;
 	let $2: qword = sext $0;
 	let $3: byte = trunc $0;
+	let $4: *word = alloca 1;
+	let $5: *byte = pcast $4;
+	let $6: *byte = $6;
 	ret 0;
 }

@@ -215,6 +215,7 @@ enum expr_type {
 	EX_ZEXT,
 	EX_SEXT,
 	EX_TRUNC,
+	EX_PCAST,
 };
 
 struct expr {
@@ -459,6 +460,7 @@ struct expr *e;
 		e->type = EX_REG;
 		e->reg = lval.i;
 		expect (';');
+		assert_dt_eq (dt, &fn->regs[e->reg].dt);
 		return 0;
 	}
 
@@ -617,6 +619,14 @@ struct expr *e;
 		assert_is_int (&fn->regs[e->reg].dt);
 		if (dt->type >= fn->regs[e->reg].dt.type)
 			error ("invalid trunc");
+	} else if (strcmp (lval.s, "pcast") == 0) {
+		e->type = EX_PCAST;
+		expect (TK_REG);
+		e->reg = lval.i;
+		expect (';');
+
+		assert_dt_is_ptr (dt);
+		assert_dt_is_ptr (&fn->regs[e->reg].dt);
 	} else {
 	err:
 		error ("expected expr");
@@ -943,6 +953,9 @@ struct expr *e;
 		break;
 	case EX_TRUNC:
 		printf ("trunc $%d", e->reg);
+		break;
+	case EX_PCAST:
+		printf ("pcast $%d", e->reg);
 		break;
 	}
 	return 0;
@@ -1306,6 +1319,7 @@ struct expr *e;
 		loadimm ("mov", dt, e->i);
 		break;
 	case EX_REG:
+	case EX_PCAST:
 		load ("mov", &fn->regs[e->reg]);
 		break;
 	case EX_ALLOCA:

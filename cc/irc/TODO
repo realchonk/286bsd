@@ -2,9 +2,6 @@
   let $0: word = 24;
   let $1: word = 0;
   let $2: !byte = $0:$1;
-- pointer casts (between types)
-  let $0: *word = 0;
-  let $1: *byte = pcast $0;
 - fat pointer manipulation
   let $0: !word = 0;
   let $1: word = fatoff $0;
@@ -21,3 +18,4 @@
 - inline assembly
 - direct registers (si, di)
 - EX_INT16 (int), EX_INT32 (long), EX_INT64 (llong) (for performance reasons)
+- register refcnt

@@ -26,3 +26,4 @@
 - add `extern` functions
 - add function pointers
 - rename DT_FPTR to DT_PTR
+- implement builtin functions

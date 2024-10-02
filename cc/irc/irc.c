@@ -240,6 +240,9 @@ enum expr_type {
 	EX_LSL,		// .bin
 	EX_LSR,		// .bin
 	EX_ASR,		// .bin
+	EX_MUL,		// .bin
+	EX_UDIV,	// .bin
+	EX_SDIV,	// .bin
 };
 
 struct call {
@@ -585,6 +588,12 @@ struct expr *e;
 		expr_bin (fn, dt, e, EX_OR);
 	} else if (strcmp (lval.s, "xor") == 0) {
 		expr_bin (fn, dt, e, EX_XOR);
+	} else if (strcmp (lval.s, "mul") == 0) {
+		expr_bin (fn, dt, e, EX_MUL);
+	} else if (strcmp (lval.s, "udiv") == 0) {
+		expr_bin (fn, dt, e, EX_UDIV);
+	} else if (strcmp (lval.s, "sdiv") == 0) {
+		expr_bin (fn, dt, e, EX_SDIV);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -1015,6 +1024,18 @@ struct expr *e;
 		printf ("xor $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
 		break;
+	case EX_MUL:
+		printf ("mul $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_UDIV:
+		printf ("udiv $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_SDIV:
+		printf ("sdiv $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
 	case EX_PTRADD:
 		printf ("ptradd $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
@@ -1347,25 +1368,21 @@ int off;
 
 // constant multiply
 cmul (reg, i)
-enum x86_reg16 reg;
+char *reg;
 {
-	char *r;
-	int x;
+	int x = ffs (i);
 
-	r = reg16[reg];
-
-	x = ffs (i);
 	if (x == 0) {
-		printf ("\txor %s, %s\n", r, r);
+		printf ("\txor %s, %s\n", reg, reg);
 		return 0;
 	}
 
 	if (i == (1 << (x - 1))) {
-		printf ("\tshr %s, %d\n", r, (x - 1));
+		printf ("\tshr %s, %d\n", reg, (x - 1));
 		return 0;
 	}
 
-	error ("cmul() not implemented for arbitrary constants");
+	printf ("\timul %s, %d\n", reg, i);
 	return 0;
 }
 
@@ -1478,6 +1495,106 @@ struct regimm *shamt;
 	return 0;
 }
 
+call_muldiv (instr, fn, dt, e)
+char *instr;
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+{
+	struct reg *r = &fn->regs[e->bin.l];
+	struct regimm *ri = &e->bin.r;
+
+	switch (dt->type) {
+	case DT_DWORD:
+		if (ri->is_imm) {
+			printf ("\tpush %d\n", (int)((ri->imm >> 16) & 0xffff));
+			printf ("\tpush %d\n", (int)(ri->imm & 0xffff));
+		} else {
+			r = &fn->regs[ri->reg];
+			printf ("\tpush word [ss:bp + %d + 2]\n", r->off);
+			printf ("\tpush word [ss:bp + %d + 0]\n", r->off);
+		}
+		load ("mov", &fn->regs[e->bin.l]);
+		printf ("\tcall __%sd\n", instr);
+		puts ("\tadd sp, 4");
+		break;
+	case DT_QWORD:
+		if (ri->is_imm) {
+			printf ("\tpush %d\n", (int)((ri->imm >> 48) & 0xffff));
+			printf ("\tpush %d\n", (int)((ri->imm >> 32) & 0xffff));
+			printf ("\tpush %d\n", (int)((ri->imm >> 16) & 0xffff));
+			printf ("\tpush %d\n", (int)(ri->imm & 0xffff));
+		} else {
+			r = &fn->regs[ri->reg];
+			printf ("\tpush word [ss:bp + %d + 6]\n", r->off);
+			printf ("\tpush word [ss:bp + %d + 4]\n", r->off);
+			printf ("\tpush word [ss:bp + %d + 2]\n", r->off);
+			printf ("\tpush word [ss:bp + %d + 0]\n", r->off);
+		}
+		load ("mov", &fn->regs[e->bin.l]);
+		printf ("\tcall __%sq\n", instr);
+		puts ("\tadd sp, 8");
+		break;
+	default:
+		abort ();
+	}
+
+	return 0;
+}
+
+gen_div (fn, dt, e, sign)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+{
+	struct reg *acc = &fn->regs[e->bin.l];
+	struct regimm *ri = &e->bin.r;
+	char *instr = sign ? "idiv" : "div";
+
+	switch (dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_DPTR:
+	case DT_FPTR:
+	case DT_SPTR:
+		abort ();
+		break;
+	case DT_BYTE:
+		loadb ("mov", AL, acc);
+		if (sign) {
+			puts ("\tcbw");
+		} else {
+			puts ("\txor dl, dl");
+		}
+		if (ri->is_imm) {
+			loadimmr ("mov", "cl", (int)ri->imm);
+			printf ("\t%s cl\n", instr);
+		} else {
+			printf ("\t%s byte [ss:bp + %d]\n", instr, fn->regs[ri->reg].off);
+		}
+		break;
+	case DT_WORD:
+		loadw ("mov", AX, acc);
+		if (sign) {
+			puts ("\tcwd");
+		} else {
+			puts ("\txor dx, dx");
+		}
+		if (ri->is_imm) {
+			loadimmr ("mov", "cx", (int)ri->imm);
+			printf ("\t%s cx\n", instr);
+		} else {
+			printf ("\t%s word [ss:bp + %d]\n", instr, fn->regs[ri->reg].off);
+		}
+		break;
+	case DT_DWORD:
+	case DT_QWORD:
+		call_muldiv (instr, fn, dt, e);
+		break;
+	}
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1523,6 +1640,46 @@ struct expr *e;
 	case EX_XOR:
 		alu ("xor", fn, dt, e);
 		break;
+	case EX_MUL:
+		r = &fn->regs[e->bin.l];
+		ri = &e->bin.r;
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+		case DT_DPTR:
+		case DT_FPTR:
+		case DT_SPTR:
+			abort ();
+			break;
+		case DT_BYTE:
+			loadb ("mov", AL, r);
+			if (ri->is_imm) {
+				cmul ("al", (int)(ri->imm & 0xff));
+			} else {
+				loadb ("mul", AL, &fn->regs[ri->reg]);
+			}
+			break;
+		case DT_WORD:
+			loadw ("mov", AX, &fn->regs[e->bin.l]);
+			if (ri->is_imm) {
+				cmul ("ax", (int)(ri->imm & 0xffff));
+			} else {
+				loadw ("mul", AX, &fn->regs[ri->reg]);
+			}
+			break;
+		case DT_DWORD:
+		case DT_QWORD:
+			// TODO: multiply using FPU
+			call_muldiv ("mul", fn, dt, e);
+			break;
+		}
+		break;
+	case EX_UDIV:
+		gen_div (fn, dt, e, 0);
+		break;
+	case EX_SDIV:
+		gen_div (fn, dt, e, 1);
+		break;
 	case EX_PTRADD:
 		load ("mov", &fn->regs[e->bin.l]);
 
@@ -1533,7 +1690,7 @@ struct expr *e;
 				printf ("\tadd ax, %d\n", (int)(e->bin.r.imm & 0xffff) * sz);
 		} else {
 			loadw ("mov", CX, &fn->regs[e->bin.r.reg]);
-			cmul (CX, sz);
+			cmul ("cx", sz);
 			puts ("\tadd ax, cx");
 		}
 		break;
@@ -1928,6 +2085,7 @@ main (void)
 	puts ("[bits 16]");
 	puts ("[cpu 286]");
 	puts ("extern __shld, __shrd, __sard, __shlq, __shrq, __sarq");
+	puts ("extern __muld, __mulq, __divd, __divq, __idivd, __idivq");
 	puts ("");
 	parse ();
 

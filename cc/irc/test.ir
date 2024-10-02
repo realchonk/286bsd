@@ -191,3 +191,9 @@ fn negative (): qword {
 pub section ".text.custom" fn custom_section (): qword {
 	ret 0;
 }
+
+fn floats (): float {
+	let $0: float = 1.2;
+	let $1: float = 42;
+	ret $0;
+}

@@ -26,3 +26,4 @@
 - add function pointers
 - rename DT_FPTR to DT_PTR
 - implement builtin functions
+- support for double and long double

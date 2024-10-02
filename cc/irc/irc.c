@@ -10,9 +10,6 @@
 // enable debugging prints
 #define ENABLE_DEBUG 1
 
-// enable support for floating point numbers
-#define ENABLE_FLOAT 1
-
 // ERROR HANDLING
 
 int linenum;
@@ -126,7 +123,6 @@ parse_int (void)
 
 parse_int_or_float (int neg)
 {
-#if ENABLE_FLOAT
 	long i = 0;
 	double f, s;
 
@@ -140,6 +136,7 @@ parse_int_or_float (int neg)
 
 	f = i;
 	s = 0.1;
+	nextch ();
 
 	while (isdigit (peekch ())) {
 		f = f + s * (nextch () - '0');
@@ -149,12 +146,6 @@ parse_int_or_float (int neg)
 	lval.f = neg ? -f : f;
 
 	return TK_FLOAT;
-#else
-	parse_int ();
-	if (neg)
-		lval.i = -lval.i;
-	return TK_INT;
-#endif
 }
 
 isname (ch)
@@ -259,6 +250,7 @@ enum dtype_type {
 	DT_WORD,
 	DT_DWORD,
 	DT_QWORD,
+	DT_FLOAT,
 };
 
 struct dtype {
@@ -277,12 +269,14 @@ struct regimm {
 	union {
 		int reg;
 		long imm;
+		double f;
 	};
 };
 
 enum expr_type {
 	EX_REG,		// .reg
 	EX_INT,		// .i
+	EX_FLOAT,	// .f
 	EX_ALLOCA,	// .alloca
 	EX_ADD,		// .bin
 	EX_SUB,		// .bin
@@ -321,6 +315,7 @@ struct expr {
 	union {
 		int reg;
 		long i;
+		double f;
 		struct {
 			int num;
 			int off;
@@ -417,6 +412,7 @@ struct dtype *dt;
 		return 2;
 	case DT_DWORD:
 	case DT_FPTR:
+	case DT_FLOAT:
 		return 4;
 	case DT_QWORD:
 		return 8;
@@ -462,6 +458,25 @@ struct dtype *dt;
 	return 0;
 }
 
+assert_dt_is_number (dt)
+struct dtype *dt;
+{
+	switch (dt->type) {
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DWORD:
+	case DT_QWORD:
+	case DT_FLOAT:
+		return 0;
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_DPTR:
+	case DT_FPTR:
+	case DT_SPTR:
+		return error ("this operation is only supported for numbers (byte, word, dword, qword, float)");
+	}
+}
+
 assert_dt_is_int (dt)
 struct dtype *dt;
 {
@@ -471,6 +486,7 @@ struct dtype *dt;
 	case DT_DWORD:
 	case DT_QWORD:
 		return 0;
+	case DT_FLOAT:
 	case DT_NONE:
 	case DT_LABEL:
 	case DT_DPTR:
@@ -518,6 +534,8 @@ struct dtype *dt;
 		dt->type = DT_DWORD;
 	} else if (strcmp (lval.s, "qword") == 0) {
 		dt->type = DT_QWORD;
+	} else if (strcmp (lval.s, "float") == 0) {
+		dt->type = DT_FLOAT;
 	} else {
 	err:
 		error ("expected dtype");
@@ -549,7 +567,7 @@ struct dtype *dt;
 	return 0;
 }
 
-expr_bin (fn, dt, e, t)
+expr_bin (fn, dt, e, t, allow_float)
 struct func *fn;
 struct dtype *dt;
 struct expr *e;
@@ -564,7 +582,12 @@ enum expr_type t;
 
 	assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
 	assert_dt_eq (dt, e->bin.r.dt);
-	assert_dt_is_int (dt);
+
+	if (allow_float) {
+		assert_dt_is_number (dt);
+	} else {
+		assert_dt_is_int (dt);
+	}
 	return 0;
 }
 
@@ -626,6 +649,11 @@ struct expr *e;
 		expect (';');
 		assert_dt_eq (dt, &fn->regs[e->reg].dt);
 		return 0;
+	} else if (tk == TK_FLOAT) {
+		e->type = EX_FLOAT;
+		e->f = lval.f;
+		expect (';');
+		return 0;
 	}
 
 	if (tk != TK_IDENT)
@@ -642,21 +670,21 @@ struct expr *e;
 		e->alloca.off = fn->stoff;
 		expect (';');
 	} else if (strcmp (lval.s, "add") == 0) {
-		expr_bin (fn, dt, e, EX_ADD);
+		expr_bin (fn, dt, e, EX_ADD, 1);
 	} else if (strcmp (lval.s, "sub") == 0) {
-		expr_bin (fn, dt, e, EX_SUB);
+		expr_bin (fn, dt, e, EX_SUB, 1);
 	} else if (strcmp (lval.s, "and") == 0) {
-		expr_bin (fn, dt, e, EX_AND);
+		expr_bin (fn, dt, e, EX_AND, 0);
 	} else if (strcmp (lval.s, "or") == 0) {
-		expr_bin (fn, dt, e, EX_OR);
+		expr_bin (fn, dt, e, EX_OR, 0);
 	} else if (strcmp (lval.s, "xor") == 0) {
-		expr_bin (fn, dt, e, EX_XOR);
+		expr_bin (fn, dt, e, EX_XOR, 0);
 	} else if (strcmp (lval.s, "mul") == 0) {
-		expr_bin (fn, dt, e, EX_MUL);
+		expr_bin (fn, dt, e, EX_MUL, 1);
 	} else if (strcmp (lval.s, "udiv") == 0) {
-		expr_bin (fn, dt, e, EX_UDIV);
+		expr_bin (fn, dt, e, EX_UDIV, 0);
 	} else if (strcmp (lval.s, "sdiv") == 0) {
-		expr_bin (fn, dt, e, EX_SDIV);
+		expr_bin (fn, dt, e, EX_SDIV, 1);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -996,7 +1024,6 @@ parse (void)
 			expect (TK_IDENT);
 		}
 
-		fprintf (stderr, "%s\n", lval.s);
 		if (strcmp (lval.s, "section") == 0) {
 			expect (TK_STRING);
 			section = lval.s;
@@ -1043,6 +1070,9 @@ struct dtype *dt;
 	case DT_QWORD:
 		printf ("qword");
 		break;
+	case DT_FLOAT:
+		printf ("float");
+		break;
 	case DT_DPTR:
 		putchar ('*');
 		print_dt (dt->inner);
@@ -1081,6 +1111,9 @@ struct expr *e;
 	switch (e->type) {
 	case EX_INT:
 		printf ("%ld", e->i);
+		break;
+	case EX_FLOAT:
+		printf ("%f", e->f);
 		break;
 	case EX_REG:
 		printf ("$%d", e->reg);
@@ -1348,6 +1381,7 @@ struct reg *src;
 		return loadw (instr, AX, src);
 	case DT_DWORD:
 	case DT_FPTR:
+	case DT_FLOAT:
 		return loaddw (instr, src);
 	case DT_QWORD:
 		return loadqw (instr, src);
@@ -1408,6 +1442,7 @@ long imm;
 		// fallthrough
 	case DT_DWORD:
 	case DT_FPTR:
+	case DT_FLOAT:
 		loadimmr (instr, "ax", imm & 0xffff);
 		loadimmr (instr, "dx", (imm >> 16) & 0xffff);
 		break;
@@ -1499,7 +1534,8 @@ struct expr *e;
 	case DT_DPTR:
 	case DT_FPTR:
 	case DT_SPTR:
-		error ("cannot add/sub pointers");
+	case DT_FLOAT:
+		error ("cannot add/sub pointers or floats");
 		break;
 	}
 	return 0;
@@ -1515,6 +1551,7 @@ struct expr *e;
 	switch (dt->type) {
 	case DT_NONE:
 	case DT_LABEL:
+	case DT_FLOAT:
 		abort ();
 		break;
 	case DT_DPTR:
@@ -1560,6 +1597,7 @@ struct regimm *shamt;
 	case DT_DPTR:
 	case DT_FPTR:
 	case DT_SPTR:
+	case DT_FLOAT:
 		abort ();
 		break;
 	case DT_BYTE:
@@ -1675,6 +1713,9 @@ struct expr *e;
 	case DT_QWORD:
 		call_muldiv (instr, fn, dt, e);
 		break;
+	case DT_FLOAT:
+		error ("division not implemented for DT_FLOAT");
+		break;
 	}
 	return 0;
 }
@@ -1684,6 +1725,10 @@ struct func *fn;
 struct dtype *dt;
 struct expr *e;
 {
+	union {
+		float f;
+		int32_t i;
+	} flint;
 	struct regimm *ri;
 	struct reg *r;
 	char *s;
@@ -1691,7 +1736,54 @@ struct expr *e;
 
 	switch (e->type) {
 	case EX_INT:
-		loadimm (NULL, dt, e->i);
+		switch (dt->type) {
+		case DT_NONE:
+		case DT_LABEL:
+			abort ();
+			break;
+
+		case DT_BYTE:
+		case DT_WORD:
+		case DT_DWORD:
+		case DT_QWORD:
+		case DT_DPTR:
+		case DT_FPTR:
+		case DT_SPTR:
+			loadimm (NULL, dt, e->i);
+			break;
+
+		case DT_FLOAT:
+			printf ("\tpush %d\n", (int)((e->i >> 16) & 0xffff));
+			printf ("\tpush %d\n", (int)(e->i & 0xffff));
+			puts ("\tmov bx, sp");
+			puts ("\tfild dword [bx]");
+			puts ("\tadd sp, 4");
+			break;
+		}
+		break;
+	case EX_FLOAT:
+		switch (dt->type) {
+		case DT_FLOAT:
+			flint.f = e->f;
+			printf ("\tpush %d\n", (int)((flint.i >> 16) & 0xffff));
+			printf ("\tpush %d\n", (int)(flint.i & 0xffff));
+			puts ("\tmov bx, sp");
+			puts ("\tfld dword [bx]");
+			puts ("\tadd sp, 4");
+			break;
+
+		case DT_NONE:
+		case DT_LABEL:
+		case DT_DPTR:
+		case DT_FPTR:
+		case DT_SPTR:
+		case DT_BYTE:
+		case DT_WORD:
+		case DT_DWORD:
+		case DT_QWORD:
+			abort ();
+			break;
+		}
 		break;
 	case EX_REG:
 	case EX_PCAST:
@@ -1756,6 +1848,9 @@ struct expr *e;
 			// TODO: multiply using FPU
 			call_muldiv ("mul", fn, dt, e);
 			break;
+		case DT_FLOAT:
+			error ("multiplication not implemented for DT_FLOAT");
+			break;
 		}
 		break;
 	case EX_UDIV:
@@ -1795,6 +1890,7 @@ struct expr *e;
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
+		case DT_FLOAT:
 			printf ("\tmov ax, word [%s + %d * 4 + 0]\n", s, e->read.off);
 			printf ("\tmov dx, word [%s + %d * 4 + 2]\n", s, e->read.off);
 			break;
@@ -1825,6 +1921,7 @@ struct expr *e;
 				break;
 			case DT_DWORD:
 			case DT_FPTR:
+			case DT_FLOAT:
 				puts ("\tpush dx");
 				puts ("\tpush ax");
 				break;
@@ -1870,6 +1967,7 @@ struct expr *e;
 		case DT_FPTR:
 		case DT_SPTR:
 		case DT_BYTE:
+		case DT_FLOAT:
 			abort ();
 			break;
 		case DT_WORD:
@@ -1894,6 +1992,7 @@ struct expr *e;
 		case DT_FPTR:
 		case DT_SPTR:
 		case DT_BYTE:
+		case DT_FLOAT:
 			abort ();
 			break;
 		case DT_WORD:
@@ -1924,6 +2023,7 @@ struct expr *e;
 		case DT_FPTR:
 		case DT_SPTR:
 		case DT_QWORD:
+		case DT_FLOAT:
 			abort ();
 			break;
 		case DT_DWORD:
@@ -2043,6 +2143,9 @@ struct ir *ir;
 			printf ("\tmov word [ss:bp + %d + 4], bx\n", r->off);
 			printf ("\tmov word [ss:bp + %d + 6], cx\n", r->off);
 			break;
+		case DT_FLOAT:
+			printf ("\tfstp dword [ss:bp + %d]\n", r->off);
+			break;
 		}
 		break;
 	case IR_WRITE:
@@ -2064,6 +2167,7 @@ struct ir *ir;
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
+		case DT_FLOAT:
 			printf ("\tmov word [%s + %d * 4 + 0], ax\n", reg, ir->write.off);
 			printf ("\tmov word [%s + %d * 4 + 2], dx\n", reg, ir->write.off);
 			break;
@@ -2113,6 +2217,9 @@ struct ir *ir;
 		case DT_DPTR:
 		case DT_SPTR:
 			puts ("\ttest ax, ax");
+			break;
+		case DT_FLOAT:
+			error ("TODO: IR_BR for DT_FLOAT");
 			break;
 		}
 

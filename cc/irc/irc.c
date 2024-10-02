@@ -257,6 +257,9 @@ struct expr {
 		struct {
 			int from[8], val[8], num;
 		} phi;
+		struct {
+			int src, off;
+		} read;
 	};
 };
 
@@ -615,10 +618,22 @@ struct expr *e;
 	} else if (strcmp (lval.s, "read") == 0) {
 		e->type = EX_READ;
 		expect (TK_REG);
-		e->reg = lval.i;
-		expect (';');
+		e->read.src = lval.i;
+		switch (lex ()) {
+		case ';':
+			e->read.off = 0;
+			break;
+		case ',':
+			expect (TK_INT);
+			e->read.off = lval.i;
+			expect (';');
+			break;
+		default:
+			error ("syntax error");
+			break;
+		}
 
-		assert_dt_ptr (&fn->regs[e->i].dt, dt);
+		assert_dt_ptr (&fn->regs[e->read.src].dt, dt);
 	} else if (strcmp (lval.s, "call") == 0) {
 		e->type = EX_CALL;
 		expect (TK_IDENT);
@@ -980,7 +995,7 @@ struct expr *e;
 		print_ri (&e->bin.r);
 		break;
 	case EX_READ:
-		printf ("read $%d", e->reg);
+		printf ("read $%d, %d", e->read.src, e->read.off);
 		break;
 	case EX_CALL:
 		printf ("call %s", e->call->fn);
@@ -1498,30 +1513,30 @@ struct expr *e;
 		}
 		break;
 	case EX_READ:
-		s = loadptr (&fn->regs[e->reg]);
+		s = loadptr (&fn->regs[e->read.src]);
 		switch (dt->type) {
 		case DT_NONE:
 		case DT_LABEL:
 			abort ();
 			break;
 		case DT_BYTE:
-			printf ("\tmov al, byte [%s]\n", s);
+			printf ("\tmov al, byte [%s + %d]\n", s, e->read.off);
 			break;
 		case DT_WORD:
 		case DT_DPTR:
 		case DT_SPTR:
-			printf ("\tmov ax, word [%s]\n", s);
+			printf ("\tmov ax, word [%s + %d * 2]\n", s, e->read.off);
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
-			printf ("\tmov ax, word [%s + 0]\n", s);
-			printf ("\tmov dx, word [%s + 2]\n", s);
+			printf ("\tmov ax, word [%s + %d * 4 + 0]\n", s, e->read.off);
+			printf ("\tmov dx, word [%s + %d * 4 + 2]\n", s, e->read.off);
 			break;
 		case DT_QWORD:
-			printf ("\tmov ax, word [%s + 0]\n", s);
-			printf ("\tmov dx, word [%s + 2]\n", s);
-			printf ("\tmov bx, word [%s + 4]\n", s);
-			printf ("\tmov cx, word [%s + 6]\n", s);
+			printf ("\tmov ax, word [%s + %d * 8 + 0]\n", s, e->read.off);
+			printf ("\tmov dx, word [%s + %d * 8 + 2]\n", s, e->read.off);
+			printf ("\tmov bx, word [%s + %d * 8 + 4]\n", s, e->read.off);
+			printf ("\tmov cx, word [%s + %d * 8 + 6]\n", s, e->read.off);
 			break;
 		}
 		break;

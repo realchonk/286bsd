@@ -159,6 +159,11 @@ begin:
 		nextch ();
 		parse_int ();
 		return TK_REG;
+	case '-':
+		nextch ();
+		parse_int ();
+		lval.i = -lval.i;
+		return TK_INT;
 	case '(':
 	case ')':
 	case '{':
@@ -1854,7 +1859,6 @@ struct expr *e;
 			break;
 		}
 		break;
-		// TODO: shifts
 	case EX_LSL:
 		shift (fn, "shl", &fn->regs[e->bin.l], &e->bin.r);
 		break;

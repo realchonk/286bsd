@@ -183,3 +183,7 @@ fn qdiv ($0: qword, $1: qword): qword {
 	let $4: qword = add $2, $3;
 	ret $4;
 }
+
+fn negative (): qword {
+	ret -1;
+}

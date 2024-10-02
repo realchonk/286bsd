@@ -283,21 +283,21 @@ enum expr_type {
 	EX_AND,		// .bin
 	EX_OR,		// .bin
 	EX_XOR,		// .bin
-	EX_READ,	// .read
-	EX_CALL,	// .call
-	EX_PHI,		// .phi
-	EX_PTRADD,	// .bin
-	EX_PEXT,	// .reg
-	EX_ZEXT,	// .reg
-	EX_SEXT,	// .reg
-	EX_TRUNC,	// .reg
-	EX_PCAST,	// .reg
 	EX_LSL,		// .bin
 	EX_LSR,		// .bin
 	EX_ASR,		// .bin
 	EX_MUL,		// .bin
 	EX_UDIV,	// .bin
 	EX_SDIV,	// .bin
+	EX_PTRADD,	// .bin
+	EX_READ,	// .read
+	EX_CALL,	// .call
+	EX_PHI,		// .phi
+	EX_PEXT,	// .reg
+	EX_ZEXT,	// .reg
+	EX_SEXT,	// .reg
+	EX_TRUNC,	// .reg
+	EX_PCAST,	// .reg
 };
 
 struct call {
@@ -677,17 +677,7 @@ struct expr *e;
 	if (tk != TK_IDENT)
 		goto err;
 
-	if (strcmp (lval.s, "alloca") == 0) {
-		if (dt->type != DT_SPTR && dt->type != DT_FPTR)
-			error ("the result of alloca must be stored in a far or stack pointer");
-
-		e->type = EX_ALLOCA;
-		expect (TK_INT);
-		e->alloca.num = lval.i;
-		stalloc (fn, sizeof_dt (dt->inner) * e->alloca.num);
-		e->alloca.off = fn->stoff;
-		expect (';');
-	} else if (strcmp (lval.s, "add") == 0) {
+	if (strcmp (lval.s, "add") == 0) {
 		expr_bin (fn, dt, e, EX_ADD, 1);
 	} else if (strcmp (lval.s, "sub") == 0) {
 		expr_bin (fn, dt, e, EX_SUB, 1);
@@ -709,18 +699,6 @@ struct expr *e;
 		expr_shift (fn, dt, e, EX_LSR);
 	} else if (strcmp (lval.s, "asr") == 0) {
 		expr_shift (fn, dt, e, EX_ASR);
-	} else if (strcmp (lval.s, "pext") == 0) {
-		e->type = EX_PEXT;
-		expect (TK_REG);
-		e->reg = lval.i;
-		expect (';');
-
-		if (dt->type != DT_FPTR)
-			error ("the result of `pext` must be a far pointer");
-		r = &fn->regs[e->reg];
-		if (r->dt.type != DT_DPTR && r->dt.type != DT_SPTR)
-			error ("the source of `pext` must be either a data pointer or stack pointer");
-		assert_dt_eq (dt->inner, r->dt.inner);
 	} else if (strcmp (lval.s, "zext") == 0) {
 		expr_icast (fn, dt, e, EX_ZEXT);
 		if (dt->type <= fn->regs[e->reg].dt.type)
@@ -733,6 +711,28 @@ struct expr *e;
 		expr_icast (fn, dt, e, EX_TRUNC);
 		if (dt->type >= fn->regs[e->reg].dt.type)
 			error ("invalid trunc");
+	} else if (strcmp (lval.s, "pext") == 0) {
+		e->type = EX_PEXT;
+		expect (TK_REG);
+		e->reg = lval.i;
+		expect (';');
+
+		if (dt->type != DT_FPTR)
+			error ("the result of `pext` must be a far pointer");
+		r = &fn->regs[e->reg];
+		if (r->dt.type != DT_DPTR && r->dt.type != DT_SPTR)
+			error ("the source of `pext` must be either a data pointer or stack pointer");
+		assert_dt_eq (dt->inner, r->dt.inner);
+	} else if (strcmp (lval.s, "alloca") == 0) {
+		if (dt->type != DT_SPTR && dt->type != DT_FPTR)
+			error ("the result of alloca must be stored in a far or stack pointer");
+
+		e->type = EX_ALLOCA;
+		expect (TK_INT);
+		e->alloca.num = lval.i;
+		stalloc (fn, sizeof_dt (dt->inner) * e->alloca.num);
+		e->alloca.off = fn->stoff;
+		expect (';');
 	} else if (strcmp (lval.s, "ptradd") == 0) {
 		e->type = EX_PTRADD;
 		expect (TK_REG);

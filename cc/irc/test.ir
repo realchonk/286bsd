@@ -199,5 +199,6 @@ fn floats (): float {
 	let $3: float = fsub $0, $1;
 	let $4: float = fmul $0, $1;
 	let $5: float = fdiv $0, $1;
+	let $6: float = $5;
 	ret $0;
 }

@@ -1308,6 +1308,10 @@ enum x86_reg8 dest;
 struct reg *src;
 {
 	assert (sizeof_dt (&src->dt) == 1);
+
+	if (instr == NULL)
+		instr = "mov";
+
 	switch (src->type) {
 	case R_NONE:
 	case R_LABEL:
@@ -1328,6 +1332,10 @@ enum x86_reg16 dest;
 struct reg *src;
 {
 	assert (sizeof_dt (&src->dt) == 2);
+
+	if (instr == NULL)
+		instr = "mov";
+
 	switch (src->type) {
 	case R_NONE:
 		abort ();
@@ -1350,6 +1358,9 @@ char *instr;
 enum x86_reg16 dest;
 struct reg *src;
 {
+	if (instr == NULL)
+		instr = "mov";
+
 	switch (src->type) {
 	case R_NONE:
 	case R_LABEL:
@@ -1369,6 +1380,9 @@ char *instr;
 enum x86_reg8 dest;
 struct reg *src;
 {
+	if (instr == NULL)
+		instr = "mov";
+
 	switch (src->type) {
 	case R_NONE:
 	case R_LABEL:
@@ -1405,11 +1419,20 @@ struct reg *src;
 	return 0;
 }
 
+loadf (instr, src)
+char *instr;
+struct reg *src;
+{
+	if (instr == NULL)
+		instr = "fld";
+	printf ("\t%s dword [ss:bp + %d]\n", instr, src->off);
+	return 0;
+}
+
 load (instr, src)
 char *instr;
 struct reg *src;
 {
-	assert (instr != NULL);
 	switch (src->dt.type) {
 	case DT_NONE:
 		abort ();
@@ -1423,10 +1446,11 @@ struct reg *src;
 		return loadw (instr, AX, src);
 	case DT_DWORD:
 	case DT_FPTR:
-	case DT_FLOAT:
 		return loaddw (instr, src);
 	case DT_QWORD:
 		return loadqw (instr, src);
+	case DT_FLOAT:
+		return loadf (instr, src);
 	}
 }
 
@@ -1436,14 +1460,14 @@ struct reg *ptr;
 {
 	switch (ptr->dt.type) {
 	case DT_DPTR:
-		loadw ("mov", BX, ptr);
+		loadw (NULL, BX, ptr);
 		return "ds:bx";
 	case DT_SPTR:
-		loadw ("mov", BX, ptr);
+		loadw (NULL, BX, ptr);
 		return "ss:bx";
 	case DT_FPTR:
-		loadpw ("mov", BX, ptr, 0);
-		loadpw ("mov", ES, ptr, 2);
+		loadpw (NULL, BX, ptr, 0);
+		loadpw (NULL, ES, ptr, 2);
 		return "es:bx";
 	default:
 		return abort (), NULL;
@@ -1455,7 +1479,9 @@ char *instr, *dest;
 long imm;
 {
 	if (imm != 0 || instr != NULL) {
-		printf ("\t%s %s, %ld\n", instr != NULL ? instr : "mov", dest, imm);
+		if (instr == NULL)
+			instr = "mov";
+		printf ("\t%s %s, %ld\n", instr, dest, imm);
 	} else {
 		printf ("\txor %s, %s\n", dest, dest);
 	}
@@ -1484,7 +1510,6 @@ long imm;
 		// fallthrough
 	case DT_DWORD:
 	case DT_FPTR:
-	case DT_FLOAT:
 		loadimmr (instr, "ax", imm & 0xffff);
 		loadimmr (instr, "dx", (imm >> 16) & 0xffff);
 		break;
@@ -1493,6 +1518,9 @@ long imm;
 		loadimmr (instr, "dx", (imm >> 16) & 0xffff);
 		loadimmr (instr, "bx", (imm >> 32) & 0xffff);
 		loadimmr (instr, "cx", (imm >> 48) & 0xffff);
+		break;
+	case DT_FLOAT:
+		abort ();
 		break;
 	}
 	return 0;
@@ -1506,7 +1534,7 @@ struct regimm *ri;
 	if (ri->is_imm) {
 		return loadimm (instr, ri->dt, ri->imm);
 	} else {
-		return load (instr != NULL ? instr : "mov", &fn->regs[ri->reg]);
+		return load (instr, &fn->regs[ri->reg]);
 	}
 }
 
@@ -1553,7 +1581,7 @@ struct func *fn;
 struct dtype *dt;
 struct expr *e;
 {
-	load ("mov", &fn->regs[e->bin.l]);
+	load (NULL, &fn->regs[e->bin.l]);
 	switch (dt->type) {
 	case DT_NONE:
 	case DT_LABEL:
@@ -1589,7 +1617,7 @@ struct func *fn;
 struct dtype *dt;
 struct expr *e;
 {
-	load ("mov", &fn->regs[e->bin.l]);
+	load (NULL, &fn->regs[e->bin.l]);
 	switch (dt->type) {
 	case DT_NONE:
 	case DT_LABEL:
@@ -1625,13 +1653,13 @@ struct regimm *shamt;
 	if (shamt->is_imm) {
 		loadimmr (NULL, "cl", shamt->imm & 0xff);
 	} else {
-		loadb ("mov", CL, &fn->regs[shamt->reg]);
+		loadb (NULL, CL, &fn->regs[shamt->reg]);
 	}
 
 	if (dt->type == DT_QWORD)
 		puts ("\tpush cx");
 
-	load ("mov", reg);
+	load (NULL, reg);
 
 	switch (dt->type) {
 	case DT_NONE:
@@ -1678,7 +1706,7 @@ struct expr *e;
 			printf ("\tpush word [ss:bp + %d + 2]\n", r->off);
 			printf ("\tpush word [ss:bp + %d + 0]\n", r->off);
 		}
-		load ("mov", &fn->regs[e->bin.l]);
+		load (NULL, &fn->regs[e->bin.l]);
 		printf ("\tcall __%sd\n", instr);
 		puts ("\tadd sp, 4");
 		break;
@@ -1695,7 +1723,7 @@ struct expr *e;
 			printf ("\tpush word [ss:bp + %d + 2]\n", r->off);
 			printf ("\tpush word [ss:bp + %d + 0]\n", r->off);
 		}
-		load ("mov", &fn->regs[e->bin.l]);
+		load (NULL, &fn->regs[e->bin.l]);
 		printf ("\tcall __%sq\n", instr);
 		puts ("\tadd sp, 8");
 		break;
@@ -1724,28 +1752,28 @@ struct expr *e;
 		abort ();
 		break;
 	case DT_BYTE:
-		loadb ("mov", AL, acc);
+		loadb (NULL, AL, acc);
 		if (sign) {
 			puts ("\tcbw");
 		} else {
 			puts ("\txor dl, dl");
 		}
 		if (ri->is_imm) {
-			loadimmr ("mov", "cl", (int)ri->imm);
+			loadimmr (NULL, "cl", (int)ri->imm);
 			printf ("\t%s cl\n", instr);
 		} else {
 			printf ("\t%s byte [ss:bp + %d]\n", instr, fn->regs[ri->reg].off);
 		}
 		break;
 	case DT_WORD:
-		loadw ("mov", AX, acc);
+		loadw (NULL, AX, acc);
 		if (sign) {
 			puts ("\tcwd");
 		} else {
 			puts ("\txor dx, dx");
 		}
 		if (ri->is_imm) {
-			loadimmr ("mov", "cx", (int)ri->imm);
+			loadimmr (NULL, "cx", (int)ri->imm);
 			printf ("\t%s cx\n", instr);
 		} else {
 			printf ("\t%s word [ss:bp + %d]\n", instr, fn->regs[ri->reg].off);
@@ -1824,7 +1852,7 @@ struct expr *e;
 			printf ("\tpush %d\n", (int)((e->i >> 16) & 0xffff));
 			printf ("\tpush %d\n", (int)(e->i & 0xffff));
 			puts ("\tmov bx, sp");
-			puts ("\tfild dword [bx]");
+			puts ("\tfild dword [ss:bx]");
 			puts ("\tadd sp, 4");
 			break;
 		}
@@ -1836,7 +1864,7 @@ struct expr *e;
 			printf ("\tpush %d\n", (int)((flint.i >> 16) & 0xffff));
 			printf ("\tpush %d\n", (int)(flint.i & 0xffff));
 			puts ("\tmov bx, sp");
-			puts ("\tfld dword [bx]");
+			puts ("\tfld dword [ss:bx]");
 			puts ("\tadd sp, 4");
 			break;
 
@@ -1854,8 +1882,13 @@ struct expr *e;
 		}
 		break;
 	case EX_REG:
+		if (dt->type == DT_FLOAT) {
+			printf ("\tfld dword [ss:bp + %d]\n", fn->regs[e->reg].off);
+			break;
+		}
+		// fallthrough
 	case EX_PCAST:
-		load ("mov", &fn->regs[e->reg]);
+		load (NULL, &fn->regs[e->reg]);
 		break;
 	case EX_ALLOCA:
 		switch (dt->type) {
@@ -1896,7 +1929,7 @@ struct expr *e;
 			abort ();
 			break;
 		case DT_BYTE:
-			loadb ("mov", AL, r);
+			loadb (NULL, AL, r);
 			if (ri->is_imm) {
 				cmul ("al", (int)(ri->imm & 0xff));
 			} else {
@@ -1904,7 +1937,7 @@ struct expr *e;
 			}
 			break;
 		case DT_WORD:
-			loadw ("mov", AX, &fn->regs[e->bin.l]);
+			loadw (NULL, AX, &fn->regs[e->bin.l]);
 			if (ri->is_imm) {
 				cmul ("ax", (int)(ri->imm & 0xffff));
 			} else {
@@ -1928,7 +1961,7 @@ struct expr *e;
 		gen_div (fn, dt, e, 1);
 		break;
 	case EX_PTRADD:
-		load ("mov", &fn->regs[e->bin.l]);
+		load (NULL, &fn->regs[e->bin.l]);
 
 		sz = sizeof_dt (fn->regs[e->bin.l].dt.inner);
 
@@ -1936,7 +1969,7 @@ struct expr *e;
 			if (e->bin.r.imm != 0)
 				printf ("\tadd ax, %d\n", (int)(e->bin.r.imm & 0xffff) * sz);
 		} else {
-			loadw ("mov", CX, &fn->regs[e->bin.r.reg]);
+			loadw (NULL, CX, &fn->regs[e->bin.r.reg]);
 			cmul ("cx", sz);
 			puts ("\tadd ax, cx");
 		}
@@ -2014,7 +2047,7 @@ struct expr *e;
 		break;
 	case EX_PEXT:
 		r = &fn->regs[e->reg];
-		loadw ("mov", AX, r);
+		loadw (NULL, AX, r);
 		switch (r->dt.type) {
 		case DT_DPTR:
 			puts ("\tmov dx, ds");
@@ -2027,7 +2060,7 @@ struct expr *e;
 		}
 		break;
 	case EX_ZEXT:
-		load ("mov", &fn->regs[e->reg]);
+		load (NULL, &fn->regs[e->reg]);
 		switch (dt->type) {
 		case DT_NONE:
 		case DT_LABEL:
@@ -2052,7 +2085,7 @@ struct expr *e;
 		break;
 	case EX_SEXT:
 		r = &fn->regs[e->reg];
-		load ("mov", r);
+		load (NULL, r);
 		switch (dt->type) {
 		case DT_NONE:
 		case DT_LABEL:
@@ -2095,14 +2128,14 @@ struct expr *e;
 			abort ();
 			break;
 		case DT_DWORD:
-			loadpw ("mov", AX, &fn->regs[e->reg], 0);
-			loadpw ("mov", DX, &fn->regs[e->reg], 2);
+			loadpw (NULL, AX, &fn->regs[e->reg], 0);
+			loadpw (NULL, DX, &fn->regs[e->reg], 2);
 			break;
 		case DT_WORD:
-			loadpw ("mov", AX, &fn->regs[e->reg], 0);
+			loadpw (NULL, AX, &fn->regs[e->reg], 0);
 			break;
 		case DT_BYTE:
-			loadpb ("mov", AL, &fn->regs[e->reg], 0);
+			loadpb (NULL, AL, &fn->regs[e->reg], 0);
 			break;
 		}
 		break;
@@ -2172,7 +2205,7 @@ struct reg *to;
 
 	for (i = 0; i < e->phi->num; ++i) {
 		if (e->phi->from[i] == mylbl) {
-			loadw ("mov", AX, &fn->regs[e->phi->val[i]]);
+			loadw (NULL, AX, &fn->regs[e->phi->val[i]]);
 			return 0;
 		}
 	}
@@ -2275,7 +2308,7 @@ struct ir *ir;
 		break;
 	case IR_BR:
 		r = &fn->regs[ir->br.cond];
-		load ("mov", r);
+		load (NULL, r);
 
 		switch (r->dt.type) {
 		case DT_NONE:

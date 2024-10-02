@@ -21,7 +21,6 @@
 - register refcnt
 - optimize memory footprint of irc itself
 - add global variables
-- add `pub`
 - typecheck function calls
 - add `extern` functions
 - add function pointers

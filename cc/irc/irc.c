@@ -340,6 +340,7 @@ struct func {
 	struct reg regs[NREGS];
 	struct ir *body;
 	int stoff;
+	int is_pub;
 };
 
 // MISC
@@ -923,14 +924,22 @@ parse (void)
 {
 	extern gen ();
 	struct func fn;
-	int tk;
+	int tk, is_pub;
 
 	while ((tk = lex ()) != TK_EOF) {
 		if (tk != TK_IDENT)
 			goto err;
+		
+		is_pub = 0;
+
+		if (strcmp (lval.s, "pub") == 0) {
+			is_pub = 1;
+			expect (TK_IDENT);
+		}
 
 		if (strcmp (lval.s, "fn") == 0) {
 			memset (&fn, 0, sizeof (fn));
+			fn.is_pub = is_pub;
 			func (&fn);
 			gen (&fn);
 			reset ();
@@ -2051,6 +2060,9 @@ gen (fn)
 struct func *fn;
 {
 	struct ir *ir;
+
+	if (fn->is_pub)
+		printf ("global %s\n", fn->name);
 
 	printf ("%s:\n", fn->name);
 	puts ("\tpush bp");

@@ -1114,10 +1114,11 @@ enum x86_reg16 {
 	BX,
 	CX,
 	DX,
+	ES,
 };
 
 char *reg8[] = { "al", "bl", "cl", "dl" };
-char *reg16[] = { "ax", "bx", "cx", "dx" };
+char *reg16[] = { "ax", "bx", "cx", "dx", "es" };
 
 // ASM GEN
 
@@ -1261,8 +1262,7 @@ struct reg *ptr;
 		return "ss:bx";
 	case DT_FPTR:
 		loadpw ("mov", BX, ptr, 0);
-		loadpw ("mov", DX, ptr, 2);
-		puts ("\tmov es, dx");
+		loadpw ("mov", ES, ptr, 2);
 		return "es:bx";
 	default:
 		return abort (), NULL;

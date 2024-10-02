@@ -729,7 +729,7 @@ struct expr *e;
 	} else if (strcmp (lval.s, "udiv") == 0) {
 		expr_bin (fn, dt, e, EX_UDIV, 0);
 	} else if (strcmp (lval.s, "sdiv") == 0) {
-		expr_bin (fn, dt, e, EX_SDIV, 0);
+		expr_bin (fn, dt, e, EX_SDIV, 1);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -1809,7 +1809,10 @@ struct expr *e;
 		call_muldiv (instr, fn, dt, e);
 		break;
 	case DT_FLOAT:
-		error ("division not implemented for DT_FLOAT");
+		if (ri->is_imm)
+			error ("cannot use immediate values for floating-point operations");
+		load (NULL, acc);
+		load ("fdiv", &fn->regs[ri->reg]);
 		break;
 	}
 	return 0;

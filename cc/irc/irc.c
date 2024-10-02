@@ -1074,7 +1074,7 @@ struct reg *src;
 		break;
 	case R_LOCAL:
 	case R_PARAM:
-		printf ("\t%s %s, byte [bp + %d]\n",
+		printf ("\t%s %s, byte [ss:bp + %d]\n",
 			instr, reg8[dest], src->off);
 		break;
 	}
@@ -1093,7 +1093,7 @@ struct reg *src;
 		break;
 	case R_LOCAL:
 	case R_PARAM:
-		printf ("\t%s %s, word [bp + %d]\n",
+		printf ("\t%s %s, word [ss:bp + %d]\n",
 			instr, reg16[dest], src->off);
 		break;
 	case R_LABEL:
@@ -1116,7 +1116,7 @@ struct reg *src;
 		break;
 	case R_LOCAL:
 	case R_PARAM:
-		printf ("\t%s %s, word [bp + %d + %d]\n",
+		printf ("\t%s %s, word [ss:bp + %d + %d]\n",
 			instr, reg16[dest], src->off, off);
 		break;
 	}
@@ -1135,7 +1135,7 @@ struct reg *src;
 		break;
 	case R_LOCAL:
 	case R_PARAM:
-		printf ("\t%s %s, byte [bp + %d + %d]\n",
+		printf ("\t%s %s, byte [ss:bp + %d + %d]\n",
 			instr, reg8[dest], src->off, off);
 		break;
 	}
@@ -1711,23 +1711,23 @@ struct ir *ir;
 		err:
 			error ("broken let");
 		case DT_BYTE:
-			printf ("\tmov byte [bp + %d], al\n", r->off);
+			printf ("\tmov byte [ss:bp + %d], al\n", r->off);
 			break;
 		case DT_WORD:
 		case DT_PTR:
 		case DT_SPTR:
-			printf ("\tmov word [bp + %d], ax\n", r->off);
+			printf ("\tmov word [ss:bp + %d], ax\n", r->off);
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
-			printf ("\tmov word [bp + %d + 0], ax\n", r->off);
-			printf ("\tmov word [bp + %d + 2], dx\n", r->off);
+			printf ("\tmov word [ss:bp + %d + 0], ax\n", r->off);
+			printf ("\tmov word [ss:bp + %d + 2], dx\n", r->off);
 			break;
 		case DT_QWORD:
-			printf ("\tmov word [bp + %d + 0], ax\n", r->off);
-			printf ("\tmov word [bp + %d + 2], dx\n", r->off);
-			printf ("\tmov word [bp + %d + 4], bx\n", r->off);
-			printf ("\tmov word [bp + %d + 6], cx\n", r->off);
+			printf ("\tmov word [ss:bp + %d + 0], ax\n", r->off);
+			printf ("\tmov word [ss:bp + %d + 2], dx\n", r->off);
+			printf ("\tmov word [ss:bp + %d + 4], bx\n", r->off);
+			printf ("\tmov word [ss:bp + %d + 6], cx\n", r->off);
 			break;
 		}
 		break;

@@ -27,4 +27,5 @@
 - typecheck function calls
 - add `extern` functions
 - converting DT_PTR and DT_SPTR to DT_FPTR
-- rename DT_PTR to DT_LPTR (local ptr to ds segment)
+- add function pointers
+- rename DT_FPTR to DT_PTR

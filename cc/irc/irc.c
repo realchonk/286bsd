@@ -161,6 +161,7 @@ begin:
 	case '=':
 	case '*':
 	case '!':
+	case '^':
 		return nextch ();
 	case '#':
 		while (1) {
@@ -181,8 +182,9 @@ begin:
 
 enum dtype_type {
 	DT_NONE,
-	DT_PTR,
-	DT_FPTR,
+	DT_PTR,		// pointer to data memory (ds)
+	DT_FPTR,	// segment+pointer
+	DT_SPTR,	// pointer to stack memory (ss)
 	DT_LABEL,
 	DT_BYTE,
 	DT_WORD,
@@ -327,6 +329,7 @@ struct dtype *dt;
 		return 1;
 	case DT_WORD:
 	case DT_PTR:
+	case DT_SPTR:
 	case DT_LABEL:
 		return 2;
 	case DT_DWORD:
@@ -343,16 +346,20 @@ struct dtype *a, *b;
 	if (a->type != b->type)
 		return error ("type mismatch");
 
-	if (a->type == DT_PTR)
+	switch (a->type) {
+	case DT_PTR:
+	case DT_FPTR:
+	case DT_SPTR:
 		return assert_dt_eq (a->inner, b->inner);
-
-	return 0;
+	default:
+		return 0;
+	}
 }
 
 assert_dt_is_ptr (ptr)
 struct dtype *ptr;
 {
-	if (ptr->type != DT_PTR && ptr->type != DT_FPTR)
+	if (ptr->type != DT_PTR && ptr->type != DT_FPTR && ptr->type != DT_SPTR)
 		return error ("not a pointer");
 	return 0;
 }
@@ -385,6 +392,7 @@ struct dtype *dt;
 	case DT_LABEL:
 	case DT_PTR:
 	case DT_FPTR:
+	case DT_SPTR:
 		return error ("this operation is only supported for integers (byte, word, dword, qword)");
 	}
 }
@@ -408,6 +416,10 @@ struct dtype *dt;
 		return dtype (dt->inner);
 	} else if (tk == '!') {
 		dt->type = DT_FPTR;
+		dt->inner = new (struct dtype);
+		return dtype (dt->inner);
+	} else if (tk == '^') {
+		dt->type = DT_SPTR;
 		dt->inner = new (struct dtype);
 		return dtype (dt->inner);
 	}
@@ -536,8 +548,8 @@ struct expr *e;
 		goto err;
 
 	if (strcmp (lval.s, "alloca") == 0) {
-		if (dt->type != DT_PTR)
-			error ("the result of alloca must be stored in a pointer");
+		if (dt->type != DT_SPTR && dt->type != DT_FPTR)
+			error ("the result of alloca must be stored in a far or stack pointer");
 
 		e->type = EX_ALLOCA;
 		expect (TK_INT);
@@ -889,6 +901,10 @@ struct dtype *dt;
 		putchar ('!');
 		print_dt (dt->inner);
 		break;
+	case DT_SPTR:
+		putchar ('^');
+		print_dt (dt->inner);
+		break;
 	case DT_LABEL:
 		printf ("label");
 		break;
@@ -1161,6 +1177,7 @@ struct reg *src;
 		return loadb (instr, AL, src);
 	case DT_WORD:
 	case DT_PTR:
+	case DT_SPTR:
 	case DT_LABEL:
 		return loadw (instr, AX, src);
 	case DT_DWORD:
@@ -1178,7 +1195,10 @@ struct reg *ptr;
 	switch (ptr->dt.type) {
 	case DT_PTR:
 		loadw ("mov", BX, ptr);
-		return "bx";
+		return "ds:bx";
+	case DT_SPTR:
+		loadw ("mov", BX, ptr);
+		return "ss:bx";
 	case DT_FPTR:
 		loadpw ("mov", BX, ptr, 0);
 		loadpw ("mov", DX, ptr, 2);
@@ -1217,6 +1237,10 @@ long imm;
 	case DT_PTR:
 		loadimmr (instr, "ax", imm & 0xffff);
 		break;
+	case DT_SPTR:
+		if (imm != 0)
+			error ("it is illegal initialize a pointer to stack memory with anything else than 0");
+		// fallthrough
 	case DT_DWORD:
 	case DT_FPTR:
 		loadimmr (instr, "ax", imm & 0xffff);
@@ -1313,6 +1337,7 @@ struct expr *e;
 		break;
 	case DT_PTR:
 	case DT_FPTR:
+	case DT_SPTR:
 		error ("cannot add/sub pointers");
 		break;
 	}
@@ -1333,6 +1358,7 @@ struct expr *e;
 		break;
 	case DT_PTR:
 	case DT_FPTR:
+	case DT_SPTR:
 		error ("invalid alu operation on pointers");
 		break;
 	case DT_BYTE:
@@ -1372,6 +1398,7 @@ struct regimm *shamt;
 	case DT_LABEL:
 	case DT_PTR:
 	case DT_FPTR:
+	case DT_SPTR:
 		abort ();
 		break;
 	case DT_BYTE:
@@ -1410,8 +1437,16 @@ struct expr *e;
 		load ("mov", &fn->regs[e->reg]);
 		break;
 	case EX_ALLOCA:
-		assert (dt->type == DT_PTR);
-		printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
+		switch (dt->type) {
+		case DT_FPTR:
+			puts ("\tmov dx, ss");
+			// fallthrough
+		case DT_SPTR:
+			printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
+			break;
+		default:
+			abort ();
+		}
 		break;
 	case EX_ADD:
 		addsub ("add", "adc", fn, dt, e);
@@ -1454,6 +1489,7 @@ struct expr *e;
 			break;
 		case DT_WORD:
 		case DT_PTR:
+		case DT_SPTR:
 			printf ("\tmov ax, word [%s]\n", s);
 			break;
 		case DT_DWORD:
@@ -1482,6 +1518,7 @@ struct expr *e;
 			case DT_BYTE:
 			case DT_WORD:
 			case DT_PTR:
+			case DT_SPTR:
 			case DT_LABEL:
 				puts ("\tpush ax");
 				break;
@@ -1516,6 +1553,7 @@ struct expr *e;
 		case DT_LABEL:
 		case DT_PTR:
 		case DT_FPTR:
+		case DT_SPTR:
 		case DT_BYTE:
 			abort ();
 			break;
@@ -1539,6 +1577,7 @@ struct expr *e;
 		case DT_LABEL:
 		case DT_PTR:
 		case DT_FPTR:
+		case DT_SPTR:
 		case DT_BYTE:
 			abort ();
 			break;
@@ -1568,6 +1607,7 @@ struct expr *e;
 		case DT_LABEL:
 		case DT_PTR:
 		case DT_FPTR:
+		case DT_SPTR:
 		case DT_QWORD:
 			abort ();
 			break;
@@ -1675,6 +1715,7 @@ struct ir *ir;
 			break;
 		case DT_WORD:
 		case DT_PTR:
+		case DT_SPTR:
 			printf ("\tmov word [bp + %d], ax\n", r->off);
 			break;
 		case DT_DWORD:
@@ -1704,6 +1745,7 @@ struct ir *ir;
 			break;
 		case DT_WORD:
 		case DT_PTR:
+		case DT_SPTR:
 			printf ("\tmov word [%s], ax\n", reg);
 			break;
 		case DT_DWORD:
@@ -1755,6 +1797,7 @@ struct ir *ir;
 			// fallthrough
 		case DT_WORD:
 		case DT_PTR:
+		case DT_SPTR:
 			puts ("\ttest ax, ax");
 			break;
 		}

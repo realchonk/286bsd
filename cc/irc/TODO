@@ -20,7 +20,6 @@
 - EX_INT16 (int), EX_INT32 (long), EX_INT64 (llong) (for performance reasons)
 - register refcnt
 - optimize memory footprint of irc itself
-- split parsing code of binary exprs into function
 - DT_SPTR (pointer to stack memory)
 - make expr.call indirect
 - use ss segment for stack variables
@@ -28,3 +27,5 @@
 - add `pub`
 - typecheck function calls
 - add `extern` functions
+- converting DT_PTR and DT_SPTR to DT_FPTR
+- rename DT_PTR to DT_LPTR (local ptr to ds segment)

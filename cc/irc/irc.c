@@ -240,6 +240,10 @@ struct call {
 	struct regimm args[8];
 };
 
+struct phi {
+	int from[8], val[8], num;
+};
+
 struct expr {
 	enum expr_type type;
 	union {
@@ -254,9 +258,7 @@ struct expr {
 			struct regimm r;
 		} bin;
 		struct call *call;
-		struct {
-			int from[8], val[8], num;
-		} phi;
+		struct phi *phi;
 		struct {
 			int src, off;
 		} read;
@@ -656,22 +658,23 @@ struct expr *e;
 		e->type = EX_PHI;
 		expect ('(');
 		expect (TK_REG);
-		e->phi.from[0] = lval.i;
+		e->phi = new (struct phi);
+		e->phi->from[0] = lval.i;
 		expect (':');
 		expect (TK_REG);
-		e->phi.val[0] = lval.i;
+		e->phi->val[0] = lval.i;
 		expect (')');
-		e->phi.num = 1;
+		e->phi->num = 1;
 
 		while ((tk = lex ()) == ',') {
 			expect ('(');
 			expect (TK_REG);
-			e->phi.from[e->phi.num] = lval.i;
+			e->phi->from[e->phi->num] = lval.i;
 			expect (':');
 			expect (TK_REG);
-			e->phi.val[e->phi.num] = lval.i;
+			e->phi->val[e->phi->num] = lval.i;
 			expect (')');
-			++e->phi.num;
+			++e->phi->num;
 		}
 		
 		if (tk != ';')
@@ -1005,9 +1008,9 @@ struct expr *e;
 		}
 		break;
 	case EX_PHI:
-		printf ("phi ($%d: $%d)", e->phi.from[0], e->phi.val[0]);
-		for (i = 1; i < e->phi.num; ++i)
-			printf (", ($%d: $%d)", e->phi.from[i], e->phi.val[i]);
+		printf ("phi ($%d: $%d)", e->phi->from[0], e->phi->val[0]);
+		for (i = 1; i < e->phi->num; ++i)
+			printf (", ($%d: $%d)", e->phi->from[i], e->phi->val[i]);
 		break;
 	case EX_PEXT:
 		printf ("pext $%d", e->reg);
@@ -1726,9 +1729,9 @@ struct reg *to;
 
 	e = &phi->let.val;
 
-	for (i = 0; i < e->phi.num; ++i) {
-		if (e->phi.from[i] == mylbl) {
-			loadw ("mov", AX, &fn->regs[e->phi.val[i]]);
+	for (i = 0; i < e->phi->num; ++i) {
+		if (e->phi->from[i] == mylbl) {
+			loadw ("mov", AX, &fn->regs[e->phi->val[i]]);
 			return 0;
 		}
 	}
@@ -1896,6 +1899,7 @@ main (void)
 	fprintf (stderr, "sizeof (struct ir) = %zu\n", sizeof (struct ir));
 	fprintf (stderr, "sizeof (struct expr) = %zu\n", sizeof (struct expr));
 	fprintf (stderr, "sizeof (struct call) = %zu\n", sizeof (struct call));
+	fprintf (stderr, "sizeof (struct phi) = %zu\n", sizeof (struct phi));
 	fprintf (stderr, "sizeof (struct regimm) = %zu\n", sizeof (struct regimm));
 	fprintf (stderr, "sizeof (struct dtype) = %zu\n", sizeof (struct dtype));
 #endif

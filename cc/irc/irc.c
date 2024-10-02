@@ -24,6 +24,11 @@ char *msg;
 // MEMORY
 
 #if ENABLE_ARENA
+
+# if ENABLE_DEBUG
+size_t total_alloc = 0;
+# endif
+
 char arena[32768];
 size_t alen = 0;
 
@@ -39,6 +44,9 @@ size_t num;
 
 	ptr = (void *)((size_t)arena + alen);
 	alen += num;
+# if ENABLE_DEBUG
+	total_alloc += num;
+# endif // ENABLE_DEBUG
 	memset (ptr, 0, num);
 	return ptr;
 }
@@ -1586,7 +1594,6 @@ struct expr *e;
 		break;
 	case EX_PEXT:
 		r = &fn->regs[e->reg];
-		fprintf (stderr, "%d\n", r->type);
 		loadw ("mov", AX, r);
 		switch (r->dt.type) {
 		case DT_DPTR:
@@ -1909,5 +1916,9 @@ main (void)
 	puts ("extern __shld, __shrd, __sard, __shlq, __shrq, __sarq");
 	puts ("");
 	parse ();
+
+#if ENABLE_DEBUG
+	fprintf (stderr, "debug: total memory allocated: %zu bytes\n", total_alloc);
+#endif
 	return 0;
 }

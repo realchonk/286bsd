@@ -300,6 +300,7 @@ struct ir {
 		struct {
 			int dest;
 			struct regimm src;
+			int off;
 		} write;
 		struct {
 			int cond, yes, no;
@@ -760,7 +761,18 @@ struct ir *ir;
 		expect (',');
 		assert_dt_is_ptr (&fn->regs[ir->write.dest].dt);
 		regimm (&ir->write.src, fn->regs[ir->write.dest].dt.inner);
-		expect (';');
+		switch (lex ()) {
+		case ';':
+			ir->write.off = 0;
+			break;
+		case ',':
+			expect (TK_INT);
+			ir->write.off = lval.i;
+			expect (';');
+			break;
+		default:
+			error ("syntax error");
+		}
 
 		assert_dt_ptr (&fn->regs[ir->write.dest].dt, ir->write.src.dt);
 		return 0;
@@ -1068,7 +1080,7 @@ struct ir *ir;
 	case IR_WRITE:
 		printf ("write $%d, ", ir->write.dest);
 		print_ri (&ir->write.src);
-		puts (";");
+		printf (", %d;\n", ir->write.off);
 		break;
 	case IR_RET:
 		printf ("ret ");
@@ -1803,23 +1815,23 @@ struct ir *ir;
 			abort ();
 			break;
 		case DT_BYTE:
-			printf ("\tmov byte [%s], al\n", reg);
+			printf ("\tmov byte [%s + %d], al\n", reg, ir->write.off);
 			break;
 		case DT_WORD:
 		case DT_DPTR:
 		case DT_SPTR:
-			printf ("\tmov word [%s], ax\n", reg);
+			printf ("\tmov word [%s + %d * 2], ax\n", reg, ir->write.off);
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
-			printf ("\tmov word [%s + 0], ax\n", reg);
-			printf ("\tmov word [%s + 2], dx\n", reg);
+			printf ("\tmov word [%s + %d * 4 + 0], ax\n", reg, ir->write.off);
+			printf ("\tmov word [%s + %d * 4 + 2], dx\n", reg, ir->write.off);
 			break;
 		case DT_QWORD:
-			printf ("\tmov word [%s + 0], ax\n", reg);
-			printf ("\tmov word [%s + 2], dx\n", reg);
-			printf ("\tmov word [%s + 4], bx\n", reg);
-			printf ("\tmov word [%s + 6], cx\n", reg);
+			printf ("\tmov word [%s + %d * 8 + 0], ax\n", reg, ir->write.off);
+			printf ("\tmov word [%s + %d * 8 + 2], dx\n", reg, ir->write.off);
+			printf ("\tmov word [%s + %d * 8 + 4], bx\n", reg, ir->write.off);
+			printf ("\tmov word [%s + %d * 8 + 6], cx\n", reg, ir->write.off);
 			break;
 		}
 		break;

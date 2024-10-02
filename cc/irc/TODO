@@ -27,3 +27,4 @@
 - rename DT_FPTR to DT_PTR
 - implement builtin functions
 - support for double and long double
+- add conversion between int and float types

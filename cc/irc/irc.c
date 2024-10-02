@@ -454,6 +454,61 @@ struct dtype *dt;
 	return 0;
 }
 
+expr_bin (fn, dt, e, t)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+enum expr_type t;
+{
+	e->type = t;
+	expect (TK_REG);
+	e->bin.l = lval.i;
+	expect (',');
+	regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
+	expect (';');
+
+	assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+	assert_dt_eq (dt, e->bin.r.dt);
+	assert_dt_is_int (dt);
+	return 0;
+}
+
+expr_shift (fn, dt, e, t)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+enum expr_type t;
+{
+	e->type = t;
+	expect (TK_REG);
+	e->bin.l = lval.i;
+	expect (',');
+	regimm (&e->bin.r, &dt_byte);
+	expect (';');
+
+	assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+	assert_dt_is_int (dt);
+	if (e->bin.r.dt->type != DT_BYTE)
+		error ("second argument of a shift must be of type `byte`");
+	return 0;
+}
+
+expr_icast (fn, dt, e, t)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+enum expr_type t;
+{
+	e->type = t;
+	expect (TK_REG);
+	e->reg = lval.i;
+	expect (';');
+
+	assert_dt_is_int (dt);
+	assert_dt_is_int (&fn->regs[e->reg].dt);
+	return 0;
+}
+
 expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -491,55 +546,33 @@ struct expr *e;
 		e->alloca.off = fn->stoff;
 		expect (';');
 	} else if (strcmp (lval.s, "add") == 0) {
-		e->type = EX_ADD;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
-		expect (';');
-
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		assert_dt_eq (dt, e->bin.r.dt);
+		expr_bin (fn, dt, e, EX_ADD);
 	} else if (strcmp (lval.s, "sub") == 0) {
-		e->type = EX_SUB;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
-		expect (';');
-
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		assert_dt_eq (dt, e->bin.r.dt);
+		expr_bin (fn, dt, e, EX_SUB);
 	} else if (strcmp (lval.s, "and") == 0) {
-		e->type = EX_AND;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
-		expect (';');
-
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		assert_dt_eq (dt, e->bin.r.dt);
+		expr_bin (fn, dt, e, EX_AND);
 	} else if (strcmp (lval.s, "or") == 0) {
-		e->type = EX_OR;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
-		expect (';');
-
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		assert_dt_eq (dt, e->bin.r.dt);
+		expr_bin (fn, dt, e, EX_OR);
 	} else if (strcmp (lval.s, "xor") == 0) {
-		e->type = EX_XOR;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
-		expect (';');
-
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		assert_dt_eq (dt, e->bin.r.dt);
+		expr_bin (fn, dt, e, EX_XOR);
+	} else if (strcmp (lval.s, "lsl") == 0) {
+		expr_shift (fn, dt, e, EX_LSL);
+	} else if (strcmp (lval.s, "lsr") == 0) {
+		expr_shift (fn, dt, e, EX_LSR);
+	} else if (strcmp (lval.s, "asr") == 0) {
+		expr_shift (fn, dt, e, EX_ASR);
+	} else if (strcmp (lval.s, "zext") == 0) {
+		expr_icast (fn, dt, e, EX_ZEXT);
+		if (dt->type <= fn->regs[e->reg].dt.type)
+			error ("invalid zext");
+	} else if (strcmp (lval.s, "sext") == 0) {
+		expr_icast (fn, dt, e, EX_SEXT);
+		if (dt->type <= fn->regs[e->reg].dt.type)
+			error ("invalid sext");
+	} else if (strcmp (lval.s, "trunc") == 0) {
+		expr_icast (fn, dt, e, EX_TRUNC);
+		if (dt->type >= fn->regs[e->reg].dt.type)
+			error ("invalid trunc");
 	} else if (strcmp (lval.s, "ptradd") == 0) {
 		e->type = EX_PTRADD;
 		expect (TK_REG);
@@ -602,36 +635,6 @@ struct expr *e;
 
 		// TODO: assert_dt_*
 		// TODO: check that there are no instructions (except IR_LABEL) before this
-	} else if (strcmp (lval.s, "zext") == 0) {
-		e->type = EX_ZEXT;
-		expect (TK_REG);
-		e->reg = lval.i;
-		expect (';');
-
-		assert_dt_is_int (dt);
-		assert_dt_is_int (&fn->regs[e->reg].dt);
-		if (dt->type <= fn->regs[e->reg].dt.type)
-			error ("invalid zext");
-	} else if (strcmp (lval.s, "sext") == 0) {
-		e->type = EX_SEXT;
-		expect (TK_REG);
-		e->reg = lval.i;
-		expect (';');
-
-		assert_dt_is_int (dt);
-		assert_dt_is_int (&fn->regs[e->reg].dt);
-		if (dt->type <= fn->regs[e->reg].dt.type)
-			error ("invalid sext");
-	} else if (strcmp (lval.s, "trunc") == 0) {
-		e->type = EX_TRUNC;
-		expect (TK_REG);
-		e->reg = lval.i;
-		expect (';');
-
-		assert_dt_is_int (dt);
-		assert_dt_is_int (&fn->regs[e->reg].dt);
-		if (dt->type >= fn->regs[e->reg].dt.type)
-			error ("invalid trunc");
 	} else if (strcmp (lval.s, "pcast") == 0) {
 		e->type = EX_PCAST;
 		expect (TK_REG);
@@ -640,42 +643,6 @@ struct expr *e;
 
 		assert_dt_is_ptr (dt);
 		assert_dt_is_ptr (&fn->regs[e->reg].dt);
-	} else if (strcmp (lval.s, "lsl") == 0) {
-		e->type = EX_LSL;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &dt_byte);
-		expect (';');
-
-		assert_dt_is_int (dt);
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		if (e->bin.r.dt->type != DT_BYTE)
-			error ("shift amount must be of type 'byte'");
-	} else if (strcmp (lval.s, "lsr") == 0) {
-		e->type = EX_LSR;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &dt_byte);
-		expect (';');
-
-		assert_dt_is_int (dt);
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		if (e->bin.r.dt->type != DT_BYTE)
-			error ("shift amount must be of type 'byte'");
-	} else if (strcmp (lval.s, "asr") == 0) {
-		e->type = EX_ASR;
-		expect (TK_REG);
-		e->bin.l = lval.i;
-		expect (',');
-		regimm (&e->bin.r, &dt_byte);
-		expect (';');
-
-		assert_dt_is_int (dt);
-		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
-		if (e->bin.r.dt->type != DT_BYTE)
-			error ("shift amount must be of type 'byte'");
 	} else {
 	err:
 		error ("expected expr");

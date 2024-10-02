@@ -298,6 +298,10 @@ enum expr_type {
 	EX_MUL,		// .bin
 	EX_UDIV,	// .bin
 	EX_SDIV,	// .bin
+	EX_FADD,	// .fbin
+	EX_FSUB,	// .fbin
+	EX_FMUL,	// .fbin
+	EX_FDIV,	// .fbin
 };
 
 struct call {
@@ -324,6 +328,9 @@ struct expr {
 			int l;
 			struct regimm r;
 		} bin;
+		struct {
+			int l, r;
+		} fbin;
 		struct call *call;
 		struct phi *phi;
 		struct {
@@ -458,25 +465,6 @@ struct dtype *dt;
 	return 0;
 }
 
-assert_dt_is_number (dt)
-struct dtype *dt;
-{
-	switch (dt->type) {
-	case DT_BYTE:
-	case DT_WORD:
-	case DT_DWORD:
-	case DT_QWORD:
-	case DT_FLOAT:
-		return 0;
-	case DT_NONE:
-	case DT_LABEL:
-	case DT_DPTR:
-	case DT_FPTR:
-	case DT_SPTR:
-		return error ("this operation is only supported for numbers (byte, word, dword, qword, float)");
-	}
-}
-
 assert_dt_is_int (dt)
 struct dtype *dt;
 {
@@ -493,6 +481,25 @@ struct dtype *dt;
 	case DT_FPTR:
 	case DT_SPTR:
 		return error ("this operation is only supported for integers (byte, word, dword, qword)");
+	}
+}
+
+assert_dt_is_float (dt)
+struct dtype *dt;
+{
+	switch (dt->type) {
+	case DT_FLOAT:
+		return 0;
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DWORD:
+	case DT_QWORD:
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_DPTR:
+	case DT_FPTR:
+	case DT_SPTR:
+		return error ("this operation is only supported for floats (float)");
 	}
 }
 
@@ -567,11 +574,10 @@ struct dtype *dt;
 	return 0;
 }
 
-expr_bin (fn, dt, e, t, allow_float)
+expr_bin (fn, dt, e, t)
 struct func *fn;
 struct dtype *dt;
 struct expr *e;
-enum expr_type t;
 {
 	e->type = t;
 	expect (TK_REG);
@@ -583,11 +589,7 @@ enum expr_type t;
 	assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
 	assert_dt_eq (dt, e->bin.r.dt);
 
-	if (allow_float) {
-		assert_dt_is_number (dt);
-	} else {
-		assert_dt_is_int (dt);
-	}
+	assert_dt_is_int (dt);
 	return 0;
 }
 
@@ -624,6 +626,26 @@ enum expr_type t;
 
 	assert_dt_is_int (dt);
 	assert_dt_is_int (&fn->regs[e->reg].dt);
+	return 0;
+}
+
+expr_fbin (fn, dt, e, t)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+enum expr_type t;
+{
+	e->type = t;
+	expect (TK_REG);
+	e->fbin.l = lval.i;
+	expect (',');
+	expect (TK_REG);
+	e->fbin.r = lval.i;
+	expect (';');
+
+	assert_dt_is_float (dt);
+	assert_dt_eq (dt, &fn->regs[e->fbin.l].dt);
+	assert_dt_eq (dt, &fn->regs[e->fbin.r].dt);
 	return 0;
 }
 
@@ -670,21 +692,21 @@ struct expr *e;
 		e->alloca.off = fn->stoff;
 		expect (';');
 	} else if (strcmp (lval.s, "add") == 0) {
-		expr_bin (fn, dt, e, EX_ADD, 1);
+		expr_bin (fn, dt, e, EX_ADD);
 	} else if (strcmp (lval.s, "sub") == 0) {
-		expr_bin (fn, dt, e, EX_SUB, 1);
+		expr_bin (fn, dt, e, EX_SUB);
 	} else if (strcmp (lval.s, "and") == 0) {
-		expr_bin (fn, dt, e, EX_AND, 0);
+		expr_bin (fn, dt, e, EX_AND);
 	} else if (strcmp (lval.s, "or") == 0) {
-		expr_bin (fn, dt, e, EX_OR, 0);
+		expr_bin (fn, dt, e, EX_OR);
 	} else if (strcmp (lval.s, "xor") == 0) {
-		expr_bin (fn, dt, e, EX_XOR, 0);
+		expr_bin (fn, dt, e, EX_XOR);
 	} else if (strcmp (lval.s, "mul") == 0) {
-		expr_bin (fn, dt, e, EX_MUL, 1);
+		expr_bin (fn, dt, e, EX_MUL);
 	} else if (strcmp (lval.s, "udiv") == 0) {
-		expr_bin (fn, dt, e, EX_UDIV, 0);
+		expr_bin (fn, dt, e, EX_UDIV);
 	} else if (strcmp (lval.s, "sdiv") == 0) {
-		expr_bin (fn, dt, e, EX_SDIV, 1);
+		expr_bin (fn, dt, e, EX_SDIV);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -801,6 +823,14 @@ struct expr *e;
 		assert_dt_is_ptr (&fn->regs[e->reg].dt);
 		if (dt->type != fn->regs[e->reg].dt.type)
 			error ("pcast cannot be used to cast between different types of pointers (eg. SPTR -> FPTR)");
+	} else if (strcmp (lval.s, "fadd") == 0) {
+		expr_fbin (fn, dt, e, EX_FADD);
+	} else if (strcmp (lval.s, "fsub") == 0) {
+		expr_fbin (fn, dt, e, EX_FSUB);
+	} else if (strcmp (lval.s, "fmul") == 0) {
+		expr_fbin (fn, dt, e, EX_FMUL);
+	} else if (strcmp (lval.s, "fdiv") == 0) {
+		expr_fbin (fn, dt, e, EX_FDIV);
 	} else {
 	err:
 		error ("expected expr");
@@ -1198,6 +1228,18 @@ struct expr *e;
 	case EX_ASR:
 		printf ("asr $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
+		break;
+	case EX_FADD:
+		printf ("fadd $%d, $%d", e->fbin.l, e->fbin.r);
+		break;
+	case EX_FSUB:
+		printf ("fsub $%d, $%d", e->fbin.l, e->fbin.r);
+		break;
+	case EX_FMUL:
+		printf ("fmul $%d, $%d", e->fbin.l, e->fbin.r);
+		break;
+	case EX_FDIV:
+		printf ("fdiv $%d, $%d", e->fbin.l, e->fbin.r);
 		break;
 	}
 	return 0;
@@ -1720,6 +1762,32 @@ struct expr *e;
 	return 0;
 }
 
+fbin (instr, fn, dt, e)
+char *instr;
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+{
+	switch (dt->type) {
+	case DT_FLOAT:
+		printf ("\tfld dword [ss:bp + %d]\n", fn->regs[e->fbin.l].off);
+		printf ("\t%s dword [ss:bp + %d]\n", instr, fn->regs[e->fbin.r].off);
+		break;
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_DPTR:
+	case DT_FPTR:
+	case DT_SPTR:
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DWORD:
+	case DT_QWORD:
+		abort ();
+		break;
+	}
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -2046,6 +2114,18 @@ struct expr *e;
 		break;
 	case EX_ASR:
 		shift (fn, "sar", &fn->regs[e->bin.l], &e->bin.r);
+		break;
+	case EX_FADD:
+		fbin ("fadd", fn, dt, e);
+		break;
+	case EX_FSUB:
+		fbin ("fsub", fn, dt, e);
+		break;
+	case EX_FMUL:
+		fbin ("fmul", fn, dt, e);
+		break;
+	case EX_FDIV:
+		fbin ("fdiv", fn, dt, e);
 		break;
 	}
 	return 0;

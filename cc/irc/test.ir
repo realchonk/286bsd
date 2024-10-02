@@ -195,5 +195,9 @@ pub section ".text.custom" fn custom_section (): qword {
 fn floats (): float {
 	let $0: float = 1.2;
 	let $1: float = 42;
+	let $2: float = fadd $0, $1;
+	let $3: float = fsub $0, $1;
+	let $4: float = fmul $0, $1;
+	let $5: float = fdiv $0, $1;
 	ret $0;
 }

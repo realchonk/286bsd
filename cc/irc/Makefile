@@ -8,6 +8,5 @@ clean:
 run: all
 	./irc < test.ir > test.asm
 	cat test.asm
-	nasm -fbin -o /dev/null test.asm
-
+	nasm -fobj -o /dev/null test.asm
 

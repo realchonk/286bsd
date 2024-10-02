@@ -198,6 +198,7 @@ struct dtype {
 	NULL	
 };
 
+struct dtype dt_byte = { DT_BYTE, NULL };
 
 struct regimm {
 	int is_imm;
@@ -225,6 +226,9 @@ enum expr_type {
 	EX_SEXT,
 	EX_TRUNC,
 	EX_PCAST,
+	EX_LSL,
+	EX_LSR,
+	EX_ASR,
 };
 
 struct expr {
@@ -636,6 +640,42 @@ struct expr *e;
 
 		assert_dt_is_ptr (dt);
 		assert_dt_is_ptr (&fn->regs[e->reg].dt);
+	} else if (strcmp (lval.s, "lsl") == 0) {
+		e->type = EX_LSL;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &dt_byte);
+		expect (';');
+
+		assert_dt_is_int (dt);
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		if (e->bin.r.dt->type != DT_BYTE)
+			error ("shift amount must be of type 'byte'");
+	} else if (strcmp (lval.s, "lsr") == 0) {
+		e->type = EX_LSR;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &dt_byte);
+		expect (';');
+
+		assert_dt_is_int (dt);
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		if (e->bin.r.dt->type != DT_BYTE)
+			error ("shift amount must be of type 'byte'");
+	} else if (strcmp (lval.s, "asr") == 0) {
+		e->type = EX_ASR;
+		expect (TK_REG);
+		e->bin.l = lval.i;
+		expect (',');
+		regimm (&e->bin.r, &dt_byte);
+		expect (';');
+
+		assert_dt_is_int (dt);
+		assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
+		if (e->bin.r.dt->type != DT_BYTE)
+			error ("shift amount must be of type 'byte'");
 	} else {
 	err:
 		error ("expected expr");
@@ -965,6 +1005,18 @@ struct expr *e;
 		break;
 	case EX_PCAST:
 		printf ("pcast $%d", e->reg);
+		break;
+	case EX_LSL:
+		printf ("lsl $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_LSR:
+		printf ("lsr $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_ASR:
+		printf ("asr $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
 		break;
 	}
 	return 0;
@@ -1326,6 +1378,52 @@ struct expr *e;
 	return 0;
 }
 
+shift (fn, instr, reg, shamt)
+struct func *fn;
+char *instr;
+struct reg *reg;
+struct regimm *shamt;
+{
+	// TODO: optimize byte-aligned shift (eg lsl $0, 8)
+	struct dtype *dt = &reg->dt;
+
+	assert (shamt->dt->type == DT_BYTE);
+
+	if (shamt->is_imm) {
+		loadimmr (NULL, "cl", shamt->imm & 0xff);
+	} else {
+		loadb ("mov", CL, &fn->regs[shamt->reg]);
+	}
+
+	if (dt->type == DT_QWORD)
+		puts ("\tpush cx");
+
+	load ("mov", reg);
+
+	switch (dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_PTR:
+	case DT_FPTR:
+		abort ();
+		break;
+	case DT_BYTE:
+		printf ("\t%s al, cl\n", instr);
+		break;
+	case DT_WORD:
+		printf ("\t%s ax, cl\n", instr);
+		break;
+	case DT_DWORD:
+		printf ("\tcall __%sd\n", instr);
+		break;
+	case DT_QWORD:
+		printf ("\tcall __%sq\n", instr);
+		break;
+	}
+
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1517,6 +1615,16 @@ struct expr *e;
 			loadpb ("mov", AL, &fn->regs[e->reg], 0);
 			break;
 		}
+		break;
+		// TODO: shifts
+	case EX_LSL:
+		shift (fn, "shl", &fn->regs[e->bin.l], &e->bin.r);
+		break;
+	case EX_LSR:
+		shift (fn, "shr", &fn->regs[e->bin.l], &e->bin.r);
+		break;
+	case EX_ASR:
+		shift (fn, "sar", &fn->regs[e->bin.l], &e->bin.r);
 		break;
 	}
 	return 0;
@@ -1733,6 +1841,7 @@ main (void)
 	linenum = 1;
 	puts ("[bits 16]");
 	puts ("[cpu 286]");
+	puts ("extern __shld, __shrd, __sard, __shlq, __shrq, __sarq");
 	puts ("");
 	parse ();
 	return 0;

@@ -224,6 +224,7 @@ enum expr_type {
 	EX_CALL,
 	EX_PHI,
 	EX_PTRADD,
+	EX_PEXT,
 	EX_ZEXT,
 	EX_SEXT,
 	EX_TRUNC,
@@ -527,6 +528,7 @@ struct dtype *dt;
 struct expr *e;
 {
 	struct regimm *ri;
+	struct reg *r;
 	int tk;
 
 	tk = lex ();
@@ -573,6 +575,18 @@ struct expr *e;
 		expr_shift (fn, dt, e, EX_LSR);
 	} else if (strcmp (lval.s, "asr") == 0) {
 		expr_shift (fn, dt, e, EX_ASR);
+	} else if (strcmp (lval.s, "pext") == 0) {
+		e->type = EX_PEXT;
+		expect (TK_REG);
+		e->reg = lval.i;
+		expect (';');
+
+		if (dt->type != DT_FPTR)
+			error ("the result of `pext` must be a far pointer");
+		r = &fn->regs[e->reg];
+		if (r->dt.type != DT_DPTR && r->dt.type != DT_SPTR)
+			error ("the source of `pext` must be either a data pointer or stack pointer");
+		assert_dt_eq (dt->inner, r->dt.inner);
 	} else if (strcmp (lval.s, "zext") == 0) {
 		expr_icast (fn, dt, e, EX_ZEXT);
 		if (dt->type <= fn->regs[e->reg].dt.type)
@@ -976,6 +990,9 @@ struct expr *e;
 		printf ("phi ($%d: $%d)", e->phi.from[0], e->phi.val[0]);
 		for (i = 1; i < e->phi.num; ++i)
 			printf (", ($%d: $%d)", e->phi.from[i], e->phi.val[i]);
+		break;
+	case EX_PEXT:
+		printf ("pext $%d", e->reg);
 		break;
 	case EX_ZEXT:
 		printf ("zext $%d", e->reg);
@@ -1545,6 +1562,21 @@ struct expr *e;
 		// TODO: check that all sources actually jump to this phi.
 		// It's correct that this is empty,
 		// since the value is set in the jumping instruction.
+		break;
+	case EX_PEXT:
+		r = &fn->regs[e->reg];
+		fprintf (stderr, "%d\n", r->type);
+		loadw ("mov", AX, r);
+		switch (r->dt.type) {
+		case DT_DPTR:
+			puts ("\tmov dx, ds");
+			break;
+		case DT_SPTR:
+			puts ("\tmov dx, ss");
+			break;
+		default:
+			abort ();
+		}
 		break;
 	case EX_ZEXT:
 		load ("mov", &fn->regs[e->reg]);

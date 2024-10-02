@@ -144,3 +144,11 @@ fn shifts ($0: word): word {
 
 	ret $5;
 }
+
+fn pointers (): word {
+	let $0: ^word = alloca 1;
+	write $0, 42;
+	let $1: !word = pext $0;
+	let $2: word = read $1;
+	ret $2;
+}

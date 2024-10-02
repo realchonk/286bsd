@@ -2237,10 +2237,19 @@ struct expr *e;
 				puts ("\tpush ax");
 				break;
 			case DT_FLOAT:
+				puts ("\tsub sp, 4");
+				puts ("\tmov bx, sp");
+				puts ("\tfstp dword [bx]");
+				break;
 			case DT_DOUBLE:
+				puts ("\tsub sp, 8");
+				puts ("\tmov bx, sp");
+				puts ("\tfstp qword [bx]");
+				break;
 			case DT_LDOUBLE:
-				// TODO
-				error ("call not implemented for float arguments");
+				puts ("\tsub sp, 10");
+				puts ("\tmov bx, sp");
+				puts ("\tfstp tword [bx]");
 				break;
 			}
 

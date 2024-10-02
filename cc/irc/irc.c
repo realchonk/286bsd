@@ -10,6 +10,9 @@
 // enable debugging prints
 #define ENABLE_DEBUG 1
 
+// enable support for floating point numbers
+#define ENABLE_FLOAT 1
+
 // ERROR HANDLING
 
 int linenum;
@@ -68,6 +71,7 @@ reset (void)
 
 enum {
 	TK_INT = 128,
+	TK_FLOAT,
 	TK_REG,
 	TK_IDENT,
 	TK_STRING,
@@ -77,6 +81,7 @@ enum {
 union {
 	long i;
 	char *s;
+	double f;
 } lval;
 
 int peekd = EOF;
@@ -119,6 +124,39 @@ parse_int (void)
 	return 0;
 }
 
+parse_int_or_float (int neg)
+{
+#if ENABLE_FLOAT
+	long i = 0;
+	double f, s;
+
+	while (isdigit (peekch ()))
+		i = i * 10 + (nextch () - '0');
+
+	if (peekch () != '.') {
+		lval.i = neg ? -i : i;
+		return TK_INT;
+	}
+
+	f = i;
+	s = 0.1;
+
+	while (isdigit (peekch ())) {
+		f = f + s * (nextch () - '0');
+		s /= 10.0;
+	}
+
+	lval.f = neg ? -f : f;
+
+	return TK_FLOAT;
+#else
+	parse_int ();
+	if (neg)
+		lval.i = -lval.i;
+	return TK_INT;
+#endif
+}
+
 isname (ch)
 {
 	return isalnum (ch) || ch == '_';
@@ -137,8 +175,7 @@ begin:
 	ch = peekch ();
 
 	if (isdigit (ch)) {
-		parse_int ();
-		return TK_INT;
+		return parse_int_or_float (0);
 	} else if (isalpha (ch) || ch == '_') {
 		cap = 10;
 		len = 0;
@@ -162,9 +199,8 @@ begin:
 		return TK_REG;
 	case '-':
 		nextch ();
-		parse_int ();
-		lval.i = -lval.i;
-		return TK_INT;
+		return parse_int_or_float (1);
+
 	case '"':
 		nextch ();
 		cap = 10;

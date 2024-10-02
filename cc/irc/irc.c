@@ -698,6 +698,8 @@ struct expr *e;
 
 		assert_dt_is_ptr (dt);
 		assert_dt_is_ptr (&fn->regs[e->reg].dt);
+		if (dt->type != fn->regs[e->reg].dt.type)
+			error ("pcast cannot be used to cast between different types of pointers (eg. SPTR -> FPTR)");
 	} else {
 	err:
 		error ("expected expr");

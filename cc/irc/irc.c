@@ -725,7 +725,7 @@ struct expr *e;
 	} else if (strcmp (lval.s, "xor") == 0) {
 		expr_bin (fn, dt, e, EX_XOR, 0);
 	} else if (strcmp (lval.s, "mul") == 0) {
-		expr_bin (fn, dt, e, EX_MUL, 0);
+		expr_bin (fn, dt, e, EX_MUL, 1);
 	} else if (strcmp (lval.s, "udiv") == 0) {
 		expr_bin (fn, dt, e, EX_UDIV, 0);
 	} else if (strcmp (lval.s, "sdiv") == 0) {
@@ -1975,7 +1975,10 @@ struct expr *e;
 			call_muldiv ("mul", fn, dt, e);
 			break;
 		case DT_FLOAT:
-			error ("multiplication not implemented for DT_FLOAT");
+			load (NULL, r);
+			if (ri->is_imm)
+				error ("cannot use immediate values for floating-point operations");
+			load ("fmul", &fn->regs[ri->reg]);
 			break;
 		}
 		break;

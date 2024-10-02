@@ -187,3 +187,7 @@ fn qdiv ($0: qword, $1: qword): qword {
 fn negative (): qword {
 	ret -1;
 }
+
+pub section ".text.custom" fn custom_section (): qword {
+	ret 0;
+}

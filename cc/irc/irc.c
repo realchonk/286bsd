@@ -359,6 +359,7 @@ struct func {
 	struct dtype dt;
 	struct reg regs[NREGS];
 	struct ir *body;
+	char *section;
 	int stoff;
 	int is_pub;
 };
@@ -945,21 +946,34 @@ parse (void)
 	extern gen ();
 	struct func fn;
 	int tk, is_pub;
+	char *section;
 
 	while ((tk = lex ()) != TK_EOF) {
 		if (tk != TK_IDENT)
 			goto err;
 		
 		is_pub = 0;
+		section = NULL;
 
 		if (strcmp (lval.s, "pub") == 0) {
 			is_pub = 1;
 			expect (TK_IDENT);
 		}
 
+		fprintf (stderr, "%s\n", lval.s);
+		if (strcmp (lval.s, "section") == 0) {
+			expect (TK_STRING);
+			section = lval.s;
+			expect (TK_IDENT);
+		}
+
 		if (strcmp (lval.s, "fn") == 0) {
+			if (section == NULL)
+				section = ".text";
+
 			memset (&fn, 0, sizeof (fn));
 			fn.is_pub = is_pub;
+			fn.section = section;
 			func (&fn);
 			gen (&fn);
 			reset ();
@@ -2081,6 +2095,7 @@ struct func *fn;
 {
 	struct ir *ir;
 
+	printf ("section %s\n", fn->section);
 	if (fn->is_pub)
 		printf ("global %s\n", fn->name);
 

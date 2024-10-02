@@ -1487,7 +1487,6 @@ struct reg *src;
 	return 0;
 }
 
-// TODO: use src->dt.type
 loadf (instr, src)
 char *instr;
 struct reg *src;
@@ -2199,10 +2198,14 @@ struct expr *e;
 			printf ("\tmov cx, word [%s + %d * 8 + 6]\n", s, e->read.off);
 			break;
 		case DT_FLOAT:
+			printf ("\tfld dword [%s + %d * 4]\n", s, e->read.off);
+			break;
 		case DT_DOUBLE:
+			printf ("\tfld qword [%s + %d * 8]\n", s, e->read.off);
+			break;
 		case DT_LDOUBLE:
-			// TODO
-			error ("EX_READ not implemented for floats");
+			printf ("\tfld tword [%s + %d * 10]\n", s, e->read.off);
+			break;
 		}
 		break;
 	case EX_CALL:
@@ -2492,10 +2495,14 @@ struct ir *ir;
 			printf ("\tmov word [%s + %d * 8 + 6], cx\n", reg, ir->write.off);
 			break;
 		case DT_FLOAT:
+			printf ("\tfstp dword [%s + %d * 4]\n", reg, ir->write.off);
+			break;
 		case DT_DOUBLE:
+			printf ("\tfstp qword [%s + %d * 8]\n", reg, ir->write.off);
+			break;
 		case DT_LDOUBLE:
-			// TODO: floats
-			error ("IR_WRITE not implemented for floats");
+			printf ("\tfstp tword [%s + %d * 10]\n", reg, ir->write.off);
+			break;
 		}
 		break;
 	case IR_RET:

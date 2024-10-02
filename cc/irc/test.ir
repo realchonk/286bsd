@@ -200,7 +200,10 @@ fn floats (): float {
 	let $4: float = mul $0, $1;
 	let $5: float = sdiv $0, $1;
 	let $6: float = $5;
-	ret $0;
+	let $7: ^float = alloca 1;
+	write $7, $6;
+	let $8: float = read $7;
+	ret $8;
 }
 
 fn cmp (): word {

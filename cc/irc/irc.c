@@ -1931,7 +1931,7 @@ struct expr *e;
 		addsub ("add", "adc", "fadd", fn, dt, e);
 		break;
 	case EX_SUB:
-		addsub ("sub", "sbb", "fsubr", fn, dt, e);
+		addsub ("sub", "sbb", "fsub", fn, dt, e);
 		break;
 	case EX_AND:
 		alu ("and", fn, dt, e);

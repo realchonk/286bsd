@@ -368,7 +368,7 @@ struct dtype *dt;
 	return 0;
 }
 
-assert_is_int (dt)
+assert_dt_is_int (dt)
 struct dtype *dt;
 {
 	switch (dt->type) {
@@ -604,8 +604,8 @@ struct expr *e;
 		e->reg = lval.i;
 		expect (';');
 
-		assert_is_int (dt);
-		assert_is_int (&fn->regs[e->reg].dt);
+		assert_dt_is_int (dt);
+		assert_dt_is_int (&fn->regs[e->reg].dt);
 		if (dt->type <= fn->regs[e->reg].dt.type)
 			error ("invalid zext");
 	} else if (strcmp (lval.s, "sext") == 0) {
@@ -614,8 +614,8 @@ struct expr *e;
 		e->reg = lval.i;
 		expect (';');
 
-		assert_is_int (dt);
-		assert_is_int (&fn->regs[e->reg].dt);
+		assert_dt_is_int (dt);
+		assert_dt_is_int (&fn->regs[e->reg].dt);
 		if (dt->type <= fn->regs[e->reg].dt.type)
 			error ("invalid sext");
 	} else if (strcmp (lval.s, "trunc") == 0) {
@@ -624,8 +624,8 @@ struct expr *e;
 		e->reg = lval.i;
 		expect (';');
 
-		assert_is_int (dt);
-		assert_is_int (&fn->regs[e->reg].dt);
+		assert_dt_is_int (dt);
+		assert_dt_is_int (&fn->regs[e->reg].dt);
 		if (dt->type >= fn->regs[e->reg].dt.type)
 			error ("invalid trunc");
 	} else if (strcmp (lval.s, "pcast") == 0) {

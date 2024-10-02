@@ -20,7 +20,6 @@
 - EX_INT16 (int), EX_INT32 (long), EX_INT64 (llong) (for performance reasons)
 - register refcnt
 - optimize memory footprint of irc itself
-- make expr.call indirect
 - add global variables
 - add `pub`
 - typecheck function calls

@@ -234,6 +234,12 @@ enum expr_type {
 	EX_ASR,
 };
 
+struct call {
+	char *fn;
+	int nargs;
+	struct regimm args[8];
+};
+
 struct expr {
 	enum expr_type type;
 	union {
@@ -247,11 +253,7 @@ struct expr {
 			int l;
 			struct regimm r;
 		} bin;
-		struct {
-			char *fn;
-			int nargs;
-			struct regimm args[8];
-		} call;
+		struct call *call;
 		struct {
 			int from[8], val[8], num;
 		} phi;
@@ -620,11 +622,12 @@ struct expr *e;
 	} else if (strcmp (lval.s, "call") == 0) {
 		e->type = EX_CALL;
 		expect (TK_IDENT);
-		e->call.fn = lval.s;
-		e->call.nargs = 0;
+		e->call = new (struct call);
+		e->call->fn = lval.s;
+		e->call->nargs = 0;
 
 		while ((tk = lex ()) == ',') {
-			ri = &e->call.args[e->call.nargs++];
+			ri = &e->call->args[e->call->nargs++];
 			regimm (ri, &default_dt);
 			if (!ri->is_imm)
 				ri->dt = &fn->regs[ri->reg].dt;
@@ -980,10 +983,10 @@ struct expr *e;
 		printf ("read $%d", e->reg);
 		break;
 	case EX_CALL:
-		printf ("call %s", e->call.fn);
-		for (i = 0; i < e->call.nargs; ++i) {
+		printf ("call %s", e->call->fn);
+		for (i = 0; i < e->call->nargs; ++i) {
 			printf (", ");
-			print_ri (&e->call.args[i]);
+			print_ri (&e->call->args[i]);
 		}
 		break;
 	case EX_PHI:
@@ -1524,8 +1527,8 @@ struct expr *e;
 		break;
 	case EX_CALL:
 		cnt = 0;
-		for (i = e->call.nargs - 1; i >= 0; --i) {
-			ri = &e->call.args[i];
+		for (i = e->call->nargs - 1; i >= 0; --i) {
+			ri = &e->call->args[i];
 			loadri (fn, NULL, ri);
 			
 			switch (ri->dt->type) {
@@ -1554,7 +1557,7 @@ struct expr *e;
 
 			cnt += sizeof_dt (ri->dt);
 		}
-		printf ("\tcall %s\n", e->call.fn);
+		printf ("\tcall %s\n", e->call->fn);
 		if (cnt != 0)
 			printf ("\tadd sp, %d\n", cnt);
 		break;
@@ -1877,6 +1880,7 @@ main (void)
 	fprintf (stderr, "sizeof (struct func) = %zu\n", sizeof (struct func));
 	fprintf (stderr, "sizeof (struct ir) = %zu\n", sizeof (struct ir));
 	fprintf (stderr, "sizeof (struct expr) = %zu\n", sizeof (struct expr));
+	fprintf (stderr, "sizeof (struct call) = %zu\n", sizeof (struct call));
 	fprintf (stderr, "sizeof (struct regimm) = %zu\n", sizeof (struct regimm));
 	fprintf (stderr, "sizeof (struct dtype) = %zu\n", sizeof (struct dtype));
 #endif

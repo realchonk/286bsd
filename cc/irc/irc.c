@@ -212,26 +212,26 @@ struct regimm {
 };
 
 enum expr_type {
-	EX_REG,
-	EX_INT,
-	EX_ALLOCA,
-	EX_ADD,
-	EX_SUB,
-	EX_AND,
-	EX_OR,
-	EX_XOR,
-	EX_READ,
-	EX_CALL,
-	EX_PHI,
-	EX_PTRADD,
-	EX_PEXT,
-	EX_ZEXT,
-	EX_SEXT,
-	EX_TRUNC,
-	EX_PCAST,
-	EX_LSL,
-	EX_LSR,
-	EX_ASR,
+	EX_REG,		// .reg
+	EX_INT,		// .i
+	EX_ALLOCA,	// .alloca
+	EX_ADD,		// .bin
+	EX_SUB,		// .bin
+	EX_AND,		// .bin
+	EX_OR,		// .bin
+	EX_XOR,		// .bin
+	EX_READ,	// .read
+	EX_CALL,	// .call
+	EX_PHI,		// .phi
+	EX_PTRADD,	// .bin
+	EX_PEXT,	// .reg
+	EX_ZEXT,	// .reg
+	EX_SEXT,	// .reg
+	EX_TRUNC,	// .reg
+	EX_PCAST,	// .reg
+	EX_LSL,		// .bin
+	EX_LSR,		// .bin
+	EX_ASR,		// .bin
 };
 
 struct call {

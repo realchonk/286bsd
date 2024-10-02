@@ -70,6 +70,7 @@ enum {
 	TK_INT = 128,
 	TK_REG,
 	TK_IDENT,
+	TK_STRING,
 	TK_EOF,
 };
 
@@ -164,6 +165,25 @@ begin:
 		parse_int ();
 		lval.i = -lval.i;
 		return TK_INT;
+	case '"':
+		nextch ();
+		cap = 10;
+		len = 0;
+		s = alloc (cap + 1);
+
+		// TODO: implement escape sequences
+		while ((ch = nextch ()) != '"') {
+			if (len == cap) {
+				cap *= 2;
+				t = alloc (cap + 1);
+				memcpy (t, s, len);
+			}
+			s[len++] = ch;
+		}
+
+		s[len] = '\0';
+		lval.s = s;
+		return TK_STRING;
 	case '(':
 	case ')':
 	case '{':

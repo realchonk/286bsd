@@ -289,6 +289,16 @@ enum expr_type {
 	EX_MUL,		// .bin
 	EX_UDIV,	// .bin
 	EX_SDIV,	// .bin
+	EX_EQ,		// .bin
+	EX_NE,		// .bin
+	EX_ULT,		// .bin
+	EX_UGT,		// .bin
+	EX_ULE,		// .bin
+	EX_UGE,		// .bin
+	EX_SLT,		// .bin
+	EX_SGT,		// .bin
+	EX_SLE,		// .bin
+	EX_SGE,		// .bin
 	EX_PTRADD,	// .bin
 	EX_READ,	// .read
 	EX_CALL,	// .call
@@ -645,6 +655,26 @@ enum expr_type t;
 	return 0;
 }
 
+expr_cmp (fn, dt, e, t)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+enum expr_type t;
+{
+	e->type = t;
+	expect (TK_REG);
+	e->bin.l = lval.i;
+	expect (',');
+	regimm (&e->bin.r, &default_dt);
+	expect (';');
+
+	assert_dt_is_int (&fn->regs[e->bin.l].dt);
+	assert_dt_eq (&fn->regs[e->bin.l].dt, e->bin.r.dt);
+	if (dt->type != DT_WORD)
+		error ("result of comparison must be of type word");
+	return 0;
+}
+
 expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -693,6 +723,26 @@ struct expr *e;
 		expr_bin (fn, dt, e, EX_UDIV, 0);
 	} else if (strcmp (lval.s, "sdiv") == 0) {
 		expr_bin (fn, dt, e, EX_SDIV, 1);
+	} else if (strcmp (lval.s, "eq") == 0) {
+		expr_cmp (fn, dt, e, EX_EQ);
+	} else if (strcmp (lval.s, "ne") == 0) {
+		expr_cmp (fn, dt, e, EX_NE);
+	} else if (strcmp (lval.s, "ult") == 0) {
+		expr_cmp (fn, dt, e, EX_ULT);
+	} else if (strcmp (lval.s, "ugt") == 0) {
+		expr_cmp (fn, dt, e, EX_UGT);
+	} else if (strcmp (lval.s, "ule") == 0) {
+		expr_cmp (fn, dt, e, EX_ULE);
+	} else if (strcmp (lval.s, "uge") == 0) {
+		expr_cmp (fn, dt, e, EX_UGE);
+	} else if (strcmp (lval.s, "slt") == 0) {
+		expr_cmp (fn, dt, e, EX_SLT);
+	} else if (strcmp (lval.s, "sgt") == 0) {
+		expr_cmp (fn, dt, e, EX_SGT);
+	} else if (strcmp (lval.s, "sle") == 0) {
+		expr_cmp (fn, dt, e, EX_SLE);
+	} else if (strcmp (lval.s, "sge") == 0) {
+		expr_cmp (fn, dt, e, EX_SGE);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -1171,6 +1221,46 @@ struct expr *e;
 		printf ("sdiv $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
 		break;
+	case EX_EQ:
+		printf ("eq $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_NE:
+		printf ("ne $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_ULT:
+		printf ("ult $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_UGT:
+		printf ("ugt $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_ULE:
+		printf ("ule $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_UGE:
+		printf ("uge $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_SLT:
+		printf ("slt $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_SGT:
+		printf ("sgt $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_SLE:
+		printf ("sle $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_SGE:
+		printf ("sge $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
 	case EX_PTRADD:
 		printf ("ptradd $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
@@ -1257,6 +1347,8 @@ struct ir *ir;
 }
 
 // ASM MISC
+
+int nlbl;
 
 enum x86_reg8 {
 	AL,
@@ -1771,6 +1863,52 @@ struct expr *e;
 	return 0;
 }
 
+gen_cmp (fn, dt, e, cmp, cc)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+char *cmp, *cc;
+{
+	int l1, l2;
+
+	switch (dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_DPTR:
+	case DT_FPTR:
+	case DT_SPTR:
+		abort ();
+		break;
+
+	case DT_BYTE:
+	case DT_WORD:
+		load (NULL, &fn->regs[e->bin.l]);
+		loadri (fn, cmp, &e->bin.r);
+		goto common;
+	
+	case DT_FLOAT:
+		load (NULL, &fn->regs[e->bin.l]);
+		loadri (fn, cmp, &e->bin.r);
+		goto common;
+
+	case DT_DWORD:
+	case DT_QWORD:
+		error ("comparisons not implemented for dword, qword, fptr");
+	
+	common:
+		l1 = nlbl++;
+		l2 = nlbl++;
+		printf ("\tj%s .Li%d\n", cc, l1);
+		printf ("\txor ax, ax\n");
+		printf ("\tjmp .Li%d\n\n", l2);
+		printf (".Li%d:\n", l1);
+		printf ("\tmov ax, 1\n\n");
+		printf (".Li%d:\n", l2);
+		break;
+	}
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1917,6 +2055,36 @@ struct expr *e;
 		break;
 	case EX_SDIV:
 		gen_div (fn, dt, e, 1);
+		break;
+	case EX_EQ:
+		gen_cmp (fn, dt, e, "test", "e");
+		break;
+	case EX_NE:
+		gen_cmp (fn, dt, e, "test", "ne");
+		break;
+	case EX_ULT:
+		gen_cmp (fn, dt, e, "cmp", "b");
+		break;
+	case EX_UGT:
+		gen_cmp (fn, dt, e, "cmp", "a");
+		break;
+	case EX_ULE:
+		gen_cmp (fn, dt, e, "cmp", "be");
+		break;
+	case EX_UGE:
+		gen_cmp (fn, dt, e, "cmp", "a");
+		break;
+	case EX_SLT:
+		gen_cmp (fn, dt, e, "cmp", "l");
+		break;
+	case EX_SGT:
+		gen_cmp (fn, dt, e, "cmp", "g");
+		break;
+	case EX_SLE:
+		gen_cmp (fn, dt, e, "cmp", "le");
+		break;
+	case EX_SGE:
+		gen_cmp (fn, dt, e, "cmp", "l");
 		break;
 	case EX_PTRADD:
 		load (NULL, &fn->regs[e->bin.l]);
@@ -2296,6 +2464,8 @@ gen (fn)
 struct func *fn;
 {
 	struct ir *ir;
+
+	nlbl = 1;
 
 	printf ("section %s\n", fn->section);
 	if (fn->is_pub)

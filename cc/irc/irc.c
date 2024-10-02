@@ -251,6 +251,8 @@ enum dtype_type {
 	DT_DWORD,
 	DT_QWORD,
 	DT_FLOAT,
+	DT_DOUBLE,
+	DT_LDOUBLE,
 };
 
 struct dtype {
@@ -425,7 +427,10 @@ struct dtype *dt;
 	case DT_FLOAT:
 		return 4;
 	case DT_QWORD:
+	case DT_DOUBLE:
 		return 8;
+	case DT_LDOUBLE:
+		return 10;
 	}
 }
 
@@ -477,6 +482,8 @@ struct dtype *dt;
 	case DT_DWORD:
 	case DT_QWORD:
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		return 0;
 	case DT_NONE:
 	case DT_LABEL:
@@ -497,31 +504,14 @@ struct dtype *dt;
 	case DT_QWORD:
 		return 0;
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 	case DT_NONE:
 	case DT_LABEL:
 	case DT_DPTR:
 	case DT_FPTR:
 	case DT_SPTR:
 		return error ("this operation is only supported for integers (byte, word, dword, qword)");
-	}
-}
-
-assert_dt_is_float (dt)
-struct dtype *dt;
-{
-	switch (dt->type) {
-	case DT_FLOAT:
-		return 0;
-	case DT_BYTE:
-	case DT_WORD:
-	case DT_DWORD:
-	case DT_QWORD:
-	case DT_NONE:
-	case DT_LABEL:
-	case DT_DPTR:
-	case DT_FPTR:
-	case DT_SPTR:
-		return error ("this operation is only supported for floats (float)");
 	}
 }
 
@@ -565,6 +555,10 @@ struct dtype *dt;
 		dt->type = DT_QWORD;
 	} else if (strcmp (lval.s, "float") == 0) {
 		dt->type = DT_FLOAT;
+	} else if (strcmp (lval.s, "double") == 0) {
+		dt->type = DT_DOUBLE;
+	} else if (strcmp (lval.s, "ldouble") == 0) {
+		dt->type = DT_LDOUBLE;
 	} else {
 	err:
 		error ("expected dtype");
@@ -1141,6 +1135,12 @@ struct dtype *dt;
 	case DT_FLOAT:
 		printf ("float");
 		break;
+	case DT_DOUBLE:
+		printf ("double");
+		break;
+	case DT_LDOUBLE:
+		printf ("ldouble");
+		break;
 	case DT_DPTR:
 		putchar ('*');
 		print_dt (dt->inner);
@@ -1487,13 +1487,32 @@ struct reg *src;
 	return 0;
 }
 
+// TODO: use src->dt.type
 loadf (instr, src)
 char *instr;
 struct reg *src;
 {
+	char *size;
+
 	if (instr == NULL)
 		instr = "fld";
-	printf ("\t%s dword [ss:bp + %d]\n", instr, src->off);
+
+	switch (src->dt.type) {
+	case DT_FLOAT:
+		size = "dword";
+		break;
+	case DT_DOUBLE:
+		size = "qword";
+		break;
+	case DT_LDOUBLE:
+		size = "tword";
+		break;
+	default:
+		abort ();
+		break;
+	}
+
+	printf ("\t%s %s [ss:bp + %d]\n", instr, size, src->off);
 	return 0;
 }
 
@@ -1518,6 +1537,8 @@ struct reg *src;
 	case DT_QWORD:
 		return loadqw (instr, src);
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		return loadf (instr, src);
 	}
 }
@@ -1588,6 +1609,8 @@ long imm;
 		loadimmr (instr, "cx", (imm >> 48) & 0xffff);
 		break;
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		error ("cannot use immediate values for floating-point operations");
 		break;
 	}
@@ -1670,6 +1693,8 @@ struct expr *e;
 		loadpwri (fn, instrn, CX, &e->bin.r, 6);
 		break;
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		loadri (fn, instrf, &e->bin.r);
 		break;
 	case DT_DPTR:
@@ -1692,6 +1717,8 @@ struct expr *e;
 	case DT_NONE:
 	case DT_LABEL:
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		abort ();
 		break;
 	case DT_DPTR:
@@ -1738,6 +1765,8 @@ struct regimm *shamt;
 	case DT_FPTR:
 	case DT_SPTR:
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		abort ();
 		break;
 	case DT_BYTE:
@@ -1854,6 +1883,8 @@ struct expr *e;
 		call_muldiv (instr, fn, dt, e);
 		break;
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
 		if (ri->is_imm)
 			error ("cannot use immediate values for floating-point operations");
 		load (NULL, acc);
@@ -1887,6 +1918,8 @@ char *cmp, *cc;
 		goto common;
 	
 	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE: // TODO: fix for floats
 		load (NULL, &fn->regs[e->bin.l]);
 		loadri (fn, cmp, &e->bin.r);
 		goto common;
@@ -1918,6 +1951,10 @@ struct expr *e;
 		float f;
 		int32_t i;
 	} flint;
+	union {
+		double d;
+		int64_t l;
+	} dbint;
 	struct regimm *ri;
 	struct reg *r;
 	char *s;
@@ -1948,6 +1985,20 @@ struct expr *e;
 			puts ("\tfild dword [ss:bx]");
 			puts ("\tadd sp, 4");
 			break;
+
+		case DT_LDOUBLE:
+			fprintf (stderr, "%d: warning: loading an ldouble by immediate will cause the result to be truncated", linenum);
+			// fallthrough
+
+		case DT_DOUBLE:
+			printf ("\tpush %d\n", (int)((e->i >> 48) & 0xffff));
+			printf ("\tpush %d\n", (int)((e->i >> 32) & 0xffff));
+			printf ("\tpush %d\n", (int)((e->i >> 16) & 0xffff));
+			printf ("\tpush %d\n", (int)(e->i & 0xffff));
+			puts ("\tmov bx, sp");
+			puts ("\tfild qword [ss:bx]");
+			puts ("\tadd sp, 4");
+			break;
 		}
 		break;
 	case EX_FLOAT:
@@ -1956,6 +2007,19 @@ struct expr *e;
 			flint.f = e->f;
 			printf ("\tpush %d\n", (int)((flint.i >> 16) & 0xffff));
 			printf ("\tpush %d\n", (int)(flint.i & 0xffff));
+			puts ("\tmov bx, sp");
+			puts ("\tfld dword [ss:bx]");
+			puts ("\tadd sp, 4");
+			break;
+		case DT_LDOUBLE:
+			fprintf (stderr, "%d: warning: loading an ldouble by immediate will cause the result to be truncated", linenum);
+			// fallthrough
+		case DT_DOUBLE:
+			dbint.d = e->f;
+			printf ("\tpush %d\n", (int)((dbint.l >> 48) & 0xffff));
+			printf ("\tpush %d\n", (int)((dbint.l >> 32) & 0xffff));
+			printf ("\tpush %d\n", (int)((dbint.l >> 16) & 0xffff));
+			printf ("\tpush %d\n", (int)(dbint.l & 0xffff));
 			puts ("\tmov bx, sp");
 			puts ("\tfld dword [ss:bx]");
 			puts ("\tadd sp, 4");
@@ -1975,12 +2039,18 @@ struct expr *e;
 		}
 		break;
 	case EX_REG:
-		if (dt->type == DT_FLOAT) {
-			printf ("\tfld dword [ss:bp + %d]\n", fn->regs[e->reg].off);
+		switch (dt->type) {
+		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
+			loadf (NULL, &fn->regs[e->reg]);
 			break;
+		default:
+			goto pcast;
 		}
-		// fallthrough
+		break;
 	case EX_PCAST:
+	pcast:
 		load (NULL, &fn->regs[e->reg]);
 		break;
 	case EX_ALLOCA:
@@ -2043,6 +2113,8 @@ struct expr *e;
 			call_muldiv ("mul", fn, dt, e);
 			break;
 		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
 			load (NULL, r);
 			if (ri->is_imm)
 				error ("cannot use immediate values for floating-point operations");
@@ -2117,7 +2189,6 @@ struct expr *e;
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
-		case DT_FLOAT:
 			printf ("\tmov ax, word [%s + %d * 4 + 0]\n", s, e->read.off);
 			printf ("\tmov dx, word [%s + %d * 4 + 2]\n", s, e->read.off);
 			break;
@@ -2127,6 +2198,11 @@ struct expr *e;
 			printf ("\tmov bx, word [%s + %d * 8 + 4]\n", s, e->read.off);
 			printf ("\tmov cx, word [%s + %d * 8 + 6]\n", s, e->read.off);
 			break;
+		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
+			// TODO
+			error ("EX_READ not implemented for floats");
 		}
 		break;
 	case EX_CALL:
@@ -2148,7 +2224,6 @@ struct expr *e;
 				break;
 			case DT_DWORD:
 			case DT_FPTR:
-			case DT_FLOAT:
 				puts ("\tpush dx");
 				puts ("\tpush ax");
 				break;
@@ -2157,6 +2232,12 @@ struct expr *e;
 				puts ("\tpush bx");
 				puts ("\tpush dx");
 				puts ("\tpush ax");
+				break;
+			case DT_FLOAT:
+			case DT_DOUBLE:
+			case DT_LDOUBLE:
+				// TODO
+				error ("call not implemented for float arguments");
 				break;
 			}
 
@@ -2195,6 +2276,8 @@ struct expr *e;
 		case DT_SPTR:
 		case DT_BYTE:
 		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
 			abort ();
 			break;
 		case DT_WORD:
@@ -2220,6 +2303,8 @@ struct expr *e;
 		case DT_SPTR:
 		case DT_BYTE:
 		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
 			abort ();
 			break;
 		case DT_WORD:
@@ -2251,6 +2336,8 @@ struct expr *e;
 		case DT_SPTR:
 		case DT_QWORD:
 		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
 			abort ();
 			break;
 		case DT_DWORD:
@@ -2371,8 +2458,9 @@ struct ir *ir;
 			printf ("\tmov word [ss:bp + %d + 6], cx\n", r->off);
 			break;
 		case DT_FLOAT:
-			printf ("\tfstp dword [ss:bp + %d]\n", r->off);
-			break;
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
+			loadf ("fstp", r);
 		}
 		break;
 	case IR_WRITE:
@@ -2394,7 +2482,6 @@ struct ir *ir;
 			break;
 		case DT_DWORD:
 		case DT_FPTR:
-		case DT_FLOAT:
 			printf ("\tmov word [%s + %d * 4 + 0], ax\n", reg, ir->write.off);
 			printf ("\tmov word [%s + %d * 4 + 2], dx\n", reg, ir->write.off);
 			break;
@@ -2404,6 +2491,11 @@ struct ir *ir;
 			printf ("\tmov word [%s + %d * 8 + 4], bx\n", reg, ir->write.off);
 			printf ("\tmov word [%s + %d * 8 + 6], cx\n", reg, ir->write.off);
 			break;
+		case DT_FLOAT:
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
+			// TODO: floats
+			error ("IR_WRITE not implemented for floats");
 		}
 		break;
 	case IR_RET:
@@ -2446,7 +2538,10 @@ struct ir *ir;
 			puts ("\ttest ax, ax");
 			break;
 		case DT_FLOAT:
-			error ("TODO: IR_BR for DT_FLOAT");
+		case DT_DOUBLE:
+		case DT_LDOUBLE:
+			// TODO
+			error ("TODO: IR_BR for floats");
 			break;
 		}
 

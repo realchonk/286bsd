@@ -16,7 +16,7 @@
   let $2 = add $0, $1;
 - fix line numbering (doesn't count '}' for some reason)
 - inline assembly
-- direct registers (si, di)
+- direct registers access (si, di)
 - EX_INT16 (int), EX_INT32 (long), EX_INT64 (llong) (for performance reasons)
 - register refcnt
 - optimize memory footprint of irc itself
@@ -28,3 +28,4 @@
 - implement builtin functions
 - support for double and long double
 - add conversion between int and float types
+- combined cmp-br

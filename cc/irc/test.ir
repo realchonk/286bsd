@@ -200,5 +200,7 @@ fn floats (): float {
 	let $4: float = fmul $0, $1;
 	let $5: float = fdiv $0, $1;
 	let $6: float = $5;
+	let $7: float = add $0, $1;
+	let $8: float = sub $0, $1;
 	ret $0;
 }

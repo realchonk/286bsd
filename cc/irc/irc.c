@@ -465,6 +465,25 @@ struct dtype *dt;
 	return 0;
 }
 
+assert_dt_is_num (dt)
+struct dtype *dt;
+{
+	switch (dt->type) {
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DWORD:
+	case DT_QWORD:
+	case DT_FLOAT:
+		return 0;
+	case DT_NONE:
+	case DT_LABEL:
+	case DT_DPTR:
+	case DT_FPTR:
+	case DT_SPTR:
+		return error ("this operation is only supported for numbers (byte, word, dword, qword, float)");
+	}
+}
+
 assert_dt_is_int (dt)
 struct dtype *dt;
 {
@@ -574,7 +593,7 @@ struct dtype *dt;
 	return 0;
 }
 
-expr_bin (fn, dt, e, t)
+expr_bin (fn, dt, e, t, allow_float)
 struct func *fn;
 struct dtype *dt;
 struct expr *e;
@@ -589,7 +608,11 @@ struct expr *e;
 	assert_dt_eq (dt, &fn->regs[e->bin.l].dt);
 	assert_dt_eq (dt, e->bin.r.dt);
 
-	assert_dt_is_int (dt);
+	if (allow_float) {
+		assert_dt_is_num (dt);
+	} else {
+		assert_dt_is_int (dt);
+	}
 	return 0;
 }
 
@@ -692,21 +715,21 @@ struct expr *e;
 		e->alloca.off = fn->stoff;
 		expect (';');
 	} else if (strcmp (lval.s, "add") == 0) {
-		expr_bin (fn, dt, e, EX_ADD);
+		expr_bin (fn, dt, e, EX_ADD, 1);
 	} else if (strcmp (lval.s, "sub") == 0) {
-		expr_bin (fn, dt, e, EX_SUB);
+		expr_bin (fn, dt, e, EX_SUB, 1);
 	} else if (strcmp (lval.s, "and") == 0) {
-		expr_bin (fn, dt, e, EX_AND);
+		expr_bin (fn, dt, e, EX_AND, 0);
 	} else if (strcmp (lval.s, "or") == 0) {
-		expr_bin (fn, dt, e, EX_OR);
+		expr_bin (fn, dt, e, EX_OR, 0);
 	} else if (strcmp (lval.s, "xor") == 0) {
-		expr_bin (fn, dt, e, EX_XOR);
+		expr_bin (fn, dt, e, EX_XOR, 0);
 	} else if (strcmp (lval.s, "mul") == 0) {
-		expr_bin (fn, dt, e, EX_MUL);
+		expr_bin (fn, dt, e, EX_MUL, 0);
 	} else if (strcmp (lval.s, "udiv") == 0) {
-		expr_bin (fn, dt, e, EX_UDIV);
+		expr_bin (fn, dt, e, EX_UDIV, 0);
 	} else if (strcmp (lval.s, "sdiv") == 0) {
-		expr_bin (fn, dt, e, EX_SDIV);
+		expr_bin (fn, dt, e, EX_SDIV, 0);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -1520,7 +1543,7 @@ long imm;
 		loadimmr (instr, "cx", (imm >> 48) & 0xffff);
 		break;
 	case DT_FLOAT:
-		abort ();
+		error ("cannot use immediate values for floating-point operations");
 		break;
 	}
 	return 0;
@@ -1575,8 +1598,8 @@ char *reg;
 	return 0;
 }
 
-addsub (instr1, instrn, fn, dt, e)
-char *instr1, *instrn;
+addsub (instr1, instrn, instrf, fn, dt, e)
+char *instr1, *instrn, *instrf;
 struct func *fn;
 struct dtype *dt;
 struct expr *e;
@@ -1601,10 +1624,12 @@ struct expr *e;
 		loadpwri (fn, instrn, BX, &e->bin.r, 4);
 		loadpwri (fn, instrn, CX, &e->bin.r, 6);
 		break;
+	case DT_FLOAT:
+		loadri (fn, instrf, &e->bin.r);
+		break;
 	case DT_DPTR:
 	case DT_FPTR:
 	case DT_SPTR:
-	case DT_FLOAT:
 		error ("cannot add/sub pointers or floats");
 		break;
 	}
@@ -1903,10 +1928,10 @@ struct expr *e;
 		}
 		break;
 	case EX_ADD:
-		addsub ("add", "adc", fn, dt, e);
+		addsub ("add", "adc", "fadd", fn, dt, e);
 		break;
 	case EX_SUB:
-		addsub ("sub", "sbb", fn, dt, e);
+		addsub ("sub", "sbb", "fsubr", fn, dt, e);
 		break;
 	case EX_AND:
 		alu ("and", fn, dt, e);

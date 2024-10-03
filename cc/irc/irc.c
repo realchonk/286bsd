@@ -301,6 +301,12 @@ enum expr_type {
 	EX_SGT,		// .bin
 	EX_SLE,		// .bin
 	EX_SGE,		// .bin
+	EX_FEQ,		// .bin
+	EX_FNE,		// .bin
+	EX_FLT,		// .bin
+	EX_FGT,		// .bin
+	EX_FLE,		// .bin
+	EX_FGE,		// .bin
 	EX_PTRADD,	// .bin
 	EX_READ,	// .read
 	EX_CALL,	// .call
@@ -515,6 +521,19 @@ struct dtype *dt;
 	}
 }
 
+assert_dt_is_float (dt)
+struct dtype *dt;
+{
+	switch (dt->type) {
+	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
+		return 0;
+	default:
+		return error ("this operation is only supported for floats (float, double, ldouble)");
+	}
+}
+
 // PARSER
 
 #define new(T) ((T *)alloc (sizeof (T)))
@@ -659,13 +678,35 @@ enum expr_type t;
 	expect (TK_REG);
 	e->bin.l = lval.i;
 	expect (',');
-	regimm (&e->bin.r, &default_dt);
+	regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
 	expect (';');
 
 	assert_dt_is_int (&fn->regs[e->bin.l].dt);
 	assert_dt_eq (&fn->regs[e->bin.l].dt, e->bin.r.dt);
 	if (dt->type != DT_WORD)
 		error ("result of comparison must be of type word");
+	return 0;
+}
+
+expr_fcmp (fn, dt, e, t)
+struct func *fn;
+struct dtype *dt;
+struct expr *e;
+enum expr_type t;
+{
+	e->type = t;
+	expect (TK_REG);
+	e->bin.l = lval.i;
+	expect (',');
+	regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
+	expect (';');
+
+	assert_dt_is_float (&fn->regs[e->bin.l].dt);
+	assert_dt_eq (&fn->regs[e->bin.l].dt, e->bin.r.dt);
+	if (dt->type != DT_WORD)
+		error ("result of comparison must be of type word");
+	if (e->bin.r.is_imm)
+		error ("immediate arguments not supported");
 	return 0;
 }
 
@@ -737,6 +778,18 @@ struct expr *e;
 		expr_cmp (fn, dt, e, EX_SLE);
 	} else if (strcmp (lval.s, "sge") == 0) {
 		expr_cmp (fn, dt, e, EX_SGE);
+	} else if (strcmp (lval.s, "feq") == 0) {
+		expr_fcmp (fn, dt, e, EX_FEQ);
+	} else if (strcmp (lval.s, "fne") == 0) {
+		expr_fcmp (fn, dt, e, EX_FNE);
+	} else if (strcmp (lval.s, "flt") == 0) {
+		expr_fcmp (fn, dt, e, EX_FLT);
+	} else if (strcmp (lval.s, "fgt") == 0) {
+		expr_fcmp (fn, dt, e, EX_FGT);
+	} else if (strcmp (lval.s, "fle") == 0) {
+		expr_fcmp (fn, dt, e, EX_FLE);
+	} else if (strcmp (lval.s, "fge") == 0) {
+		expr_fcmp (fn, dt, e, EX_FGE);
 	} else if (strcmp (lval.s, "lsl") == 0) {
 		expr_shift (fn, dt, e, EX_LSL);
 	} else if (strcmp (lval.s, "lsr") == 0) {
@@ -1259,6 +1312,30 @@ struct expr *e;
 		break;
 	case EX_SGE:
 		printf ("sge $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_FEQ:
+		printf ("feq $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_FNE:
+		printf ("fne $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_FLT:
+		printf ("flt $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_FGT:
+		printf ("fgt $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_FLE:
+		printf ("fle $%d, ", e->bin.l);
+		print_ri (&e->bin.r);
+		break;
+	case EX_FGE:
+		printf ("fge $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
 		break;
 	case EX_PTRADD:
@@ -1893,15 +1970,14 @@ struct expr *e;
 	return 0;
 }
 
-gen_cmp (fn, dt, e, cmp, cc)
+gen_cmp (fn, e, cmp, cc)
 struct func *fn;
-struct dtype *dt;
 struct expr *e;
 char *cmp, *cc;
 {
 	int l1, l2;
 
-	switch (dt->type) {
+	switch (e->bin.r.dt->type) {
 	case DT_NONE:
 	case DT_LABEL:
 	case DT_DPTR:
@@ -1918,10 +1994,8 @@ char *cmp, *cc;
 	
 	case DT_FLOAT:
 	case DT_DOUBLE:
-	case DT_LDOUBLE: // TODO: fix for floats
-		load (NULL, &fn->regs[e->bin.l]);
-		loadri (fn, cmp, &e->bin.r);
-		goto common;
+	case DT_LDOUBLE:
+		error ("normal comparisons not implemented for floats, use feq, flt, etc.");
 
 	case DT_DWORD:
 	case DT_QWORD:
@@ -1941,6 +2015,32 @@ char *cmp, *cc;
 	return 0;
 }
 
+gen_fcmp (fn, e, cc, swap)
+struct func *fn;
+struct expr *e;
+char *cc;
+{
+	int l1, l2;
+
+	assert (!e->bin.r.is_imm);
+	l1 = nlbl++;
+	l2 = nlbl++;
+	if (swap) {
+		loadf (NULL, &fn->regs[e->bin.r.reg]);
+		loadf ("fcomp", &fn->regs[e->bin.l]);
+	} else {
+		loadf (NULL, &fn->regs[e->bin.l]);
+		loadf ("fcomp", &fn->regs[e->bin.r.reg]);
+	}
+	printf ("\tj%s .Li%d\n", cc, l1);
+	printf ("\txor ax, ax\n");
+	printf ("\tjmp .Li%d\n\n", l2);
+	printf (".Li%d:\n", l1);
+	printf ("\tmov ax, 1\n\n");
+	printf (".Li%d:\n", l2);
+	return 0;
+}
+
 gen_expr (fn, dt, e)
 struct func *fn;
 struct dtype *dt;
@@ -1957,7 +2057,7 @@ struct expr *e;
 	struct regimm *ri;
 	struct reg *r;
 	char *s;
-	int i, cnt, sz;
+	int i, cnt, sz, l1, l2;
 
 	switch (e->type) {
 	case EX_INT:
@@ -2128,34 +2228,74 @@ struct expr *e;
 		gen_div (fn, dt, e, 1);
 		break;
 	case EX_EQ:
-		gen_cmp (fn, dt, e, "test", "e");
+		gen_cmp (fn, e, "test", "e");
 		break;
 	case EX_NE:
-		gen_cmp (fn, dt, e, "test", "ne");
+		gen_cmp (fn, e, "test", "ne");
 		break;
 	case EX_ULT:
-		gen_cmp (fn, dt, e, "cmp", "b");
+		gen_cmp (fn, e, "cmp", "b");
 		break;
 	case EX_UGT:
-		gen_cmp (fn, dt, e, "cmp", "a");
+		gen_cmp (fn, e, "cmp", "a");
 		break;
 	case EX_ULE:
-		gen_cmp (fn, dt, e, "cmp", "be");
+		gen_cmp (fn, e, "cmp", "be");
 		break;
 	case EX_UGE:
-		gen_cmp (fn, dt, e, "cmp", "a");
+		gen_cmp (fn, e, "cmp", "a");
 		break;
 	case EX_SLT:
-		gen_cmp (fn, dt, e, "cmp", "l");
+		gen_cmp (fn, e, "cmp", "l");
 		break;
 	case EX_SGT:
-		gen_cmp (fn, dt, e, "cmp", "g");
+		gen_cmp (fn, e, "cmp", "g");
 		break;
 	case EX_SLE:
-		gen_cmp (fn, dt, e, "cmp", "le");
+		gen_cmp (fn, e, "cmp", "le");
 		break;
 	case EX_SGE:
-		gen_cmp (fn, dt, e, "cmp", "l");
+		gen_cmp (fn, e, "cmp", "l");
+		break;
+	case EX_FEQ:
+		assert (!e->bin.r.is_imm);
+		l1 = nlbl++;
+		l2 = nlbl++;
+		loadf (NULL, &fn->regs[e->bin.l]);
+		loadf ("fcomp", &fn->regs[e->bin.r.reg]);
+		printf ("\tjp .Li%d\n", l1);
+		printf ("\tjne .Li%d\n", l1);
+		printf ("\tmov ax, 1\n");
+		printf ("\tjmp .Li%d\n\n", l2);
+		printf (".Li%d:\n", l1);
+		printf ("\txor ax, ax\n\n");
+		printf (".Li%d:\n", l2);
+		break;
+	case EX_FNE:
+		assert (!e->bin.r.is_imm);
+		l1 = nlbl++;
+		l2 = nlbl++;
+		loadf (NULL, &fn->regs[e->bin.l]);
+		loadf ("fcomp", &fn->regs[e->bin.r.reg]);
+		printf ("\tjp .Li%d\n", l1);
+		printf ("\tjne .Li%d\n", l1);
+		printf ("\txor ax, ax\n");
+		printf ("\tjmp .Li%d\n\n", l2);
+		printf (".Li%d:\n", l1);
+		printf ("\tmov ax, 1\n\n");
+		printf (".Li%d:\n", l2);
+		break;
+	case EX_FLT:
+		gen_fcmp (fn, e, "a", 1);
+		break;
+	case EX_FGT:
+		gen_fcmp (fn, e, "a", 0);
+		break;
+	case EX_FLE:
+		gen_fcmp (fn, e, "ae", 1);
+		break;
+	case EX_FGE:
+		gen_fcmp (fn, e, "ae", 0);
 		break;
 	case EX_PTRADD:
 		load (NULL, &fn->regs[e->bin.l]);

@@ -212,3 +212,15 @@ fn cmp (): word {
 	let $2: word = eq $0, $1;
 	ret $2;
 }
+
+fn fcmp (): word {
+	let $0: float = 1.23;
+	let $1: float = 4.56;
+	let $2: word = feq $0, $1;
+	let $3: word = fne $0, $1;
+	let $4: word = flt $0, $1;
+	let $5: word = fgt $0, $1;
+	let $6: word = fle $0, $1;
+	let $7: word = fge $0, $1;
+	ret 0;
+}

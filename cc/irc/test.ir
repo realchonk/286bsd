@@ -222,5 +222,6 @@ fn fcmp (): word {
 	let $5: word = fgt $0, $1;
 	let $6: word = fle $0, $1;
 	let $7: word = fge $0, $1;
+	nop;
 	ret 0;
 }

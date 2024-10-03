@@ -351,6 +351,7 @@ struct expr {
 };
 
 enum ir_type {
+	IR_NOP,
 	IR_LET,		// .let
 	IR_WRITE,	// .write
 	IR_RET,		// .ri
@@ -951,7 +952,11 @@ struct ir *ir;
 	if (tk != TK_IDENT)
 		goto err;
 
-	if (strcmp (lval.s, "let") == 0) {
+	if (strcmp (lval.s, "nop") == 0) {
+		ir->type = IR_NOP;
+		expect (';');
+		return 0;
+	} else if (strcmp (lval.s, "let") == 0) {
 		ir->type = IR_LET;
 		expect (TK_REG);
 		ir->let.dest = lval.i;
@@ -1393,6 +1398,9 @@ struct ir *ir;
 {
 	printf ("%d: ", ir->line);
 	switch (ir->type) {
+	case IR_NOP:
+		puts ("nop;");
+		break;
 	case IR_LET:
 		printf ("let $%d: ", ir->let.dest);
 		print_dt (&ir->let.dt);
@@ -2579,6 +2587,9 @@ struct ir *ir;
 	print_ir (ir);
 
 	switch (ir->type) {
+	case IR_NOP:
+		puts ("\tnop");
+		break;
 	case IR_LET:
 		r = &fn->regs[ir->let.dest];
 		if (r->type != R_LOCAL)

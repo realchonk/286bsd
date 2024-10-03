@@ -1,15 +1,27 @@
-.SUFFIXES: .asm .bin
+.SUFFIXES: .asm .o
+LDFLAGS = -s --no-pie
 
-all: floppy.img
+OBJ = loader.o kernel.o
+IMG = floppy1440.img
+
+
+all: ${IMG}
+
+xxd: ${IMG}
+	xxd ${IMG} | less
 
 clean:
-	rm -f floppy.img *.bin
+	rm -f *.o *.elf *.img
 
-run: floppy.img
-	qemu-system-i386 -M pc -m 4M -fda floppy.img
+run: ${IMG}
+	qemu-system-i386 -M pc -m 1M -fda ${IMG}
 
-floppy.img: loader.bin kern.bin
-	cat loader.bin kern.bin > floppy.img
+floppy1440.img: sys.elf
+	objcopy -O binary --pad-to $$((2880 * 512)) sys.elf floppy1440.img
 
-.asm.bin:
-	nasm -fbin -o $@ $<
+sys.elf: linker.ld ${OBJ}
+	ld -o $@ -T linker.ld ${OBJ} ${LDFLAGS}
+
+.asm.o:
+	nasm -felf32 -o $@ $<
+

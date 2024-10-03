@@ -1,78 +1,78 @@
-[org 0x7C00]
 [bits 16]
 [cpu 286]
 
-KERN_BEGIN equ 0x8000
 
+NUM_SECTORS equ 8
+
+section .boot exec write
+global _start
+extern _entry
 _start:
-	; load 32KiB from floppy
+	mov byte [bootdrv], dl
+
+	; reset boot drive
+	xor ah, ah
+	mov dl, byte [bootdrv]
+	int 0x13
+	jc error
+
+.loop:
+	; read sectors
 	mov ah, 0x02
-	mov al, 63
-	mov ch, 0
+	mov al, NUM_SECTORS
+	xor ch, ch
 	mov cl, 2
-	mov dh, 0
-	mov bx, (KERN_BEGIN >> 4)
+	xor dh, dh
+	mov dl, byte [bootdrv]
+	mov bx, 0x1000
 	mov es, bx
 	xor bx, bx
 	int 0x13
-	jc _start
+	jnc .ok
 
-	; zero out IDT
-	cli
-	cld
-	mov ax, 0x80
-	mov es, ax
-	xor ax, ax
-	xor di, di
-	mov cx, (256 * 8 / 2)
-	rep stosw
-	lidt [idtr]
+	; reset boot drive again
+	xor ah, ah
+	mov dl, byte [bootdrv]
+	int 0x13
+	jnc error
 
-	; set up GDT
-	lgdt [gdtr]
+	dec byte [tries]
+	jnz .loop
+	jmp error
 
-	smsw ax
-	or ax, 1
-	lmsw ax
-
-	mov ax, 0x10
+.ok:
+	push word [bootdrv]
+	mov ax, 0x1000
 	mov ds, ax
 	mov es, ax
-	mov ss, ax
-	jmp 0x08:0
-	
-idtr:
-	dw (256 * 8) - 1
-	dd 0x800
+	jmp 0x1000:_entry
 
-gdtr:
-	dw gdt.end - gdt - 1
-	dd gdt
+error:
+	lea bp, [errstr]
+	; fallthrough
 
-gdt:
-	dq 0
+puts:
+	mov al, byte [bp]
+	inc bp
+	test al, al
+	jz .ret
 
-	; kernel code
-	dw 65535
-	dw (KERN_BEGIN & 0xffff)
-	db (KERN_BEGIN >> 16) & 0xf
-	db 0x9A
-	dw 0
+	mov ah, 0x0E
+	xor bx, bx
+	int 0x10
+	jmp puts
 
-	; kernel data
-	dw 65535
-	dw (KERN_BEGIN & 0xffff)
-	db (KERN_BEGIN >> 16) & 0xf
-	db 0x92
-	dw 0
+.ret:
+	ret
 
-	; vidmem
-	dw 4000
-	dw 0x8000
-	db 0x0b
-	db 0x92
-	dw 0
-.end:
+errstr:
+	db "Error", 13, 10, 0
+
+bootdrv:
+	db 0
+
+tries:
+	db 3
 
 times 510 - ($ - $$) db 0
 dw 0xAA55

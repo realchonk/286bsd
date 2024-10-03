@@ -225,3 +225,9 @@ fn fcmp (): word {
 	nop;
 	ret 0;
 }
+
+fn alloca_reg ($0: word): word {
+	let $1: ^word = alloca $0;
+	let $2: word = read $1, 5;
+	ret $2;
+}

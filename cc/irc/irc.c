@@ -335,8 +335,8 @@ struct expr {
 		long i;
 		double f;
 		struct {
-			int num;
-			int off;
+			struct regimm num;
+			int off;	// only valid if ri.is_imm
 		} alloca;
 		struct {
 			int l;
@@ -826,10 +826,11 @@ struct expr *e;
 			error ("the result of alloca must be stored in a far or stack pointer");
 
 		e->type = EX_ALLOCA;
-		expect (TK_INT);
-		e->alloca.num = lval.i;
-		stalloc (fn, sizeof_dt (dt->inner) * e->alloca.num);
-		e->alloca.off = fn->stoff;
+		regimm (&e->alloca.num, &default_dt);
+		if (e->alloca.num.is_imm) {
+			stalloc (fn, sizeof_dt (dt->inner) * e->alloca.num.imm);
+			e->alloca.off = fn->stoff;
+		}
 		expect (';');
 	} else if (strcmp (lval.s, "ptradd") == 0) {
 		e->type = EX_PTRADD;
@@ -1245,7 +1246,8 @@ struct expr *e;
 		printf ("$%d", e->reg);
 		break;
 	case EX_ALLOCA:
-		printf ("alloca %d", e->alloca.num);
+		printf ("alloca ");
+		print_ri (&e->alloca.num);
 		break;
 	case EX_ADD:
 		printf ("add $%d, ", e->bin.l);
@@ -2166,7 +2168,14 @@ struct expr *e;
 			puts ("\tmov dx, ss");
 			// fallthrough
 		case DT_SPTR:
-			printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
+			if (e->alloca.num.is_imm) {
+				printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
+			} else {
+				loadw (NULL, AX, &fn->regs[e->alloca.num.reg]);
+				cmul ("ax", sizeof_dt (dt->inner));
+				puts ("\tsub sp, ax");
+				puts ("\tmov ax, sp");
+			}
 			break;
 		default:
 			abort ();

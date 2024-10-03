@@ -2744,9 +2744,7 @@ struct func *fn;
 		gen_ir (fn, ir);
 
 	puts (".ret:");
-	if (fn->stoff != 0)
-		printf ("\tadd sp, %d\n", -fn->stoff);
-	puts ("\tpop bp");
+	puts ("\tleave");
 	puts ("\tret");
 	puts ("");
 

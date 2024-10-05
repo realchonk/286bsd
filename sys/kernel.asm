@@ -283,6 +283,15 @@ update_cursor:
 	out dx, al
 	ret
 
+; bp - str
+panic:
+	call puts
+
+.halt:
+	cli
+	hlt
+	jmp .halt
+
 section .rodata
 hello:
 	db "Hello World", 10, 0

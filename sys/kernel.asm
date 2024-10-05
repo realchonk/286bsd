@@ -25,7 +25,52 @@ _entry:
 	mov word [highmem], ax
 
 .noxm:
+	; NOTE: BIOS cannot be accessed from here
 	cli
+
+	; disable keyboard
+	call .wait
+	mov al, 0xAD
+	out 0x64, al
+
+	; read from input
+	call .wait
+	mov al, 0xD0
+	out 0x64, al
+	call .wait2
+	in al, 0x60
+	mov bl, al
+
+	; write to output
+	call .wait
+	mov al,0xD1
+	out 0x64,al
+	call .wait
+	mov al, bl
+	or al, 2	; enable A20 line
+	out 0x60, al
+
+	; enable keyboard
+	call .wait
+	mov al, 0xAE
+	out 0x64, al
+	call .wait
+	jmp .setup
+
+.wait:
+	in al,0x64
+	test al, 2
+	jnz .wait
+	ret
+
+
+.wait2:
+	in      al,0x64
+	test    al,1
+	jz      .wait2
+	ret
+
+.setup:
 	lidt [idtr]
 	lgdt [gdtr]
 	smsw ax

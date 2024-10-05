@@ -1,3 +1,2 @@
-- enable A20
-- fill in GDT
 - set_irq()
+- fill in IDT

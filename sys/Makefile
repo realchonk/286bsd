@@ -11,16 +11,19 @@ xxd: ${IMG}
 	xxd ${IMG} | less
 
 clean:
-	rm -f *.o *.elf *.img
+	rm -f *.o *.elf *.bin *.img
 
 run: ${IMG}
 	qemu-system-i386 -M pc -m 1M -fda ${IMG}
 
-floppy1440.img: sys.elf
-	objcopy -O binary --pad-to $$((2880 * 512)) sys.elf floppy1440.img
+floppy1440.img: sys.bin
+	cat sys.bin /dev/zero | dd of=floppy1440.img bs=512 count=2880
 
-sys.img: sys.elf
-	objcopy -O binary --pad-to $$((128 * 512)) sys.elf sys.img
+sys.img: sys.bin
+	cat sys.bin /dev/zero | dd of=sys.img bs=512 count=128
+
+sys.bin: sys.elf
+	objcopy -O binary sys.elf sys.bin
 
 sys.elf: linker.ld ${OBJ}
 	ld -o $@ -T linker.ld ${OBJ} ${LDFLAGS}

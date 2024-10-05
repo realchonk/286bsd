@@ -1,5 +1,21 @@
 [cpu 286]
 [bits 16]
+
+%macro io_wait 0
+out 0x80, al
+%endm
+
+%macro outb 2
+mov dx, %1
+mov al, %2
+out dx, al
+%endm
+
+%macro outb_slow 2
+outb %1, %2
+io_wait
+%endm
+
 section .text
 global _entry
 _entry:
@@ -76,15 +92,35 @@ _entry:
 	smsw ax
 	or ax, 1
 	lmsw ax
+	jmp 0x08:.reloadcs
 
+.reloadcs:
 	lea sp, [stack]
 	mov ax, 0x10
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
-	jmp 0x08:.reloadcs
 
-.reloadcs:
+	out 0x80, al
+
+	; initialize PIC
+	outb_slow 0x20, 0x11	; Start the initialization routine (in cascae mode)
+	outb_slow 0xA0, 0x11
+	outb_slow 0x21, 0x20	; Master PIC IRQ offset
+	outb_slow 0xA1, 0x28	; Slave PIC IRQ offset
+	outb_slow 0x21, 4	; Tell the master PIC that there is a slave PIC at IRQ2
+	outb_slow 0xA1, 2	; Tell the slave PIC it's cascade identity
+	outb_slow 0x21, 1	; Use the 8086-mode (and not the 8088 mode)
+	outb_slow 0xA1, 1
+	outb_slow 0x21, 0xfe	; Set the IRQ masks
+	outb_slow 0xA1, 0xff
+
+	; initialize IDT
+	mov al, 0x20
+	mov ah, 0x86
+	lea dx, [i_timer]
+	call set_irq
+
 	lea bp, [hello]
 	call puts
 
@@ -102,7 +138,32 @@ _entry:
 	lea bp, [kbmsg]
 	call puts
 
+	sti
 	jmp $
+
+i_timer:
+	pusha
+	mov al, '.'
+	call putchar
+	
+	outb 0x20, 0x20
+	popa
+	iret
+
+; al - num
+; ah - attr
+; dx - offset
+set_irq:
+	xor bh, bh
+	mov bl, al
+	shl bx, 3
+	lea bx, [idt + bx]
+	mov word [bx + 0], dx
+	mov word [bx + 2], 0x08
+	mov byte [bx + 4], 0x00
+	mov byte [bx + 5], ah
+	mov word [bx + 6], 0
+	ret
 
 error:
 	cli
@@ -140,7 +201,7 @@ puthexch:
 	jmp putchar
 
 ; al - char
-putchar:
+writech:
 	mov bx, 0x18
 	mov es, bx
 
@@ -185,17 +246,22 @@ putchar:
 	mov byte [posy], 24
 	ret
 
+; al - ch
+putchar:
+	call writech
+	jmp update_cursor
+
 ; bp - str
 puts:
 	mov al, byte [ds:bp]
 	inc bp
 	test al, al
-	jz .ret
+	jz update_cursor
 
-	call putchar
+	call writech
 	jmp puts
 
-.ret:
+update_cursor:
 	mov dx, 0x3D4
 	mov al, 0x0f
 	out dx, al

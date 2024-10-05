@@ -4,7 +4,13 @@
 %include "macros.inc"
 
 section .text
+extern floppy_init
 global _entry
+global putchar
+global puts
+global puthexb
+global puthexw
+global panic
 _entry:
 	pop dx
 	mov byte [bootdrv], dl
@@ -124,6 +130,8 @@ _entry:
 	call puthexw
 	lea bp, [kbmsg]
 	call puts
+
+	call floppy_init
 
 	sti
 	jmp $

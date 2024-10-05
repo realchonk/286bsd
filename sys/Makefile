@@ -1,7 +1,7 @@
 .SUFFIXES: .asm .o
 LDFLAGS = -s --no-pie
 
-OBJ = loader.o kernel.o
+OBJ = loader.o kernel.o floppy.o
 IMG = sys.img
 
 

@@ -21,6 +21,7 @@ _start:
 	call puts
 
 	; read sectors
+	stc
 	mov ah, 0x02
 	mov al, NUM_SECTORS
 	xor ch, ch
@@ -34,6 +35,7 @@ _start:
 	jnc .ok
 
 	; reset boot drive again
+	stc
 	xor ah, ah
 	mov dl, byte [bootdrv]
 	int 0x13
@@ -78,7 +80,7 @@ bootdrv:
 	db 0
 
 tries:
-	db 3
+	db 5
 
 times 510 - ($ - $$) db 0
 dw 0xAA55

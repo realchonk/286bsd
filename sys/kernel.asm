@@ -221,13 +221,20 @@ writech:
 	ret
 
 .scroll:
+	push ds
+	mov ax, 0x18
+	mov ds, ax
+
 	cld
 	xor di, di
-	mov si, 0x160
-	mov cx, 80 * 24 * 2
+	mov si, 160
+	mov cx, 80 * 24
 	rep movsw
 
-	mov si, 80 * 24 * 2
+	pop ds
+
+	mov di, 80 * 24 * 2
+	mov cx, 80
 	mov ax, (' ' | (0x07 << 8))
 	rep stosw
 	mov byte [posy], 24

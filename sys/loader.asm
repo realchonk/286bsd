@@ -17,6 +17,9 @@ _start:
 	jc error
 
 .loop:
+	lea bp, [ldstr]
+	call puts
+
 	; read sectors
 	mov ah, 0x02
 	mov al, NUM_SECTORS
@@ -64,6 +67,9 @@ puts:
 
 .ret:
 	ret
+
+ldstr:
+	db "Loading kernel...", 13, 10, 0
 
 errstr:
 	db "Error", 13, 10, 0

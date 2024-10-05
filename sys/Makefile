@@ -2,7 +2,7 @@
 LDFLAGS = -s --no-pie
 
 OBJ = loader.o kernel.o
-IMG = floppy1440.img
+IMG = sys.img
 
 
 all: ${IMG}
@@ -18,6 +18,9 @@ run: ${IMG}
 
 floppy1440.img: sys.elf
 	objcopy -O binary --pad-to $$((2880 * 512)) sys.elf floppy1440.img
+
+sys.img: sys.elf
+	objcopy -O binary --pad-to $$((128 * 512)) sys.elf sys.img
 
 sys.elf: linker.ld ${OBJ}
 	ld -o $@ -T linker.ld ${OBJ} ${LDFLAGS}

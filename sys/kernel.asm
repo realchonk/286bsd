@@ -87,6 +87,21 @@ _entry:
 .reloadcs:
 	lea bp, [hello]
 	call puts
+
+	lea bp, [convmsg]
+	call puts
+	mov ax, word [convmem]
+	call puthexw
+	lea bp, [kbmsg]
+	call puts
+
+	lea bp, [xmmsg]
+	call puts
+	mov ax, word [highmem]
+	call puthexw
+	lea bp, [kbmsg]
+	call puts
+
 	jmp $
 
 error:
@@ -95,6 +110,34 @@ error:
 	call puts
 	hlt
 	jmp $
+
+; ax - value
+puthexw:
+	push ax
+	mov al, ah
+	call puthexb
+	pop ax
+	jmp puthexb
+
+; al - value
+puthexb:
+	push ax
+	shr al, 4
+	call puthexch
+	pop ax
+	and al, 0xf
+	jmp puthexch
+
+; al - hex digit
+puthexch:
+	cmp al, 10
+	jae .hex
+	add al, '0'
+	jmp putchar
+
+.hex:
+	add al, 'a' - 10
+	jmp putchar
 
 ; al - char
 putchar:
@@ -179,6 +222,12 @@ hello:
 	db "Hello World", 10, 0
 errstr:
 	db "Error", 10, 0
+convmsg:
+	db "Conventional memory: 0x", 0
+xmmsg:
+	db "Extended memory: 0x", 0
+kbmsg:
+	db " KB", 10, 0
 
 align 2
 idtr:

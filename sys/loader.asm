@@ -2,7 +2,7 @@
 [cpu 286]
 
 
-NUM_SECTORS equ 8
+NUM_SECTORS equ 16
 
 section .boot exec write
 global _start

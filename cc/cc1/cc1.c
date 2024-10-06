@@ -96,6 +96,30 @@ lex (void)
 	}
 }
 
+int peekd = TK_EOF;
+
+peek (void)
+{
+	if (peekd == TK_EOF)
+		peekd = lex ();
+
+	return peekd;
+}
+
+next (void)
+{
+	int tk;
+
+	if (peekd != TK_EOF) {
+		tk = peekd;
+		peekd = TK_EOF;
+	} else {
+		tk = lex ();
+	}
+
+	return tk;
+}
+
 main (void)
 {
 	return 0;

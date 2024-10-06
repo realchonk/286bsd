@@ -26,7 +26,7 @@ union {
 	char ident[IDENT_LEN + 1];
 } lval;
 
-int peekd = EOF;
+int peekdch = EOF;
 
 readch (void)
 {
@@ -40,19 +40,19 @@ readch (void)
 
 peekch (void)
 {
-	if (peekd != EOF)
-		peekd = readch ();
+	if (peekdch != EOF)
+		peekdch = readch ();
 
-	return peekd;
+	return peekdch;
 }
 
 nextch (void)
 {
 	int ch;
 
-	if (peekd != EOF) {
-		ch = peekd;
-		peekd = EOF;
+	if (peekdch != EOF) {
+		ch = peekdch;
+		peekdch = EOF;
 	} else {
 		ch = readch ();
 	}

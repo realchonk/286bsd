@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -19,6 +20,7 @@ char *msg;
 
 enum {
 	TK_IDENT = 128,
+	KW_INT,
 	TK_EOF,
 };
 
@@ -68,6 +70,7 @@ isname (ch)
 lex (void)
 {
 	size_t i;
+	char *s;
 	int ch;
 
 	while (isspace (peekch ()))
@@ -78,19 +81,28 @@ lex (void)
 	if (isdigit (ch)) {
 		return error ("TODO: integers");
 	} else if (isname (ch)) {
+		s = lval.ident;
+
 		for (i = 0; isname (peekch ());) {
 			ch = nextch ();
 			if (i < IDENT_LEN)
-				lval.ident[i++] = ch;
+				s[i++] = ch;
 		}
-		lval.ident[i] = '\0';
-		return TK_IDENT;
+		s[i] = '\0';
+
+		if (strcmp (s, "int") == 0) {
+			return KW_INT;
+		} else {
+			return TK_IDENT;
+		}
 	} else switch (ch) {
 	case '(':
 	case ')':
 	case '{':
 	case '}':
 		return ch;
+	case EOF:
+		return TK_EOF;
 	default:
 		return error ("invalid input");
 	}
@@ -120,7 +132,112 @@ next (void)
 	return tk;
 }
 
+expect (exp)
+{
+	if (next () != exp)
+		error ("syntax error");
+	return 0;
+}
+
+match (tk)
+{
+	return peek () == tk ? next (), 1 : 0;
+}
+
+// AST DATA TYPES
+
+enum dtype_type {
+	DT_INT,
+};
+
+struct dtype {
+	enum dtype_type type;
+};
+
+// PARSER
+
+dtype (dt)
+struct dtype *dt;
+{
+	switch (peek ()) {
+	case KW_INT:
+		next ();
+		dt->type = DT_INT;
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+decl (global)
+{
+	struct dtype dt;
+	char ident[IDENT_LEN + 1];
+	int ii = 0, first = 1;
+
+	// TODO: storage class
+
+	if (!dtype (&dt)) {
+		if (global) {
+			dt.type = DT_INT;	// implicit int
+			ii = 1;
+		} else {
+			return 0;
+		}
+	}
+
+	do {
+		if (!match (TK_IDENT))
+			return first && ii ? 0 : error ("expected identifier");
+
+		memcpy (ident, lval.ident, IDENT_LEN + 1);
+
+		switch (peek ()) {
+		case '(':
+			next ();
+			// TODO: params
+			expect (')');
+
+			if (!match ('{'))
+				break;
+
+			if (!first || !global)
+				error ("syntax error");
+
+			// TODO: body
+
+			expect ('}');
+			return 1;
+		case '[':
+			return error ("TODO: arrays");
+		case ';':
+			if (!first)
+				return 1;
+			// fallthrough
+		default:
+			return error ("expected declaration");
+		}
+		first = 0;
+	} while (match (','));
+
+	expect (';');
+
+	return 1;
+}
+
+parse (void)
+{
+	while (peek () != TK_EOF) {
+		decl (1);
+	}
+
+	return 0;
+}
+
+// MAIN
+
 main (void)
 {
+	parse ();
 	return 0;
 }

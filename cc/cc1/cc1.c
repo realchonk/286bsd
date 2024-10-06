@@ -7,7 +7,7 @@
 
 // ERROR HANDLING
 
-int line;
+int line = 1;
 
 error (msg)
 char *msg;
@@ -42,7 +42,7 @@ readch (void)
 
 peekch (void)
 {
-	if (peekdch != EOF)
+	if (peekdch == EOF)
 		peekdch = readch ();
 
 	return peekdch;
@@ -100,7 +100,10 @@ lex (void)
 	case ')':
 	case '{':
 	case '}':
-		return ch;
+	case '=':
+	case ';':
+	case ',':
+		return nextch ();
 	case EOF:
 		return TK_EOF;
 	default:
@@ -210,10 +213,15 @@ decl (global)
 			return 1;
 		case '[':
 			return error ("TODO: arrays");
+		case '=':
+			// TODO: init expr
+			next ();
+			break;
 		case ';':
-			if (!first)
-				return 1;
-			// fallthrough
+			next ();
+			return 1;
+		case ',':
+			break;
 		default:
 			return error ("expected declaration");
 		}
@@ -228,7 +236,8 @@ decl (global)
 parse (void)
 {
 	while (peek () != TK_EOF) {
-		decl (1);
+		if (!decl (1))
+			return error ("expected declaration");
 	}
 
 	return 0;

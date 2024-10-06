@@ -21,6 +21,10 @@ char *msg;
 enum {
 	TK_IDENT = 128,
 	KW_INT,
+	KW_STATIC,
+	KW_EXTERN,
+	KW_AUTO,
+	KW_TYPEDEF,
 	TK_EOF,
 };
 
@@ -92,6 +96,14 @@ lex (void)
 
 		if (strcmp (s, "int") == 0) {
 			return KW_INT;
+		} else if (strcmp (s, "auto") == 0) {
+			return KW_AUTO;
+		} else if (strcmp (s, "static") == 0) {
+			return KW_STATIC;
+		} else if (strcmp (s, "extern") == 0) {
+			return KW_EXTERN;
+		} else if (strcmp (s, "typedef") == 0) {
+			return KW_TYPEDEF;
 		} else {
 			return TK_IDENT;
 		}
@@ -149,6 +161,14 @@ match (tk)
 
 // AST DATA TYPES
 
+enum sc_class {
+	SC_NONE,
+	SC_AUTO,
+	SC_STATIC,
+	SC_EXTERN,
+	SC_TYPEDEF,
+};
+
 enum dtype_type {
 	DT_INT,
 };
@@ -174,11 +194,34 @@ struct dtype *dt;
 
 decl (global)
 {
+	enum sc_class sc;
 	struct dtype dt;
 	char ident[IDENT_LEN + 1];
 	int ii = 0, first = 1;
 
-	// TODO: storage class
+	switch (peek ()) {
+	case KW_AUTO:
+		next ();
+		if (global)
+			error ("storage class `auto` not permitted in global scope");
+		sc = SC_AUTO;
+		break;
+	case KW_STATIC:
+		next ();
+		sc = SC_STATIC;
+		break;
+	case KW_EXTERN:
+		next ();
+		sc = SC_EXTERN;
+		break;
+	case KW_TYPEDEF:
+		next ();
+		sc = SC_TYPEDEF;
+		break;
+	default:
+		sc = SC_NONE;
+		break;
+	}
 
 	if (!dtype (&dt)) {
 		if (global) {
@@ -214,8 +257,8 @@ decl (global)
 		case '[':
 			return error ("TODO: arrays");
 		case '=':
-			// TODO: init expr
 			next ();
+			error ("TODO: init expr");
 			break;
 		case ';':
 			next ();

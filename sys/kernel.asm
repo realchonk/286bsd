@@ -41,6 +41,14 @@ _entry:
 	pop dx
 	mov byte [bootdrv], dl
 
+	; copy user task into 0x2000:0
+	mov ax, 0x2000
+	mov es, ax
+	xor di, di
+	lea si, [user]
+	lea cx, [user.end - user]
+	rep movsb
+
 	; clear screen
 	mov bx, 0xb800
 	mov es, bx
@@ -137,6 +145,10 @@ _entry:
 	mov ah, 0x86
 	lea dx, [i_timer]
 	call set_irq
+	mov al, 0x80
+	mov ah, 0xe6
+	lea dx, [i_sys]
+	call set_irq
 
 	lea bp, [convmsg]
 	call puts
@@ -168,30 +180,79 @@ _entry:
 	lldt ax
 
 	; enter userspace, TODO: enter ring 3
-	lea ax, [gdt.data - gdt]
+	mov ax, 0x0f		; LDT .data
 	mov ds, ax
 	mov es, ax
-	mov bx, sp
-	push ax			; ss
-	push bx			; sp
+	push 0x17		; ss (LDT .stack)
+	push 0xfffe		; sp
 	push 0x202		; flags (EI | 0x02)
-	push (gdt.text - gdt)	; cs
-	push task1		; ip
+	push 0x07		; cs (LDT .text)
+	push 0			; ip
 	iret
 
 i_timer:
 	pusha
+	push ds
+	push es
+
+	mov ax, (gdt.data - gdt)
+	mov ds, ax
+	mov es, ax
+
 	mov al, '.'
 	call putchar
 	
 	outb 0x20, 0x20
+	pop es
+	pop ds
 	popa
 	iret
 
-task1:
-	lea bp, [hello]
+; ds:si - from
+; es:di - to
+; cx - count
+copy_from_user:
+	rep movsb
+	ret
+
+i_sys:	; syscall interrupt (0x80)
+	push ds
+	push es
+
+	push ax
+	mov ax, (gdt.data - gdt)
+	mov es, ax
+	pop ax
+
+	test ax, ax
+	jz .print
+
+	; invalid interrupt
+	mov ax, -1
+	jmp .ret
+
+
+.print:
+	push cx
+	mov si, bx
+	lea di, [ubuf]
+	; TODO: check that cx < sizeof(ubuf)
+	call copy_from_user
+	pop bx
+	mov byte [ubuf + bx], 0
+
+	lea ax, [gdt.data - gdt]
+	mov ds, ax
+	mov es, ax
+	lea bp, [ubuf]
 	call puts
-	jmp $
+	xor ax, ax
+	jmp .ret
+
+.ret:
+	pop es
+	pop ds
+	iret
 
 ; al - num
 ; ah - attr
@@ -343,6 +404,9 @@ panic:
 	jmp .halt
 
 section .rodata
+user:
+	incbin "user.bin"
+.end:
 hello:
 	db "Hello World", 10, 0
 errstr:
@@ -429,6 +493,8 @@ ldt:
 .end:
 
 section .bss
+ubuf:
+	resb 256
 posx:
 	resw 1
 posy:

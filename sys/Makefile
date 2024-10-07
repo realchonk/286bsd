@@ -28,6 +28,11 @@ sys.bin: sys.elf
 sys.elf: linker.ld ${OBJ}
 	ld -o $@ -T linker.ld ${OBJ} ${LDFLAGS}
 
+user.bin: user.asm
+	nasm -fbin -o $@ user.asm
+
 .asm.o:
 	nasm -felf32 -o $@ $<
+
+kernel.o: user.bin
 

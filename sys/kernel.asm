@@ -3,6 +3,32 @@
 
 %include "macros.inc"
 
+struc TSS
+.link:	resw 1	; +0x00
+.sp0:	resw 1	; +0x02
+.ss0:	resw 1	; +0x04
+.sp1:	resw 1	; +0x06
+.ss1:	resw 1 	; +0x08
+.sp2:	resw 1 	; +0x0a
+.ss2:	resw 1 	; +0x0c
+.ip:	resw 1	; +0x0e
+.flags:	resw 1	; +0x10
+.ax:	resw 1	; +0x12
+.cx:	resw 1	; +0x14
+.dx:	resw 1	; +0x16
+.bx:	resw 1	; +0x18
+.sp:	resw 1	; +0x1a
+.bp:	resw 1	; +0x1c
+.si:	resw 1	; +0x1e
+.di:	resw 1	; +0x20
+.es:	resw 1	; +0x22
+.cs:	resw 1	; +0x24
+.ss:	resw 1	; +0x26
+.ds:	resw 1	; +0x28
+.ldtr:	resw 1	; +0x2a
+.size:		; +0x2c
+endstruc
+
 section .text
 extern floppy_init
 global _entry
@@ -129,6 +155,15 @@ _entry:
 	call puts
 
 	call floppy_init
+
+	; set up TSS
+	mov word [tss + TSS.link], 0
+	mov word [tss + TSS.sp0], stack
+	mov word [tss + TSS.ss0], 0x10
+
+	; load TSS into TR
+	lea ax, [gdt.tss - gdt]
+	ltr ax
 
 	; enter userspace, TODO: enter ring 3
 	mov ax, 0x10
@@ -332,26 +367,34 @@ section .data
 gdt:
 	dq 0
 
-	; 0x08 - kernel code
+.text:	; 0x08 - kernel code
 	dw 0xffff
 	dw 0x0000
 	db 0x01
 	db 0x9A
 	dw 0x0000
 
-	; 0x10 - kernel data
+.data:	; 0x10 - kernel data
 	dw 0xffff
 	dw 0x0000
 	db 0x01
 	db 0x92
 	dw 0x0000
 
-	; 0x18 - video memory
+.vid:	; 0x18 - video memory
 	dw 4000
 	dw 0x8000
 	db 0x0b
 	db 0x92
 	dw 0x0000
+	
+.tss:	; 0x20 - TSS
+	dw TSS.size
+	dw tss
+	db 0x01
+	db 0x81
+	dw 0x0000
+
 .end:
 
 section .bss
@@ -370,3 +413,5 @@ idt:
 .end:
 	resb 512
 stack:
+tss:
+	resb TSS.size

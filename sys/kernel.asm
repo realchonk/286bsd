@@ -166,7 +166,7 @@ _entry:
 	; enter userspace, TODO: enter ring 3
 	lea ax, [gdt.data - gdt]
 	mov ds, ax
-	mov es, ax,
+	mov es, ax
 	mov bx, sp
 	push ax			; ss
 	push bx			; sp

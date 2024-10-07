@@ -163,6 +163,10 @@ _entry:
 	lea ax, [gdt.tss - gdt]
 	ltr ax
 
+	; load LDT
+	lea ax, [gdt.ldt - gdt]
+	lldt ax
+
 	; enter userspace, TODO: enter ring 3
 	lea ax, [gdt.data - gdt]
 	mov ds, ax
@@ -393,6 +397,35 @@ gdt:
 	db 0x81
 	dw 0x0000
 
+.ldt:	; 0x28 - LDT
+	dw (ldt.end - ldt)
+	dw ldt
+	db 0x01
+	db 0x82
+	dw 0x0000
+.end:
+
+ldt:
+.text:	; 0x07 - user code
+	dw 0xffff
+	dw 0x0000
+	db 0x02
+	db 0xfa
+	dw 0x0000
+
+.data:	; 0x0f - user data
+	dw 0xffff
+	dw 0x0000
+	db 0x02
+	db 0xf2
+	dw 0x0000
+
+.stack:	; 0x17 - user stack
+	dw 0xffff
+	dw 0x0000
+	db 0x03
+	db 0xf2
+	dw 0x0000
 .end:
 
 section .bss

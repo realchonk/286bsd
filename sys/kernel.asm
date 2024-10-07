@@ -219,6 +219,7 @@ i_sys:	; syscall interrupt (0x80)
 	push ds
 	push es
 
+	; load kernel .data into es
 	push ax
 	mov ax, (gdt.data - gdt)
 	mov es, ax
@@ -241,9 +242,11 @@ i_sys:	; syscall interrupt (0x80)
 	pop bx
 	mov byte [ubuf + bx], 0
 
+	; load kernel .data into ds & es
 	lea ax, [gdt.data - gdt]
 	mov ds, ax
 	mov es, ax
+
 	lea bp, [ubuf]
 	call puts
 	xor ax, ax

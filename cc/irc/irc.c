@@ -10,6 +10,8 @@
 // enable debugging prints
 #define ENABLE_DEBUG 1
 
+int ignore_nan = 0;
+
 // ERROR HANDLING
 
 int linenum;
@@ -669,7 +671,7 @@ enum expr_type t;
 	return 0;
 }
 
-expr_cmp (fn, dt, e, t)
+expr_cmp (fn, dt, e, t, allow_fp)
 struct func *fn;
 struct dtype *dt;
 struct expr *e;
@@ -682,7 +684,11 @@ enum expr_type t;
 	regimm (&e->bin.r, &fn->regs[e->bin.l].dt);
 	expect (';');
 
-	assert_dt_is_int (&fn->regs[e->bin.l].dt);
+	if (allow_fp) {
+		assert_dt_is_num (&fn->regs[e->bin.l].dt);
+	} else {
+		assert_dt_is_int (&fn->regs[e->bin.l].dt);
+	}
 	assert_dt_eq (&fn->regs[e->bin.l].dt, e->bin.r.dt);
 	if (dt->type != DT_WORD)
 		error ("result of comparison must be of type word");
@@ -760,25 +766,25 @@ struct expr *e;
 	} else if (strcmp (lval.s, "sdiv") == 0) {
 		expr_bin (fn, dt, e, EX_SDIV, 1);
 	} else if (strcmp (lval.s, "eq") == 0) {
-		expr_cmp (fn, dt, e, EX_EQ);
+		expr_cmp (fn, dt, e, EX_EQ, 1);
 	} else if (strcmp (lval.s, "ne") == 0) {
-		expr_cmp (fn, dt, e, EX_NE);
+		expr_cmp (fn, dt, e, EX_NE, 1);
 	} else if (strcmp (lval.s, "ult") == 0) {
-		expr_cmp (fn, dt, e, EX_ULT);
+		expr_cmp (fn, dt, e, EX_ULT, 0);
 	} else if (strcmp (lval.s, "ugt") == 0) {
-		expr_cmp (fn, dt, e, EX_UGT);
+		expr_cmp (fn, dt, e, EX_UGT, 0);
 	} else if (strcmp (lval.s, "ule") == 0) {
-		expr_cmp (fn, dt, e, EX_ULE);
+		expr_cmp (fn, dt, e, EX_ULE, 0);
 	} else if (strcmp (lval.s, "uge") == 0) {
-		expr_cmp (fn, dt, e, EX_UGE);
+		expr_cmp (fn, dt, e, EX_UGE, 0);
 	} else if (strcmp (lval.s, "slt") == 0) {
-		expr_cmp (fn, dt, e, EX_SLT);
+		expr_cmp (fn, dt, e, EX_SLT, 0);
 	} else if (strcmp (lval.s, "sgt") == 0) {
-		expr_cmp (fn, dt, e, EX_SGT);
+		expr_cmp (fn, dt, e, EX_SGT, 0);
 	} else if (strcmp (lval.s, "sle") == 0) {
-		expr_cmp (fn, dt, e, EX_SLE);
+		expr_cmp (fn, dt, e, EX_SLE, 0);
 	} else if (strcmp (lval.s, "sge") == 0) {
-		expr_cmp (fn, dt, e, EX_SGE);
+		expr_cmp (fn, dt, e, EX_SGE, 0);
 	} else if (strcmp (lval.s, "feq") == 0) {
 		expr_fcmp (fn, dt, e, EX_FEQ);
 	} else if (strcmp (lval.s, "fne") == 0) {
@@ -2025,6 +2031,84 @@ char *cmp, *cc;
 	return 0;
 }
 
+gen_eq (fn, e, inv)
+struct func *fn;
+struct expr *e;
+{
+	int l1, l2;
+
+	switch (e->bin.r.dt->type) {
+	case DT_NONE:
+	case DT_LABEL:
+		abort ();
+		break;
+
+	case DT_BYTE:
+	case DT_WORD:
+	case DT_DPTR:
+	case DT_SPTR:
+		load (NULL, &fn->regs[e->bin.l]);
+		loadri (fn, "cmp", &e->bin.r);
+		puts ("\tlahf");
+		goto common;
+
+	case DT_FPTR:
+	case DT_DWORD:
+		loaddw (NULL, &fn->regs[e->bin.l]);
+		puts ("\t; TODO: adjust loaddw to allow different register pairs");
+		puts ("\tmov bx, ax");
+		puts ("\tmov cx, dx");
+		loadri (fn, NULL, &e->bin.r);
+
+		puts ("\tcmp bx, ax");
+		puts ("\tlahf");
+		puts ("\tmov bx, ax");
+		puts ("\tcmp cx, dx");
+		puts ("\tlahf");
+		puts ("\tand ah, bh");
+		goto common;
+
+	case DT_QWORD:
+		error ("TODO: EX_EQ and EX_NE for DT_QWORD");
+
+	case DT_FLOAT:
+	case DT_DOUBLE:
+	case DT_LDOUBLE:
+		error ("TODO: gen_eq(): floats");
+
+		assert (!e->bin.r.is_imm);
+		loadf (NULL, &fn->regs[e->bin.l]);
+		loadf ("fcomp", &fn->regs[e->bin.r.reg]);
+		puts ("\tfstsw ax");
+		if (ignore_nan) {
+			puts ("\tmov al, ah");
+			puts ("\tshr al, 3");
+			puts ("\tand al, 1");
+		} else {
+			l1 = nlbl++;
+			l2 = nlbl++;
+			puts ("\tand ah, 0b1101");
+			puts ("\tcmp ah, 0b1000");
+			printf ("\tjne .Li%d\n", l1);
+			printf ("\tmov al, 1\n");
+			printf ("\tjmp .Li%d\n\n", l2);
+			printf (".Li%d:\n", l1);
+			printf ("\txor al, al\n\n");
+			printf (".Li%d:\n", l2);
+		}
+		break;
+
+	common:
+		puts ("\tshl ah, 1");
+		puts ("\trol ax, 1");
+		puts ("\tand ax, 1");
+		if (inv)
+			puts ("\txor ax, 1");
+		break;
+	}
+	return 0;
+}
+
 gen_fcmp (fn, e, cc, swap)
 struct func *fn;
 struct expr *e;
@@ -2245,10 +2329,10 @@ struct expr *e;
 		gen_div (fn, dt, e, 1);
 		break;
 	case EX_EQ:
-		gen_cmp (fn, e, "test", "e");
+		gen_eq (fn, e, 0);
 		break;
 	case EX_NE:
-		gen_cmp (fn, e, "test", "ne");
+		gen_eq (fn, e, 1);
 		break;
 	case EX_ULT:
 		gen_cmp (fn, e, "cmp", "b");

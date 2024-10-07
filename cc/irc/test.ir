@@ -210,7 +210,10 @@ fn cmp (): word {
 	let $0: word = 0;
 	let $1: word = 1;
 	let $2: word = eq $0, $1;
-	ret $2;
+	let $3: dword = 0;
+	let $4: dword = 1;
+	let $5: word = eq $3, $4;
+	ret $5;
 }
 
 fn fcmp (): word {
@@ -222,6 +225,7 @@ fn fcmp (): word {
 	let $5: word = fgt $0, $1;
 	let $6: word = fle $0, $1;
 	let $7: word = fge $0, $1;
+	# let $8: word = eq $0, $1;
 	nop;
 	ret 0;
 }

@@ -7,6 +7,6 @@ clean:
 
 run: all
 	./irc < test.ir > test.asm
-	cat test.asm
 	nasm -fobj -o /dev/null test.asm
+	less test.asm
 

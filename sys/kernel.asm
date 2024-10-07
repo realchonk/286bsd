@@ -120,8 +120,6 @@ _entry:
 	mov es, ax
 	mov ss, ax
 
-	out 0x80, al
-
 	; initialize PIC
 	outb_slow 0x20, 0x11	; Start the initialization routine (in cascae mode)
 	outb_slow 0xA0, 0x11

@@ -114,9 +114,6 @@ _entry:
 	lea dx, [i_timer]
 	call set_irq
 
-	lea bp, [hello]
-	call puts
-
 	lea bp, [convmsg]
 	call puts
 	mov ax, word [convmem]
@@ -133,8 +130,17 @@ _entry:
 
 	call floppy_init
 
-	sti
-	jmp $
+	; enter userspace, TODO: enter ring 3
+	mov ax, 0x10
+	mov ds, ax
+	mov es, ax,
+	mov ax, sp
+	push 0x10	; ss
+	push ax		; sp
+	push 0x202	; flags (EI | 0x02)
+	push 0x08	; cs
+	push task1	; ip
+	iret
 
 i_timer:
 	pusha
@@ -144,6 +150,11 @@ i_timer:
 	outb 0x20, 0x20
 	popa
 	iret
+
+task1:
+	lea bp, [hello]
+	call puts
+	jmp $
 
 ; al - num
 ; ah - attr

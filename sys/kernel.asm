@@ -111,11 +111,11 @@ _entry:
 	smsw ax
 	or ax, 1
 	lmsw ax
-	jmp 0x08:.reloadcs
+	jmp (gdt.text - gdt):.reloadcs
 
 .reloadcs:
 	lea sp, [stack]
-	mov ax, 0x10
+	lea ax, [gdt.data - gdt]
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
@@ -159,22 +159,22 @@ _entry:
 	; set up TSS
 	mov word [tss + TSS.link], 0
 	mov word [tss + TSS.sp0], stack
-	mov word [tss + TSS.ss0], 0x10
+	mov word [tss + TSS.ss0], (gdt.data - gdt)
 
 	; load TSS into TR
 	lea ax, [gdt.tss - gdt]
 	ltr ax
 
 	; enter userspace, TODO: enter ring 3
-	mov ax, 0x10
+	lea ax, [gdt.data - gdt]
 	mov ds, ax
 	mov es, ax,
-	mov ax, sp
-	push 0x10	; ss
-	push ax		; sp
-	push 0x202	; flags (EI | 0x02)
-	push 0x08	; cs
-	push task1	; ip
+	mov bx, sp
+	push ax			; ss
+	push bx			; sp
+	push 0x202		; flags (EI | 0x02)
+	push (gdt.text - gdt)	; cs
+	push task1		; ip
 	iret
 
 i_timer:
@@ -200,7 +200,7 @@ set_irq:
 	shl bx, 3
 	lea bx, [idt + bx]
 	mov word [bx + 0], dx
-	mov word [bx + 2], 0x08
+	mov word [bx + 2], (gdt.text - gdt)
 	mov byte [bx + 4], 0x00
 	mov byte [bx + 5], ah
 	mov word [bx + 6], 0
@@ -243,7 +243,7 @@ puthexch:
 
 ; al - char
 writech:
-	mov bx, 0x18
+	lea bx, [gdt.vid - gdt]
 	mov es, bx
 
 	xor ch, ch

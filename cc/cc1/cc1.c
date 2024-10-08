@@ -224,7 +224,7 @@ decl (global)
 	}
 
 	if (!dtype (&dt)) {
-		if (global) {
+		if (global || sc != SC_NONE) {
 			dt.type = DT_INT;	// implicit int
 			ii = 1;
 		} else {

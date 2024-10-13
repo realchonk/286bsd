@@ -177,7 +177,22 @@ struct dtype {
 	enum dtype_type type;
 };
 
+enum decl_type {
+	DL_VAR,
+	DL_FUNC,
+};
+
+struct decl {
+	struct decl *next;
+	enum sc_class sc;
+	struct dtype *dt;
+	char *name;
+};
+
 // PARSER
+
+#define new(T) ((T *)calloc (1, sizeof (T)))
+#define pnew(T) (new (T))
 
 dtype (dt)
 struct dtype *dt;
@@ -191,6 +206,8 @@ struct dtype *dt;
 		return 0;
 	}
 }
+
+body ();
 
 decl (global)
 {
@@ -250,7 +267,7 @@ decl (global)
 			if (!first || !global)
 				error ("syntax error");
 
-			// TODO: body
+			body ();
 
 			expect ('}');
 			return 1;
@@ -274,6 +291,12 @@ decl (global)
 	expect (';');
 
 	return 1;
+}
+
+body (void)
+{
+	while (decl (0));
+
 }
 
 parse (void)

@@ -8,6 +8,8 @@ int z;
 int
 g ()
 {
+	extern x, y, z ();
+	int k;
 }
 
 main ()

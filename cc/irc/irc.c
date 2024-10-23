@@ -2619,6 +2619,7 @@ struct expr *e;
 }
 
 // phi's are crazy. I'm surprised this actually works.
+// You are not expected to understand this.
 check_phi (fn, from, to)
 struct func *fn;
 struct ir *from;

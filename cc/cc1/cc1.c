@@ -77,6 +77,7 @@ lex (void)
 	char *s;
 	int ch;
 
+begin:
 	while (isspace (peekch ()))
 		nextch ();
 
@@ -118,6 +119,15 @@ lex (void)
 		return nextch ();
 	case EOF:
 		return TK_EOF;
+	case '/':
+		nextch ();
+		ch = peekch ();
+		if (ch == '/') {
+			nextch ();
+			while (nextch () != '\n');
+			goto begin;
+		}
+		// fallthrough
 	default:
 		return error ("invalid input");
 	}

@@ -4,6 +4,7 @@
 #include <ctype.h>
 
 #define IDENT_LEN 8
+#define MAXARGS 8
 
 // ERROR HANDLING
 
@@ -200,6 +201,11 @@ struct decl {
 	char *name;
 };
 
+struct arg {
+	char ident[IDENT_LEN + 1];
+	struct dtype dt;
+};
+
 // PARSER
 
 #define new(T) ((T *)calloc (1, sizeof (T)))
@@ -247,10 +253,11 @@ sclass (void)
 	}
 }
 
-parse_func (sc, dt, ident)
+parse_func (sc, dt, ident, args, nargs)
 enum sc_class sc;
 struct dtype *dt;
 char *ident;
+struct arg *args;
 {
 	// TODO: parse arg types
 	expect ('{');
@@ -265,7 +272,8 @@ parse_decl (void)
 	enum sc_class sc;
 	struct dtype dt, *base;
 	char ident[IDENT_LEN + 1];
-	int ii = 0, first = 1;
+	struct arg args[MAXARGS];
+	int ii = 0, first = 1, nargs;
 
 	sc = sclass ();
 	if (sc == SC_AUTO)
@@ -285,10 +293,22 @@ parse_decl (void)
 		switch (peek ()) {
 		case '(':
 			next ();
-			// TODO: params
+			nargs = 0;
+
+			if (peek () != ')') {
+				expect (TK_IDENT);
+				memcpy (args[nargs++].ident, lval.ident, IDENT_LEN + 1);
+				while (match (',')) {
+					if (nargs == MAXARGS)
+						error ("too many arguments");
+					expect (TK_IDENT);
+					memcpy (args[nargs++].ident, lval.ident, IDENT_LEN + 1);
+				}
+			}
+
 			expect (')');
 
-			if (peek () == ',' || peek () == ';') {
+			if ((peek () == ',' || peek () == ';') && nargs == 0) {
 				base = new (struct dtype);
 				*base = dt;
 				dt.type = DT_FUNC;
@@ -299,11 +319,10 @@ parse_decl (void)
 				break;
 			}
 
-
 			if (!first)
 				error ("syntax error");
 
-			parse_func (sc, &dt, ident);
+			parse_func (sc, &dt, ident, args, nargs);
 			return 1;
 		case '[':
 			return error ("TODO: arrays");

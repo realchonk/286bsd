@@ -7,8 +7,8 @@ int z;
 
 int *ptr;
 
-int
-g ()
+static int
+g (i, j)
 {
 	//extern x, y, z ();
 	//int k;

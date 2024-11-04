@@ -116,6 +116,7 @@ begin:
 	case '=':
 	case ';':
 	case ',':
+	case '*':
 		return nextch ();
 	case EOF:
 		return TK_EOF;
@@ -181,15 +182,15 @@ enum sc_class {
 
 enum dtype_type {
 	DT_INT,
+	DT_FUNC,
+	DT_PTR,
 };
 
 struct dtype {
 	enum dtype_type type;
-};
-
-enum decl_type {
-	DL_VAR,
-	DL_FUNC,
+	union {
+		struct dtype *base;
+	};
 };
 
 struct decl {
@@ -207,56 +208,69 @@ struct decl {
 dtype (dt)
 struct dtype *dt;
 {
+	struct dtype *base;
+
 	switch (peek ()) {
 	case KW_INT:
 		next ();
 		dt->type = DT_INT;
-		return 1;
+		break;
 	default:
 		return 0;
 	}
+
+	while (peek () == '*') {
+		next ();
+		base = new (struct dtype);
+		*base = *dt;
+		dt->type = DT_PTR;
+		dt->base = base;
+	}
+
+	return 1;
 }
 
-body ();
-
-decl (global)
+enum sc_class
+sclass (void)
 {
+	switch (peek ()) {
+	case KW_AUTO:
+		return next(), SC_AUTO;
+	case KW_STATIC:
+		return next(), SC_STATIC;
+	case KW_EXTERN:
+		return next(), SC_EXTERN;
+	case KW_TYPEDEF:
+		return next(), SC_TYPEDEF;
+	default:
+		return SC_NONE;
+	}
+}
+
+parse_func (sc, dt, ident)
+enum sc_class sc;
+struct dtype *dt;
+char *ident;
+{
+
+	return 0;
+}
+
+parse_decl (void)
+{
+	extern gen_decl (), gen_func ();
 	enum sc_class sc;
-	struct dtype dt;
+	struct dtype dt, *base;
 	char ident[IDENT_LEN + 1];
 	int ii = 0, first = 1;
 
-	switch (peek ()) {
-	case KW_AUTO:
-		next ();
-		if (global)
-			error ("storage class `auto` not permitted in global scope");
-		sc = SC_AUTO;
-		break;
-	case KW_STATIC:
-		next ();
-		sc = SC_STATIC;
-		break;
-	case KW_EXTERN:
-		next ();
-		sc = SC_EXTERN;
-		break;
-	case KW_TYPEDEF:
-		next ();
-		sc = SC_TYPEDEF;
-		break;
-	default:
-		sc = SC_NONE;
-		break;
-	}
+	sc = sclass ();
+	if (sc == SC_AUTO)
+		error ("storage class `auto` not permitted in global scope");
 
 	if (!dtype (&dt)) {
-		if (global || sc != SC_NONE) {
-			dt.type = DT_INT;	// implicit int
-			ii = 1;
-		} else {
-			return 0;
-		}
+		dt.type = DT_INT;
+		ii = 1;
 	}
 
 	do {
@@ -271,13 +285,20 @@ decl (global)
 			// TODO: params
 			expect (')');
 
-			if (!match ('{'))
-				break;
+			if (!match ('{')) {
+				expect (';');
+				base = new (struct dtype);
+				*base = dt;
+				dt.type = DT_FUNC;
+				dt.base = base;
+				gen_decl (sc, &dt, ident);
+				return 1;
+			}
 
-			if (!first || !global)
+			if (!first)
 				error ("syntax error");
 
-			body ();
+			parse_func (sc, &dt, ident);
 
 			expect ('}');
 			return 1;
@@ -289,6 +310,7 @@ decl (global)
 			break;
 		case ';':
 			next ();
+			gen_decl (sc, &dt, ident);
 			return 1;
 		case ',':
 			break;
@@ -297,25 +319,27 @@ decl (global)
 		}
 		first = 0;
 	} while (match (','));
-
-	expect (';');
-
-	return 1;
-}
-
-body (void)
-{
-	while (decl (0));
-
+	error ("unreachable reached");
+	return 0;
 }
 
 parse (void)
 {
 	while (peek () != TK_EOF) {
-		if (!decl (1))
+		if (!parse_decl ())
 			return error ("expected declaration");
 	}
 
+	return 0;
+}
+
+// GEN
+
+gen_decl (sc, dt, ident)
+enum sc_class sc;
+struct dtype *dt;
+char *ident;
+{
 	return 0;
 }
 

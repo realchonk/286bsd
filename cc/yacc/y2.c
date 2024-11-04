@@ -1,23 +1,19 @@
-#if	!defined(lint) && defined(DOSCCS)
-static char sccsid[] = "@(#)y2.c	4.1.1	(2.11BSD)	1995/05/11";
-#endif
-
-# include "dextern"
-# define IDENTIFIER 257
-# define MARK 258
-# define TERM 259
-# define LEFT 260
-# define RIGHT 261
-# define BINARY 262
-# define PREC 263
-# define LCURLY 264
-# define C_IDENTIFIER 265  /* name followed by colon */
-# define NUMBER 266
-# define START 267
-# define TYPEDEF 268
-# define TYPENAME 269
-# define UNION 270
-# define ENDFILE 0
+#include "yacc.h"
+#define IDENTIFIER 257
+#define MARK 258
+#define TERM 259
+#define LEFT 260
+#define RIGHT 261
+#define BINARY 262
+#define PREC 263
+#define LCURLY 264
+#define C_IDENTIFIER 265  /* name followed by colon */
+#define NUMBER 266
+#define START 267
+#define TYPEDEF 268
+#define TYPENAME 269
+#define UNION 270
+#define ENDFILE 0
 
 	/* communication variables between various I/O routines */
 

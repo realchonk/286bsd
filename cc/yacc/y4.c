@@ -1,14 +1,10 @@
-#if	!defined(lint) && defined(DOSCCS)
-static char sccsid[] = "@(#)y4.c	4.1.1	(2.11BSD)	1995/05/11";
-#endif
+#include "yacc.h"
 
-# include "dextern"
-
-# define a amem
-# define mem mem0
-# define pa indgo
-# define yypact temp1
-# define greed tystate
+#define a amem
+#define mem mem0
+#define pa indgo
+#define yypact temp1
+#define greed tystate
 
 int * ggreed = lkst[0].lset;
 int * pgo = wsets[0].ws.lset;

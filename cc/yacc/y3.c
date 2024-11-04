@@ -1,8 +1,4 @@
-#if	!defined(lint) && defined(DOSCCS)
-static char sccsid[] = "@(#)y3.c	4.1.1	(2.11BSD)	1995/05/11";
-#endif
-
-# include "dextern"
+#include "yacc.h"
 
 	/* important local variables */
 int lastred;  /* the number of the last reduction of a state */

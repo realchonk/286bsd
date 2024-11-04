@@ -1,4 +1,4 @@
-extern a, h ();
+extern a, h (), f2 ();
 
 typedef T;
 

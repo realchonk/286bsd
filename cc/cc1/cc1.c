@@ -252,7 +252,10 @@ enum sc_class sc;
 struct dtype *dt;
 char *ident;
 {
-
+	// TODO: parse arg types
+	expect ('{');
+	// TODO: parse variables
+	expect ('}');
 	return 0;
 }
 
@@ -285,22 +288,22 @@ parse_decl (void)
 			// TODO: params
 			expect (')');
 
-			if (!match ('{')) {
-				expect (';');
+			if (peek () == ',' || peek () == ';') {
 				base = new (struct dtype);
 				*base = dt;
 				dt.type = DT_FUNC;
 				dt.base = base;
 				gen_decl (sc, &dt, ident);
-				return 1;
+				if (match (';'))
+					return 1;
+				break;
 			}
+
 
 			if (!first)
 				error ("syntax error");
 
 			parse_func (sc, &dt, ident);
-
-			expect ('}');
 			return 1;
 		case '[':
 			return error ("TODO: arrays");

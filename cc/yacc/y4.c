@@ -123,7 +123,7 @@ callopt(){
 
 	if( adb>2 ){ /* print a array */
 		for( p=a; p <= maxa; p += 10){
-			fprintf( ftable, "%4d  ", p-a );
+			fprintf( ftable, "%4zd  ", p-a );
 			for( i=0; i<10; ++i ) fprintf( ftable, "%4d  ", p[i] );
 			fprintf( ftable, "\n" );
 			}
@@ -265,9 +265,9 @@ osummary(){
 		if( *p == 0 ) ++i;
 		}
 
-	fprintf( foutput, "Optimizer space used: input %d/%d, output %d/%d\n",
+	fprintf( foutput, "Optimizer space used: input %zd/%d, output %zd/%d\n",
 		pmem-mem+1, MEMSIZE, maxa-a+1, ACTSIZE );
-	fprintf( foutput, "%d table entries, %d zero\n", (maxa-a)+1, i );
+	fprintf( foutput, "%zd table entries, %d zero\n", (maxa-a)+1, i );
 	fprintf( foutput, "maximum spread: %d, maximum offset: %d\n", maxspr, maxoff );
 
 	}
@@ -277,7 +277,7 @@ aoutput(){ /* this version is for C */
 
 	/* write out the optimized parser */
 
-	fprintf( ftable, "# define YYLAST %d\n", maxa-a+1 );
+	fprintf( ftable, "# define YYLAST %zd\n", maxa-a+1 );
 
 	arout( "yyact", a, (maxa-a)+1 );
 	arout( "yypact", pa, nstate );

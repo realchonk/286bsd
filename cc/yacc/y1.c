@@ -107,11 +107,14 @@ others(){ /* put out other arrays, copy the parsers */
 	fclose( ftable );
 	}
 
-char *chcopy( p, q )  register char *p, *q; {
+char *chcopy(p, q)
+char *p, *q;
+{
 	/* copies string q into p, returning next free char ptr */
-	while( *p = *q++ ) ++p;
+	while ((*p = *q++) != '\0')
+		++p;
 	return( p );
-	}
+}
 
 # define ISIZE 400
 char *writem(pp) int *pp; { /* creates output string for item pointed to by pp */

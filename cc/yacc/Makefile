@@ -1,10 +1,12 @@
+PWD != pwd
 CFLAGS = -ansi -Wno-return-type -Wno-comment -Wno-deprecated-non-prototype
-SRC != echo y*.c
+CPPFLAGS = -DWORD32 -DPARSER=\"${PWD}/yaccpar\"
+SRC != echo y?.c
 
 all: yacc
 
 yacc: ${SRC}
-	${CC} -o $@ ${SRC} ${CFLAGS}
+	${CC} -o $@ ${SRC} ${CFLAGS} ${CPPFLAGS}
 
 clean:
 	rm -f yacc *.o *.core

@@ -3,7 +3,6 @@
  */
 # include <stdio.h>
 # include <ctype.h>
-# include "files"
 
 	/*  MANIFEST CONSTANT DEFINITIONS */
 
@@ -16,6 +15,7 @@
 # define ACCEPTCODE 8191
 
 	/* sizes and limits */
+#define MEDIUM
 
 # ifdef HUGE
 # define ACTSIZE 12000

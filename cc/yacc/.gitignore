@@ -1,2 +1,5 @@
 yacc
+calc
+calc.c
+y.tab.*
 *.core

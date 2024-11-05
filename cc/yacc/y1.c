@@ -187,16 +187,18 @@ summary(){ /* output the summary on the tty */
 	}
 
 /* VARARGS1 */
-error(s,a1) char *s; { /* write out error comment */
-	
+error(s, a1)
+char *s;
+long a1;
+{
 	++nerrors;
 	fprintf( stderr, "\n fatal error: ");
-	fprintf( stderr, s,a1);
+	fprintf( stderr, s, a1);
 	fprintf( stderr, ", line %d\n", lineno );
 	if( !fatfl ) return;
 	summary();
 	exit(1);
-	}
+}
 
 aryfil( v, n, c ) int *v,n,c; { /* set elements 0 through n-1 to c */
 	register int i;

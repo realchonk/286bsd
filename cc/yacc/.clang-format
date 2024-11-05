@@ -1,0 +1,21 @@
+---
+Language:        Cpp
+TabWidth:        8
+IndentWidth:     8
+UseTab:          AlignWithSpaces
+# BasedOnStyle:  LLVM
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeElse: false
+  BeforeWhile: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+AlwaysBreakAfterDefinitionReturnType: TopLevel
+AllowShortFunctionsOnASingleLine: None

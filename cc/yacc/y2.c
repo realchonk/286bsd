@@ -688,28 +688,39 @@ cpyunion(){
 		}
 	}
 
-cpycode(){ /* copies code between \{ and \} */
+cpycode() { /* copies code between \{ and \} */
 	register int c;
 
 	c = getc(finput);
-	if( c == '\n' ) {
+	if (c == '\n') {
 		c = getc(finput);
 		lineno++;
-		}
-	fprintf( ftable, "\n# line %d \"%s\"\n", lineno, infile );
-	while( c>=0 ){
-		if( c=='\\' )
-			if( (c=getc(finput)) == '}' ) return;
-			else putc('\\', ftable );
-		if( c=='%' )
-			if( (c=getc(finput)) == '}' ) return;
-			else putc('%', ftable );
-		putc( c , ftable );
-		if( c == '\n' ) ++lineno;
-		c = getc(finput);
-		}
-	error("eof before %%}" );
 	}
+
+	fprintf( ftable, "\n# line %d \"%s\"\n", lineno, infile );
+
+	while (c >= 0) {
+		if (c == '\\') {
+			if ((c=getc(finput)) == '}') {
+				return;
+			} else {
+				putc('\\', ftable );
+			}
+		}
+		if (c == '%') {
+			if ((c=getc(finput)) == '}') {
+			       	return;
+			} else {
+				putc('%', ftable);
+			}
+		}
+		putc(c , ftable);
+		if (c == '\n')
+			++lineno;
+		c = getc(finput);
+	}
+	error("eof before %%}" );
+}
 
 skipcom(){ /* skip over comments */
 	register int c, i=0;  /* i is the number of lines skipped */
@@ -835,7 +846,7 @@ case '"':	/* character string */
 	string:
 
 		putc( c , faction );
-		while( c=getc(finput) ){
+		while ((c = getc(finput)) != '\0'){
 
 			if( c=='\\' ){
 				putc( c , faction );

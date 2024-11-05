@@ -1,6 +1,8 @@
 /*
  * @(#)dextern	4.2	(Berkeley)	3/21/86
  */
+# include <string.h>
+# include <stdlib.h>
 # include <stdio.h>
 # include <ctype.h>
 

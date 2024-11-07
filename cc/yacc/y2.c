@@ -837,19 +837,27 @@ skipcom() {                    /* skip over comments */
 
 	/* skipcom is called after reading a / */
 
-	if (getc(finput) != '*')
-		error("illegal comment");
 	c = getc(finput);
-	while (c != EOF) {
-		while (c == '*') {
-			if ((c = getc(finput)) == '/')
-				return (i);
-		}
-		if (c == '\n')
-			++i;
+	if (c == '/') {
+		do {
+			c = fgetc(finput);
+		} while (c != EOF && c != '\n');
+		return (1);
+	} else if (c == '*') {
 		c = getc(finput);
+		while (c != EOF) {
+			while (c == '*') {
+				if ((c = getc(finput)) == '/')
+					return (i);
+			}
+			if (c == '\n')
+				++i;
+			c = getc(finput);
+		}
+		error("EOF inside comment");
+	} else {
+		error("illegal comment");
 	}
-	error("EOF inside comment");
 	/* NOTREACHED */
 }
 

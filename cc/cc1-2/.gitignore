@@ -1,0 +1,6 @@
+*.o
+*.swp
+*.core
+cc1
+y.tab.*
+y.output

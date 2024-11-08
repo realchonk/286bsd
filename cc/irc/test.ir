@@ -236,6 +236,7 @@ fn alloca_reg ($0: word,): word {
 	ret $2;
 }
 
+extern var x: word;
 fn lookup (): word {
 	let $0: *word = lookup x;
 	let $1: !word = lookup x;
@@ -256,3 +257,4 @@ fn call_to_extern($0: *byte): word {
 	let $1: word = call strlen, $0;
 	ret $1;
 }
+

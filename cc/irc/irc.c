@@ -462,6 +462,7 @@ struct func {
 
 enum symbol_type {
 	SYM_FUNC,	// .fn
+	SYM_VAR,	// .dt
 };
 
 struct symbol {
@@ -470,6 +471,7 @@ struct symbol {
 	char *name;
 
 	union {
+		struct dtype dt;
 		struct {
 			struct dtype dt;
 			struct dtype args[MAXARGS];
@@ -1289,10 +1291,17 @@ parse_extern (void)
 		expect (':');
 		dtype (&sym->fn.dt);
 		expect (';');
-		symhead = sym;
+	} else if (strcmp (lval.s, "var") == 0) {
+		expect (TK_IDENT);
+		sym->type = SYM_VAR;
+		sym->name = pstrdup (lval.s);
+		expect (':');
+		dtype (&sym->dt);
+		expect (';');
 	} else {
 		error ("syntax error");
 	}
+	symhead = sym;
 	gen_extern (sym);
 	return 0;
 }
@@ -3084,6 +3093,11 @@ main (void)
 			}
 			fprintf (stderr, "): ");
 			print_dt (stderr, &sym->fn.dt);
+			fprintf (stderr, ";\n");
+			break;
+		case SYM_VAR:
+			fprintf (stderr, "var: ");
+			print_dt (stderr, &sym->dt);
 			fprintf (stderr, ";\n");
 		}
 	}

@@ -2978,7 +2978,7 @@ main (void)
 		fprintf (stderr, "irc: debug: %s: ", sym->name);
 		switch (sym->type) {
 		case SYM_FUNC:
-			fprintf (stderr, "fn(", sym->name);
+			fprintf (stderr, "fn(");
 			if (sym->fn.nargs > 0) {
 				fprintf (stderr, "_: ");
 				print_dt (stderr, &sym->fn.args[0]);

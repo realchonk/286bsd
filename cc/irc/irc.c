@@ -1180,7 +1180,6 @@ struct func *fn;
 			stoff += (sizeof_dt (&fn->regs[i].dt) + 1) & ~1;
 			break;
 		default:
-			printf ("%d\n", tk);
 			error ("invalid parameter list");
 		}
 	}
@@ -1289,7 +1288,7 @@ parse (void)
 			reset ();
 		} else {
 		err:
-			error ("expected fn");
+			error ("syntax error");
 		}
 	}
 

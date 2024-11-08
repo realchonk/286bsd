@@ -1196,7 +1196,8 @@ parse (void)
 
 // IR PRINTING
 
-print_dt (dt)
+print_dt (file, dt)
+FILE *file;
 struct dtype *dt;
 {
 	switch (dt->type) {
@@ -1204,40 +1205,40 @@ struct dtype *dt;
 		error ("print_dt(DT_NONE)");
 		break;
 	case DT_BYTE:
-		printf ("byte");
+		fprintf (file, "byte");
 		break;
 	case DT_WORD:
-		printf ("word");
+		fprintf (file, "word");
 		break;
 	case DT_DWORD:
-		printf ("dword");
+		fprintf (file, "dword");
 		break;
 	case DT_QWORD:
-		printf ("qword");
+		fprintf (file, "qword");
 		break;
 	case DT_FLOAT:
-		printf ("float");
+		fprintf (file, "float");
 		break;
 	case DT_DOUBLE:
-		printf ("double");
+		fprintf (file, "double");
 		break;
 	case DT_LDOUBLE:
-		printf ("ldouble");
+		fprintf (file, "ldouble");
 		break;
 	case DT_DPTR:
-		putchar ('*');
-		print_dt (dt->inner);
+		fputc ('*', file);
+		print_dt (file, dt->inner);
 		break;
 	case DT_FPTR:
-		putchar ('!');
-		print_dt (dt->inner);
+		fputc ('!', file);
+		print_dt (file, dt->inner);
 		break;
 	case DT_SPTR:
-		putchar ('^');
-		print_dt (dt->inner);
+		fputc ('^', file);
+		print_dt (file, dt->inner);
 		break;
 	case DT_LABEL:
-		printf ("label");
+		fprintf (file, "label");
 		break;
 	}
 	return 0;
@@ -1432,7 +1433,7 @@ struct ir *ir;
 		break;
 	case IR_LET:
 		printf ("let $%d: ", ir->let.dest);
-		print_dt (&ir->let.dt);
+		print_dt (stdout, &ir->let.dt);
 		printf (" = ");
 		print_ex (&ir->let.val);
 		puts (";");

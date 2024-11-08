@@ -534,6 +534,40 @@ char *name;
 	return sym;
 }
 
+sym_print (file, sym)
+FILE *file;
+struct symbol *sym;
+{
+	extern print_dt ();
+	int i;
+
+	fprintf (file, "%s: ", sym->name);
+	if (sym->is_extern)
+		fprintf (file, "extern ");
+	switch (sym->type) {
+	case SYM_FUNC:
+		fprintf (file, "fn(");
+		if (sym->fn.nargs > 0) {
+			fprintf (file, "_: ");
+			print_dt (file, &sym->fn.args[0]);
+			for (i = 1; i < sym->fn.nargs; ++i) {
+				fprintf (file, ", _: ");
+				print_dt (file, &sym->fn.args[i]);
+			}
+		}
+		fprintf (file, "): ");
+		print_dt (file, &sym->fn.dt);
+		fprintf (file, ";\n");
+		break;
+	case SYM_VAR:
+		fprintf (file, "var: ");
+		print_dt (file, &sym->dt);
+		fprintf (file, ";\n");
+		break;
+	}
+	return 0;
+}
+
 sizeof_dt (dt)
 struct dtype *dt;
 {
@@ -1192,6 +1226,7 @@ struct ir *ir;
 	}
 }
 
+struct symbol *
 func (fn)
 struct func *fn;
 {
@@ -1292,7 +1327,7 @@ rt:
 		}
 	}
 
-	return 0;
+	return sym;
 }
 
 parse_extern (void)
@@ -1381,8 +1416,8 @@ parse (void)
 			memset (&fn, 0, sizeof (fn));
 			fn.is_pub = is_pub;
 			fn.section = section;
-			func (&fn);
-			gen (&fn);
+			sym = func (&fn);
+			gen (&fn, sym);
 			reset ();
 		} else if (strcmp (lval.s, "var") == 0) {
 			expect (TK_IDENT);
@@ -3071,10 +3106,14 @@ struct ir *ir;
 	return 0;
 }
 
-gen (fn)
+gen (fn, sym)
 struct func *fn;
+struct symbol *sym;
 {
 	struct ir *ir;
+
+	printf ("; ");
+	sym_print (stdout, sym);
 
 	nlbl = 1;
 
@@ -3105,6 +3144,9 @@ char *section;
 struct symbol *sym;
 {
 	char *s;
+
+	printf ("; ");
+	sym_print (stdout, sym);
 
 	if (section == NULL)
 		section = has_init ? ".data" : ".bss";
@@ -3141,9 +3183,9 @@ struct symbol *sym;
 	}
 
 	if (has_init) {
-		printf ("\t%s %d\n", s, init);
+		printf ("\t%s %d\n\n", s, init);
 	} else {
-		printf ("\t%s 1\n", s);
+		printf ("\t%s 1\n\n", s);
 	}
 
 	return 0;
@@ -3152,7 +3194,9 @@ struct symbol *sym;
 gen_extern (sym)
 struct symbol *sym;
 {
-	printf ("extern %s\n", sym->name);
+	printf ("; ");
+	sym_print (stdout, sym);
+	printf ("extern %s\n\n", sym->name);
 	return 0;
 }
 
@@ -3162,7 +3206,6 @@ main (void)
 {
 #if ENABLE_DEBUG
 	struct symbol *sym;
-	int i;
 
 	fprintf (stderr, "irc: debug: sizeof (struct func) = %zu\n", sizeof (struct func));
 	fprintf (stderr, "irc: debug: sizeof (struct ir) = %zu\n", sizeof (struct ir));
@@ -3187,29 +3230,8 @@ main (void)
 
 	fprintf (stderr, "irc: debug: symbol table:\n");
 	for (sym = symhead; sym != NULL; sym = sym->next) {
-		fprintf (stderr, "irc: debug: %s: ", sym->name);
-		if (sym->is_extern)
-			fprintf (stderr, "extern ");
-		switch (sym->type) {
-		case SYM_FUNC:
-			fprintf (stderr, "fn(");
-			if (sym->fn.nargs > 0) {
-				fprintf (stderr, "_: ");
-				print_dt (stderr, &sym->fn.args[0]);
-				for (i = 1; i < sym->fn.nargs; ++i) {
-					fprintf (stderr, ", _: ");
-					print_dt (stderr, &sym->fn.args[i]);
-				}
-			}
-			fprintf (stderr, "): ");
-			print_dt (stderr, &sym->fn.dt);
-			fprintf (stderr, ";\n");
-			break;
-		case SYM_VAR:
-			fprintf (stderr, "var: ");
-			print_dt (stderr, &sym->dt);
-			fprintf (stderr, ";\n");
-		}
+		fprintf (stderr, "irc: debug: ");
+		sym_print (stderr, sym);
 	}
 #endif
 	return 0;

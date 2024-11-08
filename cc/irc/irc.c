@@ -2949,13 +2949,17 @@ struct func *fn;
 main (void)
 {
 #if ENABLE_DEBUG
-	fprintf (stderr, "sizeof (struct func) = %zu\n", sizeof (struct func));
-	fprintf (stderr, "sizeof (struct ir) = %zu\n", sizeof (struct ir));
-	fprintf (stderr, "sizeof (struct expr) = %zu\n", sizeof (struct expr));
-	fprintf (stderr, "sizeof (struct call) = %zu\n", sizeof (struct call));
-	fprintf (stderr, "sizeof (struct phi) = %zu\n", sizeof (struct phi));
-	fprintf (stderr, "sizeof (struct regimm) = %zu\n", sizeof (struct regimm));
-	fprintf (stderr, "sizeof (struct dtype) = %zu\n", sizeof (struct dtype));
+	struct symbol *sym;
+	int i;
+
+	fprintf (stderr, "irc: debug: sizeof (struct func) = %zu\n", sizeof (struct func));
+	fprintf (stderr, "irc: debug: sizeof (struct ir) = %zu\n", sizeof (struct ir));
+	fprintf (stderr, "irc: debug: sizeof (struct expr) = %zu\n", sizeof (struct expr));
+	fprintf (stderr, "irc: debug: sizeof (struct call) = %zu\n", sizeof (struct call));
+	fprintf (stderr, "irc: debug: sizeof (struct phi) = %zu\n", sizeof (struct phi));
+	fprintf (stderr, "irc: debug: sizeof (struct regimm) = %zu\n", sizeof (struct regimm));
+	fprintf (stderr, "irc: debug: sizeof (struct dtype) = %zu\n", sizeof (struct dtype));
+	fprintf (stderr, "irc: debug: sizeof (struct symbol) = %zu\n", sizeof (struct symbol));
 #endif
 	linenum = 1;
 	puts ("[bits 16]");
@@ -2966,7 +2970,28 @@ main (void)
 	parse ();
 
 #if ENABLE_DEBUG
-	fprintf (stderr, "debug: total memory allocated: %zu bytes\n", total_alloc);
+	fprintf (stderr, "irc: debug: total temporary memory allocated: %zu bytes\n", total_alloc);
+	fprintf (stderr, "irc: debug: total persistent memory allocated: %zu bytes\n", total_palloc);
+
+	fprintf (stderr, "irc: debug: symbol table:\n");
+	for (sym = symhead; sym != NULL; sym = sym->next) {
+		fprintf (stderr, "irc: debug: %s: ", sym->name);
+		switch (sym->type) {
+		case SYM_FUNC:
+			fprintf (stderr, "fn(", sym->name);
+			if (sym->fn.nargs > 0) {
+				fprintf (stderr, "_: ");
+				print_dt (stderr, &sym->fn.args[0]);
+				for (i = 1; i < sym->fn.nargs; ++i) {
+					fprintf (stderr, ", _: ");
+					print_dt (stderr, &sym->fn.args[i]);
+				}
+			}
+			fprintf (stderr, "): ");
+			print_dt (stderr, &sym->fn.dt);
+			fprintf (stderr, ";\n");
+		}
+	}
 #endif
 	return 0;
 }

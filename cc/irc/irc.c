@@ -37,7 +37,7 @@ char *msg;
 #if ENABLE_ARENA
 
 # if ENABLE_DEBUG
-size_t total_alloc = 0;
+size_t total_alloc = 0, total_palloc = 0;
 # endif
 
 char arena[32768];
@@ -74,6 +74,33 @@ reset (void)
 # define alloc(num) calloc (1, (num))
 # define reset()
 #endif
+
+void *
+pmalloc (size)
+size_t size;
+{
+	void *ptr;
+
+	ptr = malloc (size);
+	memset (ptr, 0, size);
+	total_palloc += size;
+
+	return ptr;
+}
+
+char *
+pstrdup (old)
+char *old;
+{
+	size_t len;
+	char *s;
+
+	len = strlen (old);
+	s = pmalloc (len + 1);
+	memcpy (s, old, len + 1);
+
+	return s;
+}
 
 // LEXER
 
@@ -549,7 +576,12 @@ struct dtype *dt;
 
 // PARSER
 
+// allocate temporary memory (freed after processing current unit)
 #define new(T) ((T *)alloc (sizeof (T)))
+
+// allocate persistent memory (not freed across units)
+#define pnew(T) ((T *)pmalloc (sizeof (T)))
+
 #define expect(exp) (lex () != (exp) ? error ("expected " #exp) : 0)
 #define stalloc(fn, nbytes) ((fn)->stoff -= (((nbytes) + 1) & ~1))
 

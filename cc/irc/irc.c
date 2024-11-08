@@ -453,6 +453,27 @@ struct func {
 	int is_pub;
 };
 
+enum symbol_type {
+	SYM_FUNC,	// .fn
+};
+
+struct symbol {
+	struct symbol *next;
+	enum symbol_type type;
+	char *name;
+
+	union {
+		struct {
+			struct dtype dt;
+			struct dtype args[MAXARGS];
+			int nargs;
+		} fn;
+	};
+};
+
+// (persistent)
+struct symbol *symhead = NULL;
+
 // MISC
 
 sizeof_dt (dt)
@@ -1088,6 +1109,7 @@ func (fn)
 struct func *fn;
 {
 	struct ir *bprev = NULL, *bhead = NULL, *prev = NULL, *ir, *tmp;
+	struct symbol *sym;
 	int tk, i, stoff;
 
 	expect (TK_IDENT);
@@ -1095,6 +1117,12 @@ struct func *fn;
 
 	expect ('(');
 	stoff = 4;
+
+	sym = pnew (struct symbol);
+	sym->next = symhead;
+	sym->type = SYM_FUNC;
+	sym->name = pstrdup (fn->name);
+	sym->fn.nargs = 0;
 
 	// parse parameter list
 	while (1) {
@@ -1110,6 +1138,7 @@ struct func *fn;
 			fn->regs[i].type = R_PARAM;
 			fn->regs[i].off = stoff;
 			dtype (&fn->regs[i].dt);
+			sym->fn.args[sym->fn.nargs++] = fn->regs[i].dt;
 			stoff += (sizeof_dt (&fn->regs[i].dt) + 1) & ~1;
 			break;
 		default:
@@ -1121,7 +1150,10 @@ struct func *fn;
 rt:
 	expect (':');
 	dtype (&fn->dt);
+	sym->fn.dt = fn->dt;
 	expect ('{');
+
+	symhead = sym;
 
 	fn->stoff = 0;
 

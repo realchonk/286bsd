@@ -987,8 +987,6 @@ struct expr *e;
 
 		if (sym != NULL && sym->fn.nargs != e->call->nargs)
 			warning ("incorrect number of arguments for call");
-
-		// TODO: assert_dt_*
 	} else if (strcmp (lval.s, "phi") == 0) {
 		e->type = EX_PHI;
 		expect ('(');

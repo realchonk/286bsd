@@ -10,6 +10,15 @@
 // enable debugging prints
 #define ENABLE_DEBUG 1
 
+// maximum number of registers per function
+#define NREGS 128
+
+// maximum number of arguments for a function/call
+#define MAXARGS 8
+
+// maximum number of PHI values
+#define MAXPHI 8
+
 int ignore_nan = 0;
 
 // ERROR HANDLING
@@ -324,11 +333,11 @@ enum expr_type {
 struct call {
 	char *fn;
 	int nargs;
-	struct regimm args[8];
+	struct regimm args[MAXARGS];
 };
 
 struct phi {
-	int from[8], val[8], num;
+	int from[MAXPHI], val[MAXPHI], num;
 };
 
 struct expr {
@@ -407,7 +416,6 @@ struct reg {
 	int off;
 };
 
-#define NREGS 128
 struct func {
 	char *name;
 	struct dtype dt;

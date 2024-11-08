@@ -1251,6 +1251,52 @@ rt:
 	return 0;
 }
 
+parse_extern (void)
+{
+	extern gen_extern ();
+	struct symbol *sym;
+	int tk;
+
+	sym = pnew (struct symbol);
+	sym->next = symhead;
+
+	expect (TK_IDENT);
+	if (strcmp (lval.s, "fn") == 0) {
+		expect (TK_IDENT);
+		sym->type = SYM_FUNC;
+		sym->name = pstrdup (lval.s);
+		sym->fn.nargs = 0;
+
+		expect ('(');
+
+		tk = lex ();
+
+		if (tk != ')') {
+			do {
+				switch (tk) {
+				case ',':
+					break;
+				case TK_IDENT:
+					expect (':');
+					dtype (&sym->fn.args[sym->fn.nargs++]);
+					break;
+				default:
+					error ("syntax error");
+				}
+			} while ((tk = lex ()) != ')');
+		}
+
+		expect (':');
+		dtype (&sym->fn.dt);
+		expect (';');
+		symhead = sym;
+	} else {
+		error ("syntax error");
+	}
+	gen_extern (sym);
+	return 0;
+}
+
 parse (void)
 {
 	extern gen ();
@@ -1264,6 +1310,11 @@ parse (void)
 		
 		is_pub = 0;
 		section = NULL;
+
+		if (strcmp (lval.s, "extern") == 0) {
+			parse_extern ();
+			continue;
+		}
 
 		if (strcmp (lval.s, "pub") == 0) {
 			is_pub = 1;
@@ -2978,6 +3029,13 @@ struct func *fn;
 	puts ("\tret");
 	puts ("");
 
+	return 0;
+}
+
+gen_extern (sym)
+struct symbol *sym;
+{
+	printf ("extern %s\n", sym->name);
 	return 0;
 }
 

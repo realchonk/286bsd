@@ -230,7 +230,7 @@ fn fcmp (): word {
 	ret 0;
 }
 
-fn alloca_reg ($0: word): word {
+fn alloca_reg ($0: word,): word {
 	let $1: ^word = alloca $0;
 	let $2: word = read $1, 5;
 	ret $2;
@@ -245,7 +245,14 @@ fn lookup (): word {
 	ret $4;
 }
 
-fn call_to_undefined (): word {
-	let $1: word = call undeclared;
+#fn call_to_undefined (): word {
+#	let $1: word = call undeclared;
+#	ret $1;
+#}
+
+extern fn strlen (str: *byte): word;
+
+fn call_to_extern($0: *byte): word {
+	let $1: word = call strlen, $0;
 	ret $1;
 }

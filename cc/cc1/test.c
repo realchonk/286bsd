@@ -12,14 +12,14 @@ static int
 g (i, j)
 int i, j;
 {
-	extern x, y, z ();
-	int k;
+	extern T x;
 }
 
 
 main (argc, argv)
 char **argv;
 {
+	int i = 0, j, k = 42;
 }
 
 extern h ();

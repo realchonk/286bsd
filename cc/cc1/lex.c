@@ -7,7 +7,7 @@
 
 int linenum = 1, peekdch = EOF;
 struct token lval;
-struct scope *scope = NULL;
+struct scope gscope, fscope;
 
 // MISC
 
@@ -102,7 +102,7 @@ begin:
 			return TYPEDEF;
 		}
 
-		for (sym = scope->typedefs; sym != NULL; sym = sym->next) {
+		for (sym = gscope.typedefs; sym != NULL; sym = sym->next) {
 			if (strcmp (s, sym->ident) == 0) {
 				lval.sym = sym;
 				return TYPEIDENT;
@@ -144,9 +144,7 @@ begin:
 
 yyinit ()
 {
-	scope = new (struct scope);
-	scope->parent = NULL;
-	scope->typedefs = NULL;
+	gscope.typedefs = NULL;
 	return 0;
 }
 

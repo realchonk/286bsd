@@ -1,6 +1,10 @@
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "cc1.h"
+
+static struct function *fn;
+int reg;
 
 gen_decl (d, pub)
 struct declaration *d;
@@ -39,31 +43,60 @@ struct dtype *dt;
 	return 0;
 }
 
-print_arg (a)
-struct arg *a;
+struct symbol *
+get_var (name)
+char *name;
 {
-	// TODO: use registers, like $0, $1, etc
-	printf ("%s: ", a->ident);
-	print_dt (a->dt);
-	return 0;
+	struct symbol *sym;
+
+	for (sym = fscope.vars; sym != NULL; sym = sym->next) {
+		if (strcmp (name, sym->ident) == 0)
+			return sym;
+	}
+
+	return NULL;
+}
+
+gen_expr (dt, e)
+struct dtype *dt;
+struct expr *e;
+{
+	int r;
+
+	switch (e->type) {
+	case EX_INT:
+		r = reg++;
+		printf ("\tlet $%d: ", r);
+		print_dt (dt);
+		printf (" = %d;\n", e->i);
+		break;
+	}
+
+	return r;
 }
 
 gen_fn (fn)
 struct function *fn;
 {
+	struct symbol *sym;
 	size_t i;
+	int r;
+
+	for (sym = fn->ahead; sym != NULL; sym = sym->xnext)
+		printf ("# $%d: %s\n", sym->reg, sym->ident);
 
 	if (fn->pub)
 		printf ("pub ");
 
 	printf ("fn %s (", fn->ident);
 
-	if (fn->args[0].ident[0] != '\0') {
-		print_arg (&fn->args[0]);
-
-		for (i = 1; fn->args[i].ident[0] != '\0'; ++i) {
-			printf (", ");
-			print_arg (&fn->args[i]);
+	sym = fn->ahead;
+	if (sym != NULL) {
+		printf ("$%d: ", sym->reg);
+		print_dt (sym->dt);
+		for (sym = sym->xnext; sym != NULL; sym = sym->xnext) {
+			printf (", $%d: ", sym->reg);
+			print_dt (sym->dt);
 		}
 	}
 
@@ -71,9 +104,48 @@ struct function *fn;
 	print_dt (fn->dt);
 	printf (" {\n");
 
-	// TODO: allocate vars
+	for (sym = fn->ahead; sym != NULL; sym = sym->xnext) {
+		r = reg++;
+		printf ("\t# $%d: &%s\n", r, sym->ident);
+		printf ("\tlet $%d: ^", r);
+		print_dt (sym->dt);
+		printf (" = alloca 1;\n");
+		printf ("\twrite $%d, $%d;\n\n", r, sym->reg);
+		sym->reg = r;
+	}
 
-	printf ("}\n");
+	for (sym = fn->vhead; sym != NULL; sym = sym->xnext) {
+		printf ("\t# $%d: &%s\n", sym->reg, sym->ident);
+		printf ("\tlet $%d: ^", sym->reg);
+		print_dt (sym->dt);
+		printf (" = ");
+
+		switch (sym->sc) {
+		case SC_AUTO:
+			printf ("alloca 1");
+			break;
+		case SC_EXTERN:
+			printf ("lookup %s", sym->ident);
+			break;
+		case SC_STATIC:
+			printf ("lookup __fn_%s_%s", fn->ident, sym->ident);
+			break;
+		case SC_NONE:
+		case SC_TYPEDEF:
+			abort ();
+		}
+		printf (";\n");
+
+		if (sym->sc == SC_AUTO && sym->init.type != IN_NONE) {
+			r = gen_expr (sym->dt, sym->init.ex);
+			printf ("\twrite $%d, $%d;\n", sym->reg, r);
+		}
+		printf ("\n");
+	}
+
+	// TODO: define static variables
+
+	printf ("}\n\n");
 
 	return 0;
 }

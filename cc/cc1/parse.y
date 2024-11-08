@@ -309,23 +309,40 @@ struct decl_init *di;
 	return 0;
 }
 
+struct symbol *
+find_sym (head, ident)
+struct symbol *head;
+char *ident;
+{
+	struct symbol *sym;
+
+	for (sym = head; sym != NULL; sym = sym->next) {
+		if (strcmp (ident, sym->ident) == 0)
+			return sym;
+	}
+	
+	return NULL;
+}
+
 fn (fn, ds, dl, args, vars)
 struct function *fn;
 struct decl_spec *ds;
 struct declarator *dl;
 struct decls_list *args, *vars;
 {
-	struct decls_list *a;
+	struct symbol *sym, *atail, *vtail;
 	struct decl_init *di;
+	struct decls_list *dd;
 	struct ident_list *il;
 	struct dtype *base, *dt;
 	char *ident;
-	size_t i, num;
 
 	if (dl->type != DL_FUNCDEF || dl->def.dl->type != DL_IDENT)
 		yyerror ("invalid function definition");
-	
+	cpident (fn->ident, dl->def.dl->ident);
+
 	if (ds != NULL) {
+		fn->dt = resolve_type (&ds->ts);
 		switch (ds->sc) {
 		case SC_NONE:
 		case SC_EXTERN:
@@ -337,42 +354,94 @@ struct decls_list *args, *vars;
 		default:
 			yyerror ("invalid storage class for function");
 		}
-		fn->dt = resolve_type (&ds->ts);
 	} else {
-		fn->pub = 1;
 		fn->dt = &default_int;
+		fn->pub = 1;
 	}
 
-	cpident (fn->ident, dl->def.dl->ident);
-	fn->vars = vars;
+	reg = 0;
+	fscope.typedefs = fscope.vars = NULL;
+	fn->ahead = atail = NULL;
+	fn->vhead = vtail = NULL;
 
-	for (il = dl->def.il, num = 0; il != NULL; il = il->next, ++num);
+	// declare arguments as implicit int
+	for (il = dl->def.il; il != NULL; il = il->next) {
+		if (find_sym (fscope.vars, il->ident) != NULL)
+			yyerror ("redeclaration of argument");
+		sym = new (struct symbol);
+		sym->next = fscope.vars;
+		sym->xnext = NULL;
+		sym->dt = &default_int;
+		cpident (sym->ident, il->ident);
+		sym->sc = SC_NONE;
+		sym->reg = reg++;
+		sym->init.type = IN_NONE;
 
-	fn->args = calloc (num + 1, sizeof (struct arg));
-	fn->args[num].ident[0] = '\0';
-
-	for (il = dl->def.il, i = 0; i < num; il = il->next, ++i) {
-		fn->args[i].dt = &default_int;
-		cpident (fn->args[i].ident, il->ident);
-	}
-
-	for (a = args; a != NULL; a = a->next) {
-		if (a->d.sc != SC_NONE)
-			yyerror ("storage class specifiers not supported for arguments");
-		base = resolve_type (&a->d.ts);
+		fscope.vars = sym;
 	
-		for (di = a->d.head; di != NULL; di = di->next) {
-			if (di->in.type != IN_NONE)
-				yyerror ("initializers not supported for arguments");
-			dt = resolve_dl (base, &di->dl, &ident);
+		if (fn->ahead == NULL) {
+			fn->ahead = sym;
+		} else {
+			atail->xnext = sym;
+		}
+		atail = sym;
+	}
 
-			for (i = 0; i < num; ++i) {
-				if (strcmp (fn->args[i].ident, ident) == 0) {
-					fn->args[i].dt = dt;
-					goto ok;
+	// set the correct data types for arguments
+	for (dd = args; dd != NULL; dd = dd->next) {
+		if (dd->d.sc != SC_NONE)
+			yyerror ("invalid storage class for function argument");
+		base = resolve_type (&dd->d.ts);
+		for (di = dd->d.head; di != NULL; di = di->next) {
+			dt = resolve_dl (base, &di->dl, &ident);
+			sym = find_sym (fscope.vars, ident);
+			if (sym == NULL)
+				yyerror ("defining type for undeclared argument");
+			if (sym->dt != &default_int)
+				yyerror ("redefinition of argument type");
+			sym->dt = dt;
+			sym->init = di->in;
+		}
+	}
+
+	// declare variables
+	for (dd = vars; dd != NULL; dd = dd->next) {
+		base = resolve_type (&dd->d.ts);
+		for (di = dd->d.head; di != NULL; di = di->next) {
+			dt = resolve_dl (base, &di->dl, &ident);
+			if (find_sym (fscope.vars, ident) != NULL || find_sym (fscope.typedefs, ident) != NULL)
+				yyerror ("redeclaration of variable or typedef");
+
+			sym = new (struct symbol);
+			sym->next = dd->d.sc == SC_TYPEDEF ? fscope.typedefs : fscope.vars;
+			sym->xnext = NULL;
+			sym->dt = resolve_dl (base, &di->dl, &ident);
+			cpident (sym->ident, ident);
+			sym->sc = dd->d.sc;
+			sym->init = di->in;
+			sym->reg = reg++;
+			
+			switch (sym->sc) {
+			case SC_NONE:
+				sym->sc = SC_AUTO;
+			case SC_AUTO:
+			case SC_EXTERN:
+			case SC_STATIC:
+				if (fn->vhead == NULL) {
+					fn->vhead = sym;
+				} else {
+					vtail->xnext = sym;
 				}
+				fscope.vars = sym;
+				vtail = sym;
+				break;
+			case SC_TYPEDEF:
+				if (sym->init.type != IN_NONE)
+					yyerror ("invalid assignment to typedef");
+				fscope.typedefs = sym;
+				break;
 			}
-			ok:;
+			
 		}
 	}
 
@@ -413,10 +482,10 @@ struct declaration *d;
 			if (di->in.type != IN_NONE)
 				yyerror ("cannot assign to typedef");
 			sym = new (struct symbol);
-			sym->next = scope->typedefs;
+			sym->next = gscope.typedefs;
 			sym->dt = dt;
 			cpident (sym->ident, ident);
-			scope->typedefs = sym;
+			gscope.typedefs = sym;
 			break;
 		}
 	}

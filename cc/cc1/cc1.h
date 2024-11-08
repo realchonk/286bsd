@@ -26,15 +26,30 @@ struct dtype {
 	};
 };
 
+enum initializer_type {
+	IN_NONE,
+	IN_EX,
+};
+
+struct initializer {
+	enum initializer_type type;
+
+	union {
+		struct expr *ex;
+	};
+};
+
 struct symbol {
-	struct symbol *next;
+	struct symbol *next, *xnext;
 	struct dtype *dt;
 	char ident[IDENT_LEN + 1];
+
+	int sc, reg;
+	struct initializer init;
 };
 
 struct scope {
-	struct scope *parent;
-	struct symbol *typedefs;
+	struct symbol *typedefs, *vars;
 };
 
 extern struct token {
@@ -116,19 +131,6 @@ struct declarator {
 	};
 };
 
-enum initializer_type {
-	IN_NONE,
-	IN_EX,
-};
-
-struct initializer {
-	enum initializer_type type;
-
-	union {
-		struct expr *ex;
-	};
-};
-
 struct decl_init {
 	struct decl_init *next;
 	struct declarator dl;
@@ -146,20 +148,15 @@ struct decls_list {
 	struct declaration d;
 };
 
-struct arg {
-	struct dtype *dt;
-	char ident[IDENT_LEN + 1];
-};
-
 struct function {
 	int pub;
 	struct dtype *dt;
 	char ident[IDENT_LEN + 1];
-	struct arg *args;
-	struct decls_list *vars;
+	struct symbol *ahead, *vhead;
 };
 
-extern struct scope *scope;
+extern struct scope gscope, fscope;
 extern yyerror (), yylex ();
+extern reg;
 
 #endif // FILE_CC1_H

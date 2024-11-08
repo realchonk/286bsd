@@ -146,11 +146,17 @@ struct decls_list {
 	struct declaration d;
 };
 
-struct function {
-	int sc;
+struct arg {
 	struct dtype *dt;
 	char ident[IDENT_LEN + 1];
-	struct decls_list *args, *vars;
+};
+
+struct function {
+	int pub;
+	struct dtype *dt;
+	char ident[IDENT_LEN + 1];
+	struct arg *args;
+	struct decls_list *vars;
 };
 
 extern struct scope *scope;

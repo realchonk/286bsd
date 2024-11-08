@@ -315,19 +315,66 @@ struct decl_spec *ds;
 struct declarator *dl;
 struct decls_list *args, *vars;
 {
+	struct decls_list *a;
+	struct decl_init *di;
+	struct ident_list *il;
+	struct dtype *base, *dt;
+	char *ident;
+	size_t i, num;
+
 	if (dl->type != DL_FUNCDEF || dl->def.dl->type != DL_IDENT)
 		yyerror ("invalid function definition");
 	
 	if (ds != NULL) {
-		fn->sc = ds->sc;
+		switch (ds->sc) {
+		case SC_NONE:
+		case SC_EXTERN:
+			fn->pub = 1;
+			break;
+		case SC_STATIC:
+			fn->pub = 0;
+			break;
+		default:
+			yyerror ("invalid storage class for function");
+		}
 		fn->dt = resolve_type (&ds->ts);
 	} else {
-		fn->sc = 0;
+		fn->pub = 1;
 		fn->dt = &default_int;
 	}
+
 	cpident (fn->ident, dl->def.dl->ident);
-	fn->args = args;
 	fn->vars = vars;
+
+	for (il = dl->def.il, num = 0; il != NULL; il = il->next, ++num);
+
+	fn->args = calloc (num + 1, sizeof (struct arg));
+	fn->args[num].ident[0] = '\0';
+
+	for (il = dl->def.il, i = 0; i < num; il = il->next, ++i) {
+		fn->args[i].dt = &default_int;
+		cpident (fn->args[i].ident, il->ident);
+	}
+
+	for (a = args; a != NULL; a = a->next) {
+		if (a->d.sc != SC_NONE)
+			yyerror ("storage class specifiers not supported for arguments");
+		base = resolve_type (&a->d.ts);
+	
+		for (di = a->d.head; di != NULL; di = di->next) {
+			if (di->in.type != IN_NONE)
+				yyerror ("initializers not supported for arguments");
+			dt = resolve_dl (base, &di->dl, &ident);
+
+			for (i = 0; i < num; ++i) {
+				if (strcmp (fn->args[i].ident, ident) == 0) {
+					fn->args[i].dt = dt;
+					goto ok;
+				}
+			}
+			ok:;
+		}
+	}
 
 	return 0;
 }
@@ -360,7 +407,6 @@ struct declaration *d;
 		case SC_EXTERN:
 			pub = 1;
 		common:
-			printf ("T %s;\n", ident);
 			// TODO
 			break;
 		case SC_TYPEDEF:
@@ -381,5 +427,6 @@ struct declaration *d;
 define (fn)
 struct function *fn;
 {
+	gen_fn (fn);
 	return 0;
 }

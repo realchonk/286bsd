@@ -18,7 +18,7 @@ int i, j;
 
 
 main (argc, argv)
-char *argv;
+char **argv;
 {
 }
 

@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "cc1.h"
 
-static struct function *fn;
 int reg;
 
 gen_decl (d, pub)
@@ -79,7 +78,6 @@ gen_fn (fn)
 struct function *fn;
 {
 	struct symbol *sym;
-	size_t i;
 	int r;
 
 	for (sym = fn->ahead; sym != NULL; sym = sym->xnext)

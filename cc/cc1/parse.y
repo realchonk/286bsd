@@ -293,6 +293,8 @@ char **ident;
 		break;
 	case DL_FUNCDEF:
 		yyerror ("invalid function definition");
+		dt = NULL;
+		break;
 	}
 
 	return dt;
@@ -496,6 +498,7 @@ struct declaration *d;
 define (fn)
 struct function *fn;
 {
+	extern gen_fn ();
 	gen_fn (fn);
 	return 0;
 }

@@ -1,6 +1,6 @@
 YACC = ../yacc/yacc
 YFLAGS = -d -v
-CFLAGS = -ansi -g -O0 -Wno-deprecated-non-prototype -Wno-comment
+CFLAGS = -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 OBJ = lex.o parse.o gen.o main.o
 
 all: cc1

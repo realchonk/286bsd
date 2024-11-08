@@ -1321,9 +1321,10 @@ parse_extern (void)
 
 parse (void)
 {
-	extern gen ();
+	extern gen (), gen_var ();
+	struct symbol *sym;
 	struct func fn;
-	int tk, is_pub;
+	int tk, is_pub, init, has_init;
 	char *section;
 
 	while ((tk = lex ()) != TK_EOF) {
@@ -1359,6 +1360,31 @@ parse (void)
 			func (&fn);
 			gen (&fn);
 			reset ();
+		} else if (strcmp (lval.s, "var") == 0) {
+			sym = pnew (struct symbol);
+			sym->type = SYM_VAR;
+
+			expect (TK_IDENT);
+			sym->name = lval.s;
+			
+			expect (':');
+			dtype (&sym->dt);
+
+			tk = lex ();
+
+			if (tk == '=') {
+				has_init = 1;
+				expect (TK_INT);
+				init = lval.i;
+				expect (';');
+			} else if (tk == ';') {
+				has_init = 0;
+			} else {
+				goto err;
+			}	
+
+			symhead = sym;
+			gen_var (is_pub, section, sym, init, has_init);
 		} else {
 		err:
 			error ("syntax error");
@@ -3050,6 +3076,55 @@ struct func *fn;
 	puts ("\tleave");
 	puts ("\tret");
 	puts ("");
+
+	return 0;
+}
+
+gen_var (is_pub, section, sym, init, has_init)
+char *section;
+struct symbol *sym;
+{
+	char *s;
+
+	if (section == NULL)
+		section = has_init ? ".data" : ".bss";
+
+	printf ("section %s\n", section);
+	if (is_pub)
+		printf ("global %s\n", sym->name);
+	printf ("%s:\n", sym->name);
+
+	switch (sym->dt.type) {
+	case DT_BYTE:
+		s = has_init ? "db" : "resb";
+		break;
+	case DT_DPTR:
+	case DT_SPTR:
+	case DT_WORD:
+		s = has_init ? "dw" : "resw";
+		break;
+	case DT_FPTR:
+	case DT_DWORD:
+	case DT_FLOAT:
+		s = has_init ? "dd" : "resd";
+		break;
+	case DT_QWORD:
+	case DT_DOUBLE:
+		s = has_init ? "dq" : "resq";
+		break;
+	case DT_LDOUBLE:
+		s = has_init ? "dt" : "rest";
+		break;
+	case DT_NONE:
+	case DT_LABEL:
+		abort ();
+	}
+
+	if (has_init) {
+		printf ("\t%s %d\n", s, init);
+	} else {
+		printf ("\t%s 1\n", s);
+	}
 
 	return 0;
 }

@@ -258,3 +258,5 @@ fn call_to_extern($0: *byte): word {
 	ret $1;
 }
 
+pub var global_data: word = 0;
+var static_bss: word;

@@ -8,16 +8,18 @@ int *ptr;
 
 T x;
 
-/*
 static int
 g (i, j)
+int i, j;
 {
 	//extern x, y, z ();
 	//int k;
 }
 
-main ()
+
+main (argc, argv)
+char *argv;
 {
+}
 
-}*/
-
+extern h ();

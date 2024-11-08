@@ -34,20 +34,39 @@
 %type <d> declaration
 %type <i> sc_spec basic_type
 %type <ts> type_spec
-%type <ds> decl_spec, decl_specs
-%type <dl> declarator, declarator1
+%type <ds> decl_spec decl_specs
+%type <dl> declarator declarator1
 %type <in> initializer
-%type <di> init_decl, decl_list
+%type <di> init_decl decl_list
 %type <ex> expression
 
 %%
 
-file		: file declaration ';'		{ declare (&$2); }
+file		: file declaration		{ declare (&$2); }
+      		| file function
       		|
 		;
 
-declaration	: decl_specs decl_list		{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = $2; }
-	    	| decl_specs			{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = NULL; }
+function	: decl_specs IDENT '(' param_list_opt ')' decls_list fbody
+	 	;
+
+param_list_opt	: param_list
+	       	|
+		;
+
+param_list	: param_list ',' IDENT
+	    	| IDENT
+		;
+
+fbody		: '{' '}'
+       		;
+
+decls_list	: decls_list declaration
+	   	|
+		;
+
+declaration	: decl_specs decl_list ';'	{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = $2; }
+	    	| decl_specs ';'		{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = NULL; }
 		;
 
 decl_specs	: decl_specs decl_spec		{ ds_comb (&$$, &$1, &$2); }

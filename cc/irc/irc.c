@@ -1034,7 +1034,20 @@ struct expr *e;
 		expect (';');
 
 		assert_dt_is_ptr (dt);
-		// TODO: symbol table
+
+		sym = sym_find (e->s);
+		if (sym != NULL) {
+			switch (sym->type) {
+			case SYM_FUNC:
+				error ("TODO: lookup of functions is not yet supported");
+				break;
+			case SYM_VAR:
+				assert_dt_ptr (dt, &sym->dt);
+				break;
+			}
+		} else {
+			warning ("lookup of undeclared symbol");
+		}
 	} else {
 	err:
 		error ("expected expr");

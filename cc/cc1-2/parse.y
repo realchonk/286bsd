@@ -6,6 +6,7 @@
 %}
 
 %union {
+	struct function fn;
 	struct declaration d;
 	struct decl_spec ds;
 	struct type_spec ts;
@@ -16,6 +17,11 @@
 	struct decls_list *dd;
 	struct expr *ex;
 	int i;
+	
+	struct {
+		struct decls_list *dd;
+		// stmts
+	} fb;
 };
 
 %token INTEGER
@@ -42,32 +48,38 @@
 %type <di> init_decl decl_list
 %type <ex> expression
 %type <il> ident_list
-%type <dd> decls_list
+%type <dd> decls_list decls_list_opt
+%type <fb> fbody
+%type <fn> function
 
 %%
 
 file		: file declaration		{ declare (&$2); }
-      		| file function
+      		| file function			{ define (&$2); }
       		|
 		;
 
-function	: decl_specs declarator decls_list fbody
-	 	| declarator decls_list fbody
+function	: decl_specs declarator decls_list fbody	{ fn (&$$, &$1, &$2, $3, $4.dd); }
+	 	| declarator decls_list fbody			{ fn (&$$, NULL, &$1, $2, $3.dd); }
 	 	;
 
 ident_list	: ident_list ',' IDENT		{ $$ = il_append ($1, lval.ident); }
 	   	| IDENT				{ $$ = il_append (NULL, lval.ident); }
 		;
 
-fbody		: '{' '}'
+fbody		: '{' decls_list_opt '}'	{ $$.dd = $2; }
        		;
+
+decls_list_opt	: decls_list			{ $$ = $1; }
+	       	|				{ $$ = NULL; }
+		;
 
 decls_list	: decls_list declaration	{ $$ = dd_append ($1, &$2); }
 	   	| declaration			{ $$ = dd_append (NULL, &$1); }
 		;
 
-declaration	: decl_specs decl_list ';'	{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = $2; }
-	    	| decl_specs ';'		{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = NULL; }
+declaration	: decl_specs decl_list ';'	{ decl (&$$, &$1, $2); }
+	    	| decl_specs ';'		{ decl (&$$, &$1, NULL); }
 		;
 
 decl_specs	: decl_specs decl_spec		{ ds_comb (&$$, &$1, &$2); }
@@ -123,6 +135,8 @@ expression	: INTEGER			{ $$ = new (struct expr); $$->type = EX_INT; $$->i = lval
 
 
 %%
+
+static struct dtype default_int = { DT_INT };
 
 struct ident_list *
 il_append (head, ident)
@@ -218,8 +232,7 @@ struct type_spec *ts;
 
 	switch (ts->type) {
 	case TS_NONE:
-		dt = new (struct dtype);
-		dt->type = DT_INT;
+		dt = &default_int;
 		break;
 	case TS_BASIC:
 		dt = new (struct dtype);
@@ -285,6 +298,40 @@ char **ident;
 	return dt;
 }
 
+decl (d, ds, di)
+struct declaration *d;
+struct decl_spec *ds;
+struct decl_init *di;
+{
+	d->sc = ds->sc;
+	d->ts = ds->ts;
+	d->head = di;
+	return 0;
+}
+
+fn (fn, ds, dl, args, vars)
+struct function *fn;
+struct decl_spec *ds;
+struct declarator *dl;
+struct decls_list *args, *vars;
+{
+	if (dl->type != DL_FUNCDEF || dl->def.dl->type != DL_IDENT)
+		yyerror ("invalid function definition");
+	
+	if (ds != NULL) {
+		fn->sc = ds->sc;
+		fn->dt = resolve_type (&ds->ts);
+	} else {
+		fn->sc = 0;
+		fn->dt = &default_int;
+	}
+	cpident (fn->ident, dl->def.dl->ident);
+	fn->args = args;
+	fn->vars = vars;
+
+	return 0;
+}
+
 declare (d)
 struct declaration *d;
 {
@@ -328,5 +375,11 @@ struct declaration *d;
 		}
 	}
 
+	return 0;
+}
+
+define (fn)
+struct function *fn;
+{
 	return 0;
 }

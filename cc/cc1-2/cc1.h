@@ -146,6 +146,13 @@ struct decls_list {
 	struct declaration d;
 };
 
+struct function {
+	int sc;
+	struct dtype *dt;
+	char ident[IDENT_LEN + 1];
+	struct decls_list *args, *vars;
+};
+
 extern struct scope *scope;
 extern yyerror (), yylex ();
 

@@ -12,8 +12,8 @@ static int
 g (i, j)
 int i, j;
 {
-	//extern x, y, z ();
-	//int k;
+	extern x, y, z ();
+	int k;
 }
 
 

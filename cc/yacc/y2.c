@@ -446,7 +446,7 @@ register char *s;
 	/*	define s to be a terminal if t=0
 	        or a nonterminal if t=1		*/
 
-	register val;
+	register val = 0;
 
 	if (t) {
 		if (++nnonter >= NNONTERM)
@@ -461,9 +461,9 @@ register char *s;
 
 	/* establish value for token */
 
-	if (s[0] == ' ' && s[2] == '\0') /* single character literal */
+	if (s[0] == ' ' && s[2] == '\0') { /* single character literal */
 		val = s[1];
-	else if (s[0] == ' ' && s[1] == '\\') { /* escape sequence */
+	} else if (s[0] == ' ' && s[1] == '\\') { /* escape sequence */
 		if (s[3] == '\0') { /* single character escape sequence */
 			switch (s[2]) {
 				/* character which is escaped */

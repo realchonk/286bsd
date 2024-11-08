@@ -1,5 +1,5 @@
 PWD != pwd
-CFLAGS = -ansi -Wno-return-type -Wno-comment -Wno-deprecated-non-prototype
+CFLAGS = -ansi -Wall -Wno-return-type -Wno-comment -Wno-deprecated-non-prototype -Wno-implicit-int -Wno-implicit-function-declaration
 CPPFLAGS = -DWORD32 -DPARSER=\"${PWD}/yaccpar\"
 SRC != echo y?.c
 

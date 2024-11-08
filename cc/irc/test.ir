@@ -244,3 +244,8 @@ fn lookup (): word {
 	let $4: word = eq $2, $3;
 	ret $4;
 }
+
+fn call_to_undefined (): word {
+	let $1: word = call undeclared;
+	ret $1;
+}

@@ -32,6 +32,13 @@ char *msg;
 	return exit (1), -1;
 }
 
+warning (msg)
+char *msg;
+{
+	fprintf (stderr, "irc: %d: warning: %s\n", linenum, msg);
+	return 0;
+}
+
 // MEMORY
 
 #if ENABLE_ARENA
@@ -476,6 +483,20 @@ struct symbol *symhead = NULL;
 
 // MISC
 
+struct symbol *
+sym_find (name)
+char *name;
+{
+	struct symbol *sym;
+
+	for (sym = symhead; sym != NULL; sym = sym->next) {
+		if (strcmp (name, sym->name) == 0)
+			return sym;
+	}
+
+	return NULL;
+}
+
 sizeof_dt (dt)
 struct dtype *dt;
 {
@@ -785,9 +806,11 @@ struct func *fn;
 struct dtype *dt;
 struct expr *e;
 {
+	struct symbol *sym;
+	struct dtype *dt2;
 	struct regimm *ri;
 	struct reg *r;
-	int tk;
+	int tk, i;
 
 	tk = lex ();
 
@@ -938,15 +961,32 @@ struct expr *e;
 		e->call->fn = lval.s;
 		e->call->nargs = 0;
 
-		while ((tk = lex ()) == ',') {
+		sym = sym_find (e->call->fn);
+		if (sym != NULL) {
+			if (sym->type != SYM_FUNC)
+				error ("call to non-function");
+
+			assert_dt_eq (&sym->fn.dt, dt);
+		} else {
+			warning ("call to undeclared function");
+		}
+
+		for (i = 0; (tk = lex ()) == ','; ++i) {
+			dt2 = sym != NULL && e->call->nargs <= sym->fn.nargs ? &sym->fn.args[i] : &default_dt;
 			ri = &e->call->args[e->call->nargs++];
-			regimm (ri, &default_dt);
+			regimm (ri, dt2);
 			if (!ri->is_imm)
 				ri->dt = &fn->regs[ri->reg].dt;
+
+			if (dt2 != &default_dt)
+				assert_dt_eq (ri->dt, dt2);
 		}
 
 		if (tk != ';')
 			error ("invalid call");
+
+		if (sym != NULL && sym->fn.nargs != e->call->nargs)
+			warning ("incorrect number of arguments for call");
 
 		// TODO: assert_dt_*
 	} else if (strcmp (lval.s, "phi") == 0) {

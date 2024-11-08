@@ -91,10 +91,16 @@ struct expr {
 	};
 };
 
+struct ident_list {
+	struct ident_list *next;
+	char ident[IDENT_LEN + 1];
+};
+
 enum declarator_type {
 	DL_IDENT,
 	DL_FUNC,
 	DL_PTR,
+	DL_FUNCDEF,
 };
 
 struct declarator {
@@ -103,6 +109,10 @@ struct declarator {
 	union {
 		char ident[IDENT_LEN + 1];
 		struct declarator *dl;
+		struct {
+			struct declarator *dl;
+			struct ident_list *il;
+		} def;
 	};
 };
 
@@ -129,6 +139,11 @@ struct declaration {
 	int sc;
 	struct type_spec ts;
 	struct decl_init *head;
+};
+
+struct decls_list {
+	struct decls_list *next;
+	struct declaration d;
 };
 
 extern struct scope *scope;

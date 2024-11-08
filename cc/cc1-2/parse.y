@@ -11,7 +11,9 @@
 	struct type_spec ts;
 	struct declarator dl;
 	struct initializer in;
+	struct ident_list *il;
 	struct decl_init *di;
+	struct decls_list *dd;
 	struct expr *ex;
 	int i;
 };
@@ -39,6 +41,8 @@
 %type <in> initializer
 %type <di> init_decl decl_list
 %type <ex> expression
+%type <il> ident_list
+%type <dd> decls_list
 
 %%
 
@@ -47,22 +51,19 @@ file		: file declaration		{ declare (&$2); }
       		|
 		;
 
-function	: decl_specs IDENT '(' param_list_opt ')' decls_list fbody
+function	: decl_specs declarator decls_list fbody
+	 	| declarator decls_list fbody
 	 	;
 
-param_list_opt	: param_list
-	       	|
-		;
-
-param_list	: param_list ',' IDENT
-	    	| IDENT
+ident_list	: ident_list ',' IDENT		{ $$ = il_append ($1, lval.ident); }
+	   	| IDENT				{ $$ = il_append (NULL, lval.ident); }
 		;
 
 fbody		: '{' '}'
        		;
 
-decls_list	: decls_list declaration
-	   	|
+decls_list	: decls_list declaration	{ $$ = dd_append ($1, &$2); }
+	   	| declaration			{ $$ = dd_append (NULL, &$1); }
 		;
 
 declaration	: decl_specs decl_list ';'	{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head = $2; }
@@ -70,7 +71,7 @@ declaration	: decl_specs decl_list ';'	{ $$.sc = $1.sc; $$.ts = $1.ts; $$.head =
 		;
 
 decl_specs	: decl_specs decl_spec		{ ds_comb (&$$, &$1, &$2); }
-	  	|				{ $$.sc = SC_NONE; $$.ts.type = TS_NONE; }
+	   	| decl_spec			{ $$ = $1; }
 		;
 
 decl_spec	: type_spec			{ $$.sc = SC_NONE; $$.ts = $1; }
@@ -104,6 +105,7 @@ init_decl	: declarator			{ $$ = new_decl (&$1); $$->in.type = IN_NONE; }
 		;
 
 declarator	: declarator '(' ')'		{ $$.type = DL_FUNC; $$.dl = new (struct declarator); *$$.dl = $1; }
+	   	| declarator '(' ident_list ')'	{ $$.type = DL_FUNCDEF; $$.def.dl = new (struct declarator); *$$.def.dl = $1; $$.def.il = $3; }
 	   	//| declarator '[' const_expr ']'
 	   	| declarator1			{ $$ = $1; }
 		;
@@ -121,6 +123,48 @@ expression	: INTEGER			{ $$ = new (struct expr); $$->type = EX_INT; $$->i = lval
 
 
 %%
+
+struct ident_list *
+il_append (head, ident)
+struct ident_list *head;
+char *ident;
+{
+	struct ident_list *n, *i;
+
+	n = new (struct ident_list);
+	n->next = NULL;
+	cpident (n->ident, ident);
+
+	if (head == NULL) {
+		head = n;
+	} else {
+		for (i = head; i->next != NULL; i = i->next);
+		i->next = n;
+	}
+
+	return head;
+}
+
+struct decls_list *
+dd_append (head, d)
+struct decls_list *head;
+struct declaration *d;
+{
+	struct decls_list *n, *i;
+
+	n = new (struct decls_list);
+	n->next = NULL;
+	n->d = *d;
+
+	if (head == NULL) {
+		head = n;
+	} else {
+		for (i = head; i->next != NULL; i = i->next);
+		i->next = n;
+	}
+
+	return head;
+}
 
 struct decl_init *
 new_decl (dl)
@@ -234,6 +278,8 @@ char **ident;
 		dt->type = DT_PTR;
 		dt->inner = resolve_dl (base, dl->dl, ident);
 		break;
+	case DL_FUNCDEF:
+		yyerror ("invalid function definition");
 	}
 
 	return dt;

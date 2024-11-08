@@ -235,3 +235,12 @@ fn alloca_reg ($0: word): word {
 	let $2: word = read $1, 5;
 	ret $2;
 }
+
+fn lookup (): word {
+	let $0: *word = lookup x;
+	let $1: !word = lookup x;
+	let $2: word = read $0;
+	let $3: word = read $1;
+	let $4: word = eq $2, $3;
+	ret $4;
+}

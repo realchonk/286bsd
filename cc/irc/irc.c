@@ -318,6 +318,7 @@ enum expr_type {
 	EX_SEXT,	// .reg
 	EX_TRUNC,	// .reg
 	EX_PCAST,	// .reg
+	EX_LOOKUP,	// .s
 };
 
 struct call {
@@ -336,6 +337,7 @@ struct expr {
 		int reg;
 		long i;
 		double f;
+		char *s;
 		struct {
 			struct regimm num;
 			int off;	// only valid if ri.is_imm
@@ -924,6 +926,14 @@ struct expr *e;
 		assert_dt_is_ptr (&fn->regs[e->reg].dt);
 		if (dt->type != fn->regs[e->reg].dt.type)
 			error ("pcast cannot be used to cast between different types of pointers (eg. SPTR -> FPTR)");
+	} else if (strcmp (lval.s, "lookup") == 0) {
+		e->type = EX_LOOKUP;
+		expect (TK_IDENT);
+		e->s = lval.s;
+		expect (';');
+
+		assert_dt_is_ptr (dt);
+		// TODO: symbol table
 	} else {
 	err:
 		error ("expected expr");
@@ -1396,6 +1406,9 @@ struct expr *e;
 	case EX_ASR:
 		printf ("asr $%d, ", e->bin.l);
 		print_ri (&e->bin.r);
+		break;
+	case EX_LOOKUP:
+		printf ("lookup %s", e->s);
 		break;
 	}
 	return 0;
@@ -2260,6 +2273,19 @@ struct expr *e;
 				puts ("\tsub sp, ax");
 				puts ("\tmov ax, sp");
 			}
+			break;
+		default:
+			abort ();
+		}
+		break;
+	case EX_LOOKUP:
+		switch (dt->type) {
+		case DT_DPTR:
+			printf ("\tlea ax, [%s]\n", e->s);
+			break;
+		case DT_FPTR:
+			printf ("\tles ax, [%s]\n", e->s);
+			puts ("\tmov dx, es");
 			break;
 		default:
 			abort ();

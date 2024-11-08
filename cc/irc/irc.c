@@ -469,6 +469,7 @@ struct symbol {
 	struct symbol *next;
 	enum symbol_type type;
 	char *name;
+	int is_extern;
 
 	union {
 		struct dtype dt;
@@ -485,6 +486,13 @@ struct symbol *symhead = NULL;
 
 // MISC
 
+// allocate temporary memory (freed after processing current unit)
+#define new(T) ((T *)alloc (sizeof (T)))
+
+// allocate persistent memory (not freed across units)
+#define pnew(T) ((T *)pmalloc (sizeof (T)))
+
+
 struct symbol *
 sym_find (name)
 char *name;
@@ -497,6 +505,33 @@ char *name;
 	}
 
 	return NULL;
+}
+
+struct symbol *
+sym_new (t, name, ext)
+enum symbol_type t;
+char *name;
+{
+	struct symbol *sym;
+
+	sym = sym_find (name);
+
+	if (sym != NULL) {
+		if (!sym->is_extern && !ext)
+			warning ("redefinition of a symbol");
+
+		if (sym->type != t)
+			warning ("redefinition of a symbol with a different type");
+		sym->is_extern &= ~ext;
+	} else {
+		sym = pnew (struct symbol);
+		sym->name = pstrdup (name);
+		sym->next = symhead;
+		sym->is_extern = ext;
+		symhead = sym;
+	}
+	sym->type = t;
+	return sym;
 }
 
 sizeof_dt (dt)
@@ -619,17 +654,16 @@ struct dtype *dt;
 }
 
 // PARSER
-
-// allocate temporary memory (freed after processing current unit)
-#define new(T) ((T *)alloc (sizeof (T)))
-
-// allocate persistent memory (not freed across units)
-#define pnew(T) ((T *)pmalloc (sizeof (T)))
-
 #define expect(exp) (lex () != (exp) ? error ("expected " #exp) : 0)
 #define stalloc(fn, nbytes) ((fn)->stoff -= (((nbytes) + 1) & ~1))
 
-dtype (dt)
+struct dtype *
+dtype_new (persist)
+{
+	return persist ? pnew (struct dtype) : new (struct dtype);
+}
+
+dtype (dt, persist)
 struct dtype *dt;
 {
 	int tk;
@@ -638,16 +672,16 @@ struct dtype *dt;
 
 	if (tk == '*') {
 		dt->type = DT_DPTR;
-		dt->inner = new (struct dtype);
-		return dtype (dt->inner);
+		dt->inner = dtype_new (persist);
+		return dtype (dt->inner, persist);
 	} else if (tk == '!') {
 		dt->type = DT_FPTR;
-		dt->inner = new (struct dtype);
-		return dtype (dt->inner);
+		dt->inner = dtype_new (persist);
+		return dtype (dt->inner, persist);
 	} else if (tk == '^') {
 		dt->type = DT_SPTR;
-		dt->inner = new (struct dtype);
-		return dtype (dt->inner);
+		dt->inner = dtype_new (persist);
+		return dtype (dt->inner, persist);
 	}
 
 	if (tk != TK_IDENT)
@@ -1092,7 +1126,7 @@ struct ir *ir;
 		expect (TK_REG);
 		ir->let.dest = lval.i;
 		expect (':');
-		dtype (&ir->let.dt);
+		dtype (&ir->let.dt, 0);
 		expect ('=');
 		expr (fn, &ir->let.dt, &ir->let.val);
 
@@ -1171,10 +1205,7 @@ struct func *fn;
 	expect ('(');
 	stoff = 4;
 
-	sym = pnew (struct symbol);
-	sym->next = symhead;
-	sym->type = SYM_FUNC;
-	sym->name = pstrdup (fn->name);
+	sym = sym_new (SYM_FUNC, fn->name, 0);
 	sym->fn.nargs = 0;
 
 	// parse parameter list
@@ -1190,7 +1221,7 @@ struct func *fn;
 			expect (':');
 			fn->regs[i].type = R_PARAM;
 			fn->regs[i].off = stoff;
-			dtype (&fn->regs[i].dt);
+			dtype (&fn->regs[i].dt, 1);
 			sym->fn.args[sym->fn.nargs++] = fn->regs[i].dt;
 			stoff += (sizeof_dt (&fn->regs[i].dt) + 1) & ~1;
 			break;
@@ -1201,11 +1232,9 @@ struct func *fn;
 
 rt:
 	expect (':');
-	dtype (&fn->dt);
+	dtype (&fn->dt, 1);
 	sym->fn.dt = fn->dt;
 	expect ('{');
-
-	symhead = sym;
 
 	fn->stoff = 0;
 
@@ -1272,14 +1301,10 @@ parse_extern (void)
 	struct symbol *sym;
 	int tk;
 
-	sym = pnew (struct symbol);
-	sym->next = symhead;
-
 	expect (TK_IDENT);
 	if (strcmp (lval.s, "fn") == 0) {
 		expect (TK_IDENT);
-		sym->type = SYM_FUNC;
-		sym->name = pstrdup (lval.s);
+		sym = sym_new (SYM_FUNC, lval.s, 1);
 		sym->fn.nargs = 0;
 
 		expect ('(');
@@ -1293,7 +1318,7 @@ parse_extern (void)
 					break;
 				case TK_IDENT:
 					expect (':');
-					dtype (&sym->fn.args[sym->fn.nargs++]);
+					dtype (&sym->fn.args[sym->fn.nargs++], 1);
 					break;
 				default:
 					error ("syntax error");
@@ -1302,19 +1327,18 @@ parse_extern (void)
 		}
 
 		expect (':');
-		dtype (&sym->fn.dt);
+		dtype (&sym->fn.dt, 1);
 		expect (';');
 	} else if (strcmp (lval.s, "var") == 0) {
 		expect (TK_IDENT);
-		sym->type = SYM_VAR;
-		sym->name = pstrdup (lval.s);
+		sym = sym_new (SYM_VAR, lval.s, 1);
 		expect (':');
-		dtype (&sym->dt);
+		dtype (&sym->dt, 1);
 		expect (';');
 	} else {
 		error ("syntax error");
+		sym = NULL;
 	}
-	symhead = sym;
 	gen_extern (sym);
 	return 0;
 }
@@ -1361,14 +1385,11 @@ parse (void)
 			gen (&fn);
 			reset ();
 		} else if (strcmp (lval.s, "var") == 0) {
-			sym = pnew (struct symbol);
-			sym->type = SYM_VAR;
-
 			expect (TK_IDENT);
-			sym->name = lval.s;
+			sym = sym_new (SYM_VAR, lval.s, 0);
 			
 			expect (':');
-			dtype (&sym->dt);
+			dtype (&sym->dt, 1);
 
 			tk = lex ();
 
@@ -1383,7 +1404,6 @@ parse (void)
 				goto err;
 			}	
 
-			symhead = sym;
 			gen_var (is_pub, section, sym, init, has_init);
 		} else {
 		err:
@@ -3168,6 +3188,8 @@ main (void)
 	fprintf (stderr, "irc: debug: symbol table:\n");
 	for (sym = symhead; sym != NULL; sym = sym->next) {
 		fprintf (stderr, "irc: debug: %s: ", sym->name);
+		if (sym->is_extern)
+			fprintf (stderr, "extern ");
 		switch (sym->type) {
 		case SYM_FUNC:
 			fprintf (stderr, "fn(");

@@ -9,9 +9,9 @@
 # include "stdio.h"
 # include "ctype.h"
 /* C command
-/* written by John F. Reiser
-/* July/August 1978
-*/
+ * written by John F. Reiser
+ * July/August 1978
+ */
 
 #define STATIC
 
@@ -50,23 +50,23 @@ char toktyp[ALFSIZ];
 #define NUMBR 3
 
 /* a superimposed code is used to reduce the number of calls to the
-/* symbol table lookup routine.  (if the kth character of an identifier
-/* is 'a' and there are no macro names whose kth character is 'a'
-/* then the identifier cannot be a macro name, hence there is no need
-/* to look in the symbol table.)  'scw1' enables the test based on
-/* single characters and their position in the identifier.  'scw2'
-/* enables the test based on adjacent pairs of characters and their
-/* position in the identifier.  scw1 typically costs 1 indexed fetch,
-/* an AND, and a jump per character of identifier, until the identifier
-/* is known as a non-macro name or until the end of the identifier.
-/* scw1 is inexpensive.  scw2 typically costs 4 indexed fetches,
-/* an add, an AND, and a jump per character of identifier, but it is also
-/* slightly more effective at reducing symbol table searches.
-/* scw2 usually costs too much because the symbol table search is
-/* usually short; but if symbol table search should become expensive,
-/* the code is here.
-/* using both scw1 and scw2 is of dubious value.
-*/
+ * symbol table lookup routine.  (if the kth character of an identifier
+ * is 'a' and there are no macro names whose kth character is 'a'
+ * then the identifier cannot be a macro name, hence there is no need
+ * to look in the symbol table.)  'scw1' enables the test based on
+ * single characters and their position in the identifier.  'scw2'
+ * enables the test based on adjacent pairs of characters and their
+ * position in the identifier.  scw1 typically costs 1 indexed fetch,
+ * an AND, and a jump per character of identifier, until the identifier
+ * is known as a non-macro name or until the end of the identifier.
+ * scw1 is inexpensive.  scw2 typically costs 4 indexed fetches,
+ * an add, an AND, and a jump per character of identifier, but it is also
+ * slightly more effective at reducing symbol table searches.
+ * scw2 usually costs too much because the symbol table search is
+ * usually short; but if symbol table search should become expensive,
+ * the code is here.
+ * using both scw1 and scw2 is of dubious value.
+ */
 #define scw1 1
 #define scw2 0
 
@@ -215,64 +215,64 @@ sayline(where)
 }
 
 /* data structure guide
-/*
-/* most of the scanning takes place in the buffer:
-/*
-/*  (low address)                                             (high address)
-/*  pbeg                           pbuf                                 pend
-/*  |      <-- BUFSIZ chars -->      |         <-- BUFSIZ chars -->        |
-/*  _______________________________________________________________________
-/* |_______________________________________________________________________|
-/*          |               |               |
-/*          |<-- waiting -->|               |<-- waiting -->
-/*          |    to be      |<-- current -->|    to be
-/*          |    written    |    token      |    scanned
-/*          |               |               |
-/*          outp            inp             p
-/*
-/*  *outp   first char not yet written to output file
-/*  *inp    first char of current token
-/*  *p      first char not yet scanned
-/*
-/* macro expansion: write from *outp to *inp (chars waiting to be written),
-/* ignore from *inp to *p (chars of the macro call), place generated
-/* characters in front of *p (in reverse order), update pointers,
-/* resume scanning.
-/*
-/* symbol table pointers point to just beyond the end of macro definitions;
-/* the first preceding character is the number of formal parameters.
-/* the appearance of a formal in the body of a definition is marked by
-/* 2 chars: the char WARN, and a char containing the parameter number.
-/* the first char of a definition is preceded by a zero character.
-/*
-/* when macro expansion attempts to back up over the beginning of the
-/* buffer, some characters preceding *pend are saved in a side buffer,
-/* the address of the side buffer is put on 'instack', and the rest
-/* of the main buffer is moved to the right.  the end of the saved buffer
-/* is kept in 'endbuf' since there may be nulls in the saved buffer.
-/*
-/* similar action is taken when an 'include' statement is processed,
-/* except that the main buffer must be completely emptied.  the array
-/* element 'inctop[ifno]' records the last side buffer saved when
-/* file 'ifno' was included.  these buffers remain dormant while
-/* the file is being read, and are reactivated at end-of-file.
-/*
-/* instack[0 : mactop] holds the addresses of all pending side buffers.
-/* instack[inctop[ifno]+1 : mactop-1] holds the addresses of the side
-/* buffers which are "live"; the side buffers instack[0 : inctop[ifno]]
-/* are dormant, waiting for end-of-file on the current file.
-/*
-/* space for side buffers is obtained from 'savch' and is never returned.
-/* bufstack[0:fretop-1] holds addresses of side buffers which
-/* are available for use.
-*/
+ *
+ * most of the scanning takes place in the buffer:
+ *
+ *  (low address)                                             (high address)
+ *  pbeg                           pbuf                                 pend
+ *  |      <-- BUFSIZ chars -->      |         <-- BUFSIZ chars -->        |
+ *  _______________________________________________________________________
+ * |_______________________________________________________________________|
+ *          |               |               |
+ *          |<-- waiting -->|               |<-- waiting -->
+ *          |    to be      |<-- current -->|    to be
+ *          |    written    |    token      |    scanned
+ *          |               |               |
+ *          outp            inp             p
+ *
+ *  *outp   first char not yet written to output file
+ *  *inp    first char of current token
+ *  *p      first char not yet scanned
+ *
+ * macro expansion: write from *outp to *inp (chars waiting to be written),
+ * ignore from *inp to *p (chars of the macro call), place generated
+ * characters in front of *p (in reverse order), update pointers,
+ * resume scanning.
+ *
+ * symbol table pointers point to just beyond the end of macro definitions;
+ * the first preceding character is the number of formal parameters.
+ * the appearance of a formal in the body of a definition is marked by
+ * 2 chars: the char WARN, and a char containing the parameter number.
+ * the first char of a definition is preceded by a zero character.
+ *
+ * when macro expansion attempts to back up over the beginning of the
+ * buffer, some characters preceding *pend are saved in a side buffer,
+ * the address of the side buffer is put on 'instack', and the rest
+ * of the main buffer is moved to the right.  the end of the saved buffer
+ * is kept in 'endbuf' since there may be nulls in the saved buffer.
+ *
+ * similar action is taken when an 'include' statement is processed,
+ * except that the main buffer must be completely emptied.  the array
+ * element 'inctop[ifno]' records the last side buffer saved when
+ * file 'ifno' was included.  these buffers remain dormant while
+ * the file is being read, and are reactivated at end-of-file.
+ *
+ * instack[0 : mactop] holds the addresses of all pending side buffers.
+ * instack[inctop[ifno]+1 : mactop-1] holds the addresses of the side
+ * buffers which are "live"; the side buffers instack[0 : inctop[ifno]]
+ * are dormant, waiting for end-of-file on the current file.
+ *
+ * space for side buffers is obtained from 'savch' and is never returned.
+ * bufstack[0:fretop-1] holds addresses of side buffers which
+ * are available for use.
+ */
 
 dump() {
 /* write part of buffer which lies between  outp  and  inp .
-/* this should be a direct call to 'write', but the system slows to a crawl
-/* if it has to do an unaligned copy.  thus we buffer.  this silly loop
-/* is 15% of the total time, thus even the 'putc' macro is too slow.
-*/
+ * this should be a direct call to 'write', but the system slows to a crawl
+ * if it has to do an unaligned copy.  thus we buffer.  this silly loop
+ * is 15% of the total time, thus even the 'putc' macro is too slow.
+ */
 	register char *p1,*p2; register FILE *f;
 	if ((p1=outp)==inp || flslvl!=0) return;
 #if tgp
@@ -312,8 +312,8 @@ dump() {
 char *
 refill(p) register char *p; {
 /* dump buffer.  save chars from inp to p.  read into buffer at pbuf,
-/* contiguous with p.  update pointers, return new p.
-*/
+ * contiguous with p.  update pointers, return new p.
+ */
 	register char *np,*op; register int ninbuf;
 	dump(); np=pbuf-(p-inp); op=inp;
 	if (bob(np+1)) {pperror("token too long"); np=pbeg; p=inp+BUFSIZ;}

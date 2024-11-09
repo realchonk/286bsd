@@ -1125,6 +1125,9 @@ main(argc,argv)
 # if ibm
 	ysysloc=stsym ("ibm");
 # endif
+# if i286
+	varloc=stsym("i286");
+# endif
 # if pdp11
 	varloc=stsym("pdp11");
 # endif
@@ -1149,14 +1152,11 @@ main(argc,argv)
 # if sun
 	varloc=stsym("sun");
 # endif
+# if BSD2_86
+	varloc=stsym("BSD2_86");
+# endif
 # if BSD2_11
 	varloc=stsym("BSD2_11");
-# endif
-# if BSD2_10
-	varloc=stsym("BSD2_10");
-# endif
-# if BSD2_9
-	varloc=stsym("BSD2_9");
 # endif
 	ulnloc=stsym ("__LINE__");
 	uflloc=stsym ("__FILE__");

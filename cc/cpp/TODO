@@ -1,3 +1,4 @@
 - implement #elif
-- enable and fix warnings
 - remove support for unneeded obsolete platforms/features
+- make this codebase compilable by pre-ANSI compilers
+  - declare variables at begin of function

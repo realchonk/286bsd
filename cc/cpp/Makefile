@@ -7,6 +7,9 @@ all: cpp
 clean:
 	rm -f cpp y.tab.c *.o *.core
 
+test: cpp
+	./cpp -P < cpp.c | grep -v '^$$'
+
 cpp: ${OBJ}
 	${CC} -o $@ ${OBJ} ${CFLAGS}
 

@@ -9,7 +9,10 @@ clean:
 	rm -f cc1 *.o y.tab.h y.output
 
 run: cc1
-	./cc1 < test.c
+	./cc1 < test.c > test.ir
+	../irc/irc < test.ir > test.asm
+	nasm -fbin -o /dev/null test.asm
+	(echo '=== IR ==='; cat test.ir; echo '=== ASM ==='; cat test.asm) | less
 
 cc1: ${OBJ}
 	${CC} -o $@ ${OBJ} ${CFLAGS}

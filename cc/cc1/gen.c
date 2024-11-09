@@ -51,12 +51,12 @@ struct symbol *sym;
 	int pub, ext = 0;
 
 	switch (sym->sc) {
-	case SC_EXTERN:
-		ext = 1;
-		// fallthrough
 	case SC_NONE:
 		pub = 1;
 		break;
+	case SC_EXTERN:
+		ext = 1;
+		// fallthrough
 	case SC_STATIC:
 		pub = 0;
 		break;
@@ -128,7 +128,7 @@ gen_fn (fn)
 struct function *fn;
 {
 	struct symbol *sym;
-	int r;
+	int r, ch;
 
 	for (sym = fn->ahead; sym != NULL; sym = sym->xnext)
 		printf ("# $%d: %s\n", sym->reg, sym->ident);
@@ -163,8 +163,9 @@ struct function *fn;
 	}
 
 	for (sym = fn->vhead; sym != NULL; sym = sym->xnext) {
+		ch = sym->sc == SC_AUTO ? '^' : '!';
 		printf ("\t# $%d: &%s\n", sym->reg, sym->ident);
-		printf ("\tlet $%d: ^", sym->reg);
+		printf ("\tlet $%d: %c", sym->reg, ch);
 		print_dt (sym->dt);
 		printf (" = ");
 

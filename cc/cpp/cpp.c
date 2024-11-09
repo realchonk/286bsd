@@ -1,4 +1,7 @@
 /* static char sccsid[] = "@(#)cpp.c	1.8.2 1996/7/11"; */
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #ifdef FLEXNAMES
 #define	NCPS	128
@@ -67,7 +70,7 @@ char toktyp[ALFSIZ];
 #define scw2 0
 
 #if scw2
-char t21[ALFSIZ],t22[ALFSIZ],t23[ALFSIZ+NCPS];
+char t21[ALFSIZ], t22[ALFSIZ], t23[ALFSIZ+NCPS];
 #endif
 
 #if scw1
@@ -109,10 +112,10 @@ char buffer[NCPS+BUFSIZ+BUFSIZ+NCPS];
 # define SBSIZE ((unsigned)0114130)	/* PDP compiler doesn't like 39024 */
 short	sbff[SBSIZE/2];
 # define sbf ((char *)sbff)
-#else !pdp11
+#else // !pdp11
 # define SBSIZE 60000		/* std = 12000, wnj aug 1979 */
 char	sbf[SBSIZE];
-#endif pdp11
+#endif // pdp11
 char	*savch	= sbf;
 
 # define DROP 0xFE	/* special character not legal ASCII or EBCDIC */
@@ -125,7 +128,7 @@ char	*savch	= sbf;
 static char warnc = WARN;
 
 int mactop,fretop;
-char *instack[MAXFRE],*bufstack[MAXFRE],*endbuf[MAXFRE];
+char *instack[MAXFRE], *bufstack[MAXFRE], *endbuf[MAXFRE];
 
 int plvl;	/* parenthesis level during scan for macro actuals */
 int maclin;	/* line number of macro call requiring actuals */
@@ -194,10 +197,13 @@ STATIC	int	flslvl;
 sayline(where)
 int where;
 {
-	if (mflag && where==START)
-		fprintf(mout, "%s: %s\n", infile, fnames[ifno]);
-	if (pflag==0)
-		fprintf(fout,"# %d \"%s\"\n", lineno[ifno], fnames[ifno]);
+	if (mflag && where == START)
+		fprintf (mout, "%s: %s\n", infile, fnames[ifno]);
+
+	if (pflag == 0)
+		fprintf (fout,"# %d \"%s\"\n", lineno[ifno], fnames[ifno]);
+
+	return 0;
 }
 
 /* data structure guide
@@ -312,6 +318,8 @@ dump()
 	while (p1 < inp)
 		putc (*p1++, f);
 	outp = p1;
+	
+	return 0;
 }
 
 char *
@@ -348,7 +356,7 @@ register char *p;
 			np = pbuf;
 
 			do {
-				while (*np++ = *op++);
+				while ((*np++ = *op++) != '\0');
 			} while (op < endbuf[mactop]);
 			pend = np - 1;
 			/* make buffer space avail for 'include' processing */
@@ -371,7 +379,7 @@ register char *p;
 					lineno[ifno] = maclin;
 					fnames[ifno] = macfil;
 
-					pperror ("%s: unterminated macro call", macnam);
+					pperror ("%s: unterminated macro call", (size_t)macnam, 0);
 					lineno[ifno] = tlin;
 					fnames[ifno] = tfil;
 					np = p;
@@ -385,7 +393,7 @@ register char *p;
 					return p;
 				}
 				if (trulvl || flslvl)
-					pperror ("missing endif");
+					pperror ("missing endif", 0, 0);
 				inp = p;
 				dump ();
 				exit (exfail);
@@ -772,9 +780,9 @@ register char *p;
 	register int d;
 
 	if (mactop >= MAXFRE) {
-		pperror ("%s: too much pushback", macnam);
+		pperror ("%s: too much pushback", (size_t)macnam, 0);
 		p = inp = pend;
-		dump();	/* begin flushing pushback */
+		dump ();	/* begin flushing pushback */
 		while (mactop > inctop[ifno]) {
 			p = refill (p);
 			p = inp = pend;
@@ -788,7 +796,7 @@ register char *p;
 		np = savch;
 		savch += BUFSIZ;
 		if (savch >= sbf + SBSIZE) {
-			pperror ("no space");
+			pperror ("no space", 0, 0);
 			exit (exfail);
 		}
 		*savch++ = '\0';
@@ -801,7 +809,7 @@ register char *p;
 		op = p;
 
 	for (;;) {
-		while (*np++ = *op++);
+		while ((*np++ = *op++) != '\0');
 		if (eob (op))
 			break;
 	} /* out with old */
@@ -818,7 +826,7 @@ register char *p;
 		*--np = *--op; /* slide over new */
 
 	if (bob (np))
-		pperror ("token too long");
+		pperror ("token too long", 0, 0);
 
 	d = np - outp;
 	outp += d;
@@ -881,7 +889,7 @@ register char *p;
 		if (*--cp == '"')
 			*cp = '\0';
 	} else {
-		pperror ("bad include syntax", 0);
+		pperror ("bad include syntax", 0, 0);
 		inctype = 2;
 	}
 
@@ -902,12 +910,12 @@ register char *p;
 
 	/* look for included file */
 	if (ifno + 1 >= MAXINC) {
-		pperror ("Unreasonable include nesting", 0);
+		pperror ("Unreasonable include nesting", 0, 0);
 		return p;
 	}
 
 	if((nfil = savch) > sbf + SBSIZE - BUFSIZ) {
-		pperror ("no space");
+		pperror ("no space", 0, 0);
 		exit (exfail);
 	}
 
@@ -937,7 +945,7 @@ register char *p;
 	}
 
 	if (filok == 0) {
-		pperror ("Can't find include file %s", filname);
+		pperror ("Can't find include file %s", (size_t)filname, 0);
 	} else {
 		lineno[ifno] = 1;
 		fnames[ifno] = cp = nfil;
@@ -981,7 +989,7 @@ char *p;
 	passcom = 0;		/* strip comments from defines to save space */
 
 	if (savch > sbf + SBSIZE - BUFSIZ) {
-		pperror ("too much defining");
+		pperror ("too much defining", 0, 0);
 		return p;
 	}
 
@@ -997,7 +1005,7 @@ char *p;
 	}
 
 	np = slookup (pin, p, 1);
-	if (oldval = np->value)
+	if ((oldval = np->value) != NULL)
 		savch = oldsavch;	/* was previously defined */
 
 	b = 1;
@@ -1029,7 +1037,7 @@ char *p;
 			if (*pin == '\n') {
 				--lineno[ifno];
 				--p;
-				pperror ("%s: missing )", np->name);
+				pperror ("%s: missing )", (size_t)np->name, 0);
 				break;
 			}
 
@@ -1042,12 +1050,12 @@ char *p;
 			if ((toktyp + COFF)[*pin] != IDENT) {
 				c = *p;
 				*p = '\0';
-				pperror ("bad formal: %s", pin);
+				pperror ("bad formal: %s", (size_t)pin, 0);
 				*p = c;
 			} else if (pf >= &formal[MAXFRM]) {
 				c = *p;
 				*p = '\0';
-				pperror ("too many formals: %s", pin);
+				pperror ("too many formals: %s", (size_t)pin, 0);
 				*p = c;
 			} else {
 				*pf++ = cf;
@@ -1204,7 +1212,7 @@ register char *p;
 			} else if (trulvl) {
 				--trulvl;
 			} else {
-				pperror ("If-less endif", 0);
+				pperror ("If-less endif", 0, 0);
 			}
 		} else if (np == elsloc) { /* else */
 			if (flslvl) {
@@ -1218,7 +1226,7 @@ register char *p;
 				++flslvl;
 				--trulvl;
 			} else {
-				pperror ("If-less else", 0);
+				pperror ("If-less else", 0, 0);
 			}
 		} else if (np == udfloc) { /* undefine */
 			if (flslvl == 0) {
@@ -1229,7 +1237,7 @@ register char *p;
 			}
 		} else if (np == ifloc) { /* if */
 #if tgp
-			pperror (" IF not implemented, true assumed", 0);
+			pperror (" IF not implemented, true assumed", 0, 0);
 			if (flslvl == 0) {
 				++trulvl;
 			} else {
@@ -1274,7 +1282,7 @@ register char *p;
 		} else if (*++inp == '\n') {
 			outp = inp;	/* allows blank line after # */
 		} else {
-			pperror ("undefined control", 0);
+			pperror ("undefined control", 0, 0);
 		}
 		/* flush to lf */
 		++flslvl;
@@ -1311,7 +1319,7 @@ register char *s;
 	/* make definition look exactly like end of #define line */
 	/* copy to avoid running off end of world when param list is at end */
 	p = buf;
-	while (*p++ = *s++);
+	while ((*p++ = *s++) != '\0');
 	p = buf;
 	while (isid (*p++)); /* skip first identifier */
 	if (*--p == '=') {
@@ -1319,7 +1327,7 @@ register char *s;
 		while (*p++);
 	} else {
 		s = " 1";
-		while (*p++ = *s++);
+		while ((*p++ = *s++) != '\0');
 	}
 	pend = p;
 	*--p = '\n';
@@ -1345,7 +1353,7 @@ char *s; { /* kluge */
 /* VARARGS1 */
 pperror(s, x, y)
 char *s;
-long x, y;
+size_t x, y;
 {
 	if (fnames[ifno][0])
 		fprintf (stderr, "%s: ", fnames[ifno]);
@@ -1354,24 +1362,26 @@ long x, y;
 	fprintf (stderr, s, x, y);
 	fprintf (stderr, "\n");
 	++exfail;
+	return 0;
 }
 
 yyerror(s, a, b)
 char *s;
-long a, b;
+size_t a, b;
 {
-	pperror (s, a, b);
+	return pperror (s, a, b);
 }
 
 ppwarn(s, x)
 char *s;
-long x;
+size_t x;
 {
 	int fail = exfail;
 
 	exfail = -1;
-	pperror (s, x);
+	pperror (s, x, 0);
 	exfail = fail;
+	return 0;
 }
 
 struct symtab *
@@ -1388,14 +1398,14 @@ char *namep;
 	around = 0;
 	i = cinit;
 
-	while (c = *np++)
+	while ((c = *np++) != '\0')
 		i += i + c;
 	c = i;	/* c=i for register usage on pdp11 */
 	c %= symsiz;
 	if (c < 0)
 		c += symsiz;
 	sp = &stab[c];
-	while (snp = sp->name) {
+	while ((snp = sp->name) != NULL) {
 		np = namep;
 		while (*snp++ == *np) {
 			if (*np++ == '\0') {
@@ -1407,14 +1417,15 @@ char *namep;
 				return lastsym = sp;
 			}
 		}
-		if (--sp < &stab[0])
+		if (--sp < &stab[0]) {
 			if (around) {
-				pperror ("too many defines", 0);
+				pperror ("too many defines", 0, 0);
 				exit (exfail);
 			} else {
 				++around;
 				sp = &stab[symsiz - 1];
 			}
+		}
 	}
 	if (enterf == 1)
 		sp->name = namep;
@@ -1475,7 +1486,7 @@ struct symtab *sp;
 
 	if ((p - macforw) <= macdam) {
 		if (++maclvl > symsiz && !rflag) {
-			pperror ("%s: macro recursion", sp->name);
+			pperror ("%s: macro recursion", (size_t)sp->name, 0);
 			return p;
 		}
 	} else {
@@ -1542,11 +1553,11 @@ struct symtab *sp;
 						*ca++ = *inp++;
 
 					if (ca > &acttxt[BUFSIZ])
-						pperror ("%s: actuals too long", sp->name);
+						pperror ("%s: actuals too long", (size_t)sp->name, 0);
 				}
 
 				if (pa >= &actual[MAXFRM]) {
-					ppwarn (match, sp->name);
+					ppwarn (match, (size_t)sp->name);
 				} else {
 					actused[pa - actual] = 0;
 					*pa++ = ca;
@@ -1556,10 +1567,10 @@ struct symtab *sp;
 			lineno[ifno] = maclin; /* don't count newlines here */
 		}
 		if (params != 0)
-			ppwarn (match, sp->name);
+			ppwarn (match, (size_t)sp->name);
 
 		while (--params >= 0)
-			*pa++ = "" + 1;	/* null string for missing actuals */
+			*pa++ = &""[1];	/* null string for missing actuals */
 		--flslvl;
 		fasscan ();
 	}
@@ -1631,7 +1642,7 @@ register char *s;
 	register char *old;
 
 	old = savch;
-	while (*savch++ = *s++);
+	while ((*savch++ = *s++) != '\0');
 	return old;
 }
 
@@ -1660,7 +1671,7 @@ char *argv[];
 
 	p = "_$ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 	i = 0;
-	while (c = *p++) {
+	while ((c = *p++) != '\0') {
 		(fastab + COFF)[c] |= IB|NB|SB;
 		(toktyp + COFF)[c] = IDENT;
 #if scw2
@@ -1676,21 +1687,21 @@ char *argv[];
 
 	p = "0123456789.";
 
-	while (c = *p++) {
+	while ((c = *p++) != '\0') {
 		(fastab + COFF)[c] |= NB|SB;
 		(toktyp + COFF)[c] = NUMBR;
 	}
 
 	p = "\n\"'/\\";
-	while (c = *p++)
+	while ((c = *p++) != '\0')
 		(fastab + COFF)[c] |= SB;
 
 	p = "\n\"'\\";
-	while (c = *p++)
+	while ((c = *p++) != '\0')
 		(fastab + COFF)[c] |= QB;
 
 	p = "*\n";
-	while (c = *p++)
+	while ((c = *p++) != '\0')
 		(fastab + COFF)[c] |= CB;
 
 	(fastab + COFF)[warnc] |= WB;
@@ -1699,7 +1710,7 @@ char *argv[];
 		slotab[i] = fastab[i] | SB;
 
 	p = " \t\013\f\r";	/* note no \n;	\v not legal for vertical tab? */
-	while (c = *p++)
+	while ((c = *p++) != '\0')
 		(toktyp + COFF)[c] = BLANK;
 
 #if scw2
@@ -1746,7 +1757,7 @@ char *argv[];
 
 			case 'D':
 				  if (predef > prespc + NPREDEF) {
-					  pperror ("too many -D options, ignoring %s", argv[i]);
+					  pperror ("too many -D options, ignoring %s", (size_t)argv[i], 0);
 					  continue;
 				  }
 
@@ -1756,14 +1767,14 @@ char *argv[];
 				  continue;
 			case 'U':
 				  if (prund > punspc + NPREDEF) {
-					  pperror ("too many -U options, ignoring %s", argv[i]);
+					  pperror ("too many -U options, ignoring %s", (size_t)argv[i], 0);
 					  continue;
 				  }
 				  *prund++ = argv[i]+2;
 				  continue;
 			case 'I':
 				  if (nd > 8) {
-					  pperror ("excessive -I file (%s) ignored", argv[i]);
+					  pperror ("excessive -I file (%s) ignored", (size_t)argv[i], 0);
 				  } else {
 					  dirs[nd++] = argv[i] + 2;
 				  }
@@ -1771,13 +1782,13 @@ char *argv[];
 			case '\0':
 				  continue;
 			default: 
-				   pperror ("unknown flag %s", argv[i]);
+				   pperror ("unknown flag %s", (size_t)argv[i], 0);
 				   continue;
 			}
 		default:
 			if (fin == STDIN) {
 				if ((fin = open (argv[i], READ)) < 0) {
-					pperror ("No source file %s", argv[i]);
+					pperror ("No source file %s", (size_t)argv[i], 0);
 					exit (8);
 				}
 
@@ -1791,13 +1802,13 @@ char *argv[];
 				   */
 			} else if (fout == stdout) {
 				if ((fout = fopen (argv[i], "w")) == NULL) {
-					pperror ("Can't create %s", argv[i]);
+					pperror ("Can't create %s", (size_t)argv[i], 0);
 					exit(8);
 				} else {
 					fclose (stdout);
 				}
 			} else {
-				pperror ("extraneous name %s", argv[i]);
+				pperror ("extraneous name %s", (size_t)argv[i], 0);
 			}
 		}
 	}
@@ -1822,7 +1833,7 @@ char *argv[];
 		mout = fout;
 		setbuf (mout, NULL);
 		if ((fout = fopen ("/dev/null", "w")) == NULL) {
-			pperror ("Can't open /dev/null");
+			pperror ("Can't open /dev/null", 0, 0);
 			exit (8);
 		}
 	}
@@ -1925,7 +1936,7 @@ char *argv[];
 	cp2 = punspc;
 
 	while (cp2 < prund) {
-		if (p = strdex (*cp2, '='))
+		if ((p = strdex (*cp2, '=')) != NULL)
 			*p++ = '\0';
 
 		lookup (*cp2++, DROP);

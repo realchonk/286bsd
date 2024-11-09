@@ -1,4 +1,4 @@
-CFLAGS = -g -O0 -ansi -w -Wno-return-type -DFLEXNAMES -DBSD2_86 -Di286=1 -Dunix
+CFLAGS = -g -O0 -ansi -Wno-deprecated-non-prototype -Wno-comment -DFLEXNAMES -DBSD2_86 -Di286=1 -Dunix
 YACC = ../yacc/yacc
 OBJ = cpp.o cpy.o
 

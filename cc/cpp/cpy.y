@@ -1,6 +1,9 @@
 /*
  * @(#)cpy.y 1.2 1/2/83
  */
+%{
+#include <string.h>
+%}
 %term number stop DEFINED
 %term EQ NE LE GE LS RS
 %term ANDAND OROR

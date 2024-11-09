@@ -1,4 +1,4 @@
-SUBDIRS = cc/yacc cc/irc cc/cc1 sys
+SUBDIRS = cc/yacc cc/irc cc/cc1 cc/cpp sys
 
 all:
 	for subdir in ${SUBDIRS}; do	\

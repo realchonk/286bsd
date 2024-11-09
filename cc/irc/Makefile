@@ -1,4 +1,4 @@
-CFLAGS = -ansi -Wall -Wextra -Wno-deprecated-non-prototype -Wno-implicit-int -Wno-comment -O2
+CFLAGS = -g -O0 -ansi -Wall -Wextra -Wno-deprecated-non-prototype -Wno-implicit-int -Wno-comment
 
 all: irc
 

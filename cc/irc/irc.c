@@ -1102,6 +1102,8 @@ struct expr *e;
 		expect (';');
 
 		assert_dt_is_ptr (dt);
+		if (dt->type == DT_SPTR)
+			error ("cannot assign the result of `lookup` to stack pointer");
 
 		sym = sym_find (e->s);
 		if (sym != NULL) {

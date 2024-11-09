@@ -38,11 +38,7 @@ char cinit;
 #define COFF 0
 #endif
 
-# if gcos
-#define ALFSIZ 512	/* alphabet size */
-# else
 #define ALFSIZ 256	/* alphabet size */
-# endif
 char macbit[ALFSIZ+11];
 char toktyp[ALFSIZ];
 #define BLANK 1
@@ -176,19 +172,7 @@ struct symtab {
 	char	*value;
 } *lastsym, *lookup(), *slookup();
 
-# if gcos
-#include <setjmp.h>
-static jmp_buf env;
-# define main	mainpp
-# undef exit
-# define exit(S)	longjmp(env, 1)
-# define open(S,D)	fileno(fopen(S, "r"))
-# define close(F)	fclose(_f[F])
-extern FILE *_f[];
-# define symsiz 500
-# else
-# define symsiz 2000		/* std = 500, wnj aug 1979 */
-# endif
+#define symsiz 2000		/* std = 500, wnj aug 1979 */
 STATIC	struct symtab stab[symsiz];
 
 STATIC	struct symtab *defloc;
@@ -294,17 +278,6 @@ dump() {
 	}
 #endif
 	f=fout;
-# if gcos
-/* filter out "$ program c" card if first line of input */
-/* gmatch is a simple pattern matcher in the GCOS Standard Library */
-{	static int gmfirst = 0;
-	if (!gmfirst) {
-		++gmfirst;
-		if (gmatch(p1, "^$*program[ \t]*c*"))
-			p1 = strdex(p1, '\n');
-	}
-}
-# endif
 	while (p1<inp) putc(*p1++,f);
 	outp=p1;
 }
@@ -425,9 +398,6 @@ again:
 		if (eob(--p)) p=refill(p);
 		else break;
 	} break;
-# if gcos
-	case '`':
-# endif
 	case '"': case '\'': {
 		quoc=p[-1];
 		for (;;) {
@@ -590,15 +560,11 @@ doincl(p) register char *p; {
 	filok=0;
 	for (dirp=dirs+inctype; *dirp; ++dirp) {
 		if (
-# if gcos
-			strdex(filname, '/')
-# else
 			filname[0]=='/' 
-# endif
 				|| **dirp=='\0') strcpy(nfil,filname);
 		else {
 			strcpy(nfil,*dirp);
-# if unix || gcos
+# if unix
 			strcat(nfil,"/");
 # endif
 #ifdef ibm
@@ -691,9 +657,6 @@ dodef(p) char *p; {/* process '#define' */
 					}
 				}
 			} else if (*pin=='"' || *pin=='\''
-# if gcos
-					|| *pin=='`'
-# endif
 						) {/* inside quotation marks, too */
 				char quoc= *pin;
 				for (*psav++= *pin++; pin<p && *pin!=quoc; ) {
@@ -833,11 +796,7 @@ ppsym(s) char *s; {/* kluge */
 /* VARARGS1 */
 pperror(s,x,y) char *s; {
 	if (fnames[ifno][0]) fprintf(stderr,
-# if gcos
-			"*%c*   \"%s\", line ", exfail >= 0 ? 'F' : 'W',
-# else
 			"%s: ",
-# endif
 				 fnames[ifno]);
 	fprintf(stderr, "%d: ",lineno[ifno]);
 	fprintf(stderr, s, x, y);
@@ -1015,9 +974,6 @@ main(argc,argv)
 	register char *p;
 	char *tf,**cp2, obuf[BUFSIZ];
 
-# if gcos
-	if (setjmp(env)) return (exfail);
-# endif
 	p="_$ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 		i=0;
 		while (c= *p++) {
@@ -1032,17 +988,9 @@ main(argc,argv)
 		}
 	p="0123456789.";
 		while (c= *p++) {(fastab+COFF)[c] |= NB|SB; (toktyp+COFF)[c]=NUMBR;}
-# if gcos
-	p="\n\"'`/\\";
-# else
 	p="\n\"'/\\";
-# endif
 		while (c= *p++) (fastab+COFF)[c] |= SB;
-# if gcos
-	p="\n\"'`\\";
-# else
 	p="\n\"'\\";
-# endif
 		while (c= *p++) (fastab+COFF)[c] |= QB;
 	p="*\n"; while (c= *p++) (fastab+COFF)[c] |= CB;
 	(fastab+COFF)[warnc] |= WB;
@@ -1061,10 +1009,7 @@ main(argc,argv)
 # if ibm
 	fnames[ifno=0] = "";
 # endif
-# if gcos
-	if (inquire(stdin, _TTY)) freopen("*src", "rt", stdin);
-# endif
-# if gimpel || gcos
+# if gimpel
 	fnames[ifno=0] = (char *)inquire(stdin, _FILENAME);
 	dirnams[0] = dirs[0] = trmdir(copy(fnames[0]));
 # endif
@@ -1073,11 +1018,7 @@ main(argc,argv)
 		switch(argv[i][0])
 			{
 			case '-':
-# if gcos
-			switch(toupper(argv[i][1])) { /* case-independent on GCOS */
-# else
 			switch(argv[i][1]) {
-# endif
 				case 'M': mflag++;
 				case 'P': pflag++;
 				case 'E': continue;
@@ -1115,7 +1056,6 @@ main(argc,argv)
 					fnames[ifno]=copy(argv[i]);
 					infile=copy(argv[i]);
 					dirs[0]=dirnams[ifno]=trmdir(argv[i]);
-# ifndef gcos
 /* too dangerous to have file name in same syntactic position
    be input or output file depending on file redirections,
    so force output to stdout, willy-nilly
@@ -1125,7 +1065,6 @@ main(argc,argv)
 					if (NULL==(fout=fopen(argv[i], "w"))) {
 						pperror("Can't create %s", argv[i]); exit(8);
 					} else fclose(stdout);
-# endif
 				} else pperror("extraneous name %s", argv[i]);
 			}
 		}
@@ -1160,9 +1099,6 @@ main(argc,argv)
 # if unix
 	dirs[nd++] = "/usr/include";
 # endif
-# if gcos
-	dirs[nd++] = "cc/include";
-# endif
 # if ibm
 # ifndef gimpel
 	dirs[nd++] = "BTL$CLIB";
@@ -1185,9 +1121,6 @@ main(argc,argv)
 	for (i=sizeof(macbit)/sizeof(macbit[0]); --i>=0; ) macbit[i]=0;
 # if unix
 	ysysloc=stsym("unix");
-# endif
-# if gcos
-	ysysloc=stsym ("gcos");
 # endif
 # if ibm
 	ysysloc=stsym ("ibm");

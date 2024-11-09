@@ -35,11 +35,7 @@ char cinit;
 
 /* some code depends on whether characters are sign or zero extended */
 /*	#if '\377' < 0		not used here, old cpp doesn't understand */
-#if pdp11 | vax | mc68000
-#define COFF 128
-#else
 #define COFF 0
-#endif
 
 #define ALFSIZ 256	/* alphabet size */
 char macbit[ALFSIZ+11];
@@ -137,10 +133,6 @@ char *macnam;	/* name of macro requiring actuals */
 int maclvl;	/* # calls since last decrease in nesting level */
 char *macforw;	/* pointer which must be exceeded to decrease nesting level */
 int macdam;	/* offset to macforw due to buffer shifting */
-
-#if tgp
-int tgpscan;	/* flag for dump(); */
-#endif
 
 STATIC	int	inctop[MAXINC];
 STATIC	char	*fnames[MAXINC];
@@ -271,49 +263,6 @@ dump()
 
 	if ((p1 = outp) == inp || flslvl != 0)
 		return 0;
-#if tgp
-#define MAXOUT 80
-	if (!tgpscan) {/* scan again to insure <= MAXOUT chars between linefeeds */
-		register char c, *pblank;
-		char savc, stopc, brk;
-
-		tgpscan = 1;
-		brk = stopc = pblank=0;
-		p2 = inp;
-		savc = *p2;
-		*p2 = '\0';
-
-		while (c = *p1++) {
-			if (c == '\\')
-				c = *p1++;
-
-			if (stopc == c) {
-				stopc = 0;
-			} else if (c == '"' || c == '\'') {
-				stopc = c;
-			}
-
-			if (p1 - outp > MAXOUT && pblank != 0) {
-				*pblank++ = '\n';
-				inp = pblank;
-				dump ();
-				brk = 1;
-				pblank = 0;
-			}
-
-			if (c == ' ' && stopc == 0)
-				pblank = p1 - 1;
-		}
-
-		if (brk)
-			sayline (CONT);
-
-		*p2 = savc;
-		inp = p2;
-		p1 =o utp;
-		tgpscan = 0;
-	}
-#endif
 	f = fout;
 	while (p1 < inp)
 		putc (*p1++, f);
@@ -866,26 +815,14 @@ register char *p;
 				*cp = '\0';
 				break;
 			}
-# ifdef gimpel
-			if (*inp == '.' && !intss ())
-				*inp = '#';
-# endif
 			while (inp < p)
 				*cp++ = *inp++;
 		}
 		--flslvl;	/* reenable macro expansion */
 	} else if (inp[-1] == '"') { /* regular "" syntax */
 		inctype = 0;
-# ifdef gimpel
-		while (inp < p) {
-			if (*inp == '.' && !intss ())
-				*inp = '#';
-			*cp++ = *inp++;
-		}
-# else
 		while (inp < p)
 			*cp++ = *inp++;
-# endif
 		if (*--cp == '"')
 			*cp = '\0';
 	} else {
@@ -926,15 +863,8 @@ register char *p;
 			strcpy (nfil, filname);
 		} else {
 			strcpy (nfil, *dirp);
-# if unix
 			strcat (nfil, "/");
-# endif
 
-#ifdef ibm
-#ifndef gimpel
-			strcat (nfil, ".");
-#endif
-#endif
 			strcat (nfil, filname);
 		}
 		if ((fins[ifno+1] = open (nfil, READ)) > 0) {
@@ -1236,14 +1166,6 @@ register char *p;
 				--flslvl;
 			}
 		} else if (np == ifloc) { /* if */
-#if tgp
-			pperror (" IF not implemented, true assumed", 0, 0);
-			if (flslvl == 0) {
-				++trulvl;
-			} else {
-				++flslvl;
-			}
-#else
 			newp = p;
 			if (flslvl == 0 && yyparse ()) {
 				++trulvl;
@@ -1251,7 +1173,6 @@ register char *p;
 				++flslvl;
 			}
 			p = newp;
-#endif
 		} else if (np == lneloc) { /* line */
 			if (flslvl == 0 && pflag == 0) {
 				char *cp, *cp2, *savestring ();
@@ -1355,10 +1276,10 @@ pperror(s, x, y)
 char *s;
 size_t x, y;
 {
-	if (fnames[ifno][0])
+	if (fnames[ifno][0] != '\0')
 		fprintf (stderr, "%s: ", fnames[ifno]);
 
-	fprintf (stderr, "%d: ",lineno[ifno]);
+	fprintf (stderr, "%d: ", lineno[ifno]);
 	fprintf (stderr, s, x, y);
 	fprintf (stderr, "\n");
 	++exfail;
@@ -1627,10 +1548,8 @@ register char *s;
 	--p;
 	while (p > s && *--p != '/');
 
-# if unix
 	if (p == s)
 		*p++ = '.';
-# endif
 	*p = '\0';
 	return s;
 }
@@ -1720,19 +1639,8 @@ char *argv[];
 	}
 #endif
 
-# if unix
 	fnames[ifno =0] = "";
 	dirnams[0] = dirs[0] = ".";
-# endif
-
-# if ibm
-	fnames[ifno = 0] = "";
-# endif
-
-# if gimpel
-	fnames[ifno = 0] = (char *)inquire (stdin, _FILENAME);
-	dirnams[0] = dirs[0] = trmdir (copy (fnames[0]));
-# endif
 
 	for(i = 1; i < argc; i++) {
 		switch (argv[i][0]) {
@@ -1841,19 +1749,7 @@ char *argv[];
 	fins[ifno] = fin;
 	exfail = 0;
 	/* after user -I files here are the standard include libraries */
-# if unix
 	dirs[nd++] = "/usr/include";
-# endif
-
-# if ibm
-# ifndef gimpel
-	dirs[nd++] = "BTL$CLIB";
-# endif
-# endif
-
-# ifdef gimpel
-	dirs[nd++] = intss() ?  "SYS3.C." : "" ;
-# endif
 
 	/* dirs[nd++] = "/compool"; */
 	dirs[nd++] = 0;
@@ -1870,57 +1766,9 @@ char *argv[];
 	for (i = sizeof (macbit) / sizeof (macbit[0]); --i >= 0; )
 		macbit[i] = 0;
 
-# if unix
 	ysysloc = stsym ("unix");
-# endif
-
-# if ibm
-	ysysloc = stsym ("ibm");
-# endif
-
-# if i286
 	varloc = stsym ("i286");
-# endif
-
-# if pdp11
-	varloc = stsym ("pdp11");
-# endif
-
-# if vax
-	varloc = stsym ("vax");
-# endif
-
-# if interdata
-	varloc = stsym ("interdata");
-# endif
-
-# if tss
-	varloc = stsym ("tss");
-# endif
-
-# if os
-	varloc = stsym ("os");
-# endif
-
-# if mert
-	varloc = stsym ("mert");
-# endif
-
-# if mc68000
-	varloc = stsym ("mc68000");
-# endif
-
-# if sun
-	varloc = stsym ("sun");
-# endif
-
-# if BSD2_86
 	varloc = stsym ("BSD2_86");
-# endif
-
-# if BSD2_11
-	varloc = stsym ("BSD2_11");
-# endif
 
 	ulnloc = stsym ("__LINE__");
 	uflloc = stsym ("__FILE__");

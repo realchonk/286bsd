@@ -1,13 +1,8 @@
 /* static char sccsid[] = "@(#)yylex.c	1.3 7/1/83"; */
 
-#define isid(a)  ((fastab+COFF)[a]&IB)
+#define isid(a)  ((fastab + COFF)[a] & IB)
 #define IB 1
-/*	#if '\377' < 0		it would be nice if this worked properly!!!!! */
-#if pdp11 | vax | mc68000
-#define COFF 128
-#else
 #define COFF 0
-#endif
 
 yylex() {
 	static int ifdef=0;

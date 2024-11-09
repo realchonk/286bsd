@@ -453,40 +453,39 @@ struct decls_list *args, *vars;
 declare (d)
 struct declaration *d;
 {
+	extern gen_decl ();
 	struct decl_init *di;
-	struct dtype *base, *dt;
+	struct dtype *base;
 	struct symbol *sym;
 	char *ident;
-	int pub;
 
 	base = new (struct dtype);
 	base = resolve_type (&d->ts);
 
 	for (di = d->head; di != NULL; di = di->next) {
-		dt = resolve_dl (base, &di->dl, &ident);
+		sym = new (struct symbol);
+		sym->sc = d->sc;
+		sym->dt = resolve_dl (base, &di->dl, &ident);
+		sym->init = di->in;
+		cpident (sym->ident, ident);
 
 		switch (d->sc) {
 		case SC_AUTO:
 			yyerror ("invalid storage class at top level: auto");
 			break;
-		case SC_NONE:
-			pub = 1;
-			goto common;
-		case SC_STATIC:
-			pub = 0;
-			goto common;
 		case SC_EXTERN:
-			pub = 1;
-		common:
-			// TODO
+			if (sym->init.type != IN_NONE)
+				yyerror ("extern variable with initializer");
+		case SC_NONE:
+		case SC_STATIC:
+			sym->next = gscope.vars;
+			gscope.vars = sym;
+			gen_decl (sym);
 			break;
 		case SC_TYPEDEF:
 			if (di->in.type != IN_NONE)
 				yyerror ("cannot assign to typedef");
-			sym = new (struct symbol);
 			sym->next = gscope.typedefs;
-			sym->dt = dt;
-			cpident (sym->ident, ident);
 			gscope.typedefs = sym;
 			break;
 		}

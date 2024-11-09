@@ -1,4 +1,4 @@
-extern a = 1, b, f ();
+extern a, b, f ();
 
 typedef T;
 
@@ -6,7 +6,7 @@ int z;
 
 int *ptr;
 
-T x;
+T x = 1;
 
 static int
 g (i, j)

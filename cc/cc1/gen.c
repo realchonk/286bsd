@@ -5,10 +5,13 @@
 
 int reg;
 
-gen_decl (d, pub)
-struct declaration *d;
+eval_expr (e)
+struct expr *e;
 {
-	return 0;
+	switch (e->type) {
+	case EX_INT:
+		return e->i;
+	}
 }
 
 print_dt (dt)
@@ -39,6 +42,53 @@ struct dtype *dt;
 		abort ();
 		break;
 	}
+	return 0;
+}
+
+gen_decl (sym)
+struct symbol *sym;
+{
+	int pub, ext = 0;
+
+	switch (sym->sc) {
+	case SC_EXTERN:
+		ext = 1;
+		// fallthrough
+	case SC_NONE:
+		pub = 1;
+		break;
+	case SC_STATIC:
+		pub = 0;
+		break;
+	case SC_AUTO:
+	case SC_TYPEDEF:
+		abort ();
+	}
+
+	if (pub)
+		printf ("pub ");
+
+	if (ext)
+		printf ("extern ");
+
+	if (sym->dt->type == DT_FUNC) {
+		printf ("fn %s (): ", sym->ident);
+		print_dt (sym->dt->inner);
+		printf (";\n");
+	} else {
+		printf ("var %s: ", sym->ident);
+		print_dt (sym->dt);
+
+		switch (sym->init.type) {
+		case IN_EX:
+			printf (" = %d", eval_expr (sym->init.ex));
+			// fallthrough
+		case IN_NONE:
+			printf (";\n");
+			break;
+		}
+	}
+
 	return 0;
 }
 

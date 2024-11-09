@@ -793,8 +793,13 @@ ppsym(s) char *s; {/* kluge */
 	cinit=SALT; *savch++=SALT; sp=stsym(s); --sp->name; cinit=0; return(sp);
 }
 
+// TODO: this is very ugly, but it works for now
+
 /* VARARGS1 */
-pperror(s,x,y) char *s; {
+pperror(s,x,y)
+char *s;
+long x, y;
+{
 	if (fnames[ifno][0]) fprintf(stderr,
 			"%s: ",
 				 fnames[ifno]);
@@ -804,11 +809,17 @@ pperror(s,x,y) char *s; {
 	++exfail;
 }
 
-yyerror(s,a,b) char *s; {
+yyerror(s,a,b)
+char *s;
+long a, b;
+{
 	pperror(s,a,b);
 }
 
-ppwarn(s,x) char *s; {
+ppwarn(s,x)
+char *s;
+long x;
+{
 	int fail = exfail;
 	exfail = -1;
 	pperror(s,x);

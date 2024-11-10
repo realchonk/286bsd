@@ -39,20 +39,20 @@ struct gnu {
 	char *file;	// optional
 };
 
-struct file {
-	struct file *next;
-	char *name;
-	struct rule *rule; // optional
-	struct timespec mtime;
-};
-
 struct dep {
 	struct dep *next;
 	struct path *path;
 };
 
-struct rule {
+struct file {
+	struct file *next;
+	char *name;
+	struct rule *rule; // optional
 	struct dep *deps;
+	struct timespec mtime;
+};
+
+struct rule {
 	char **code;
 };
 

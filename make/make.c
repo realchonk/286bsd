@@ -593,11 +593,11 @@ char *s, *t;
 {
 	struct rule *r;
 	struct file *f;
-	struct dep *dep;
+	struct dep *dep, *deps;
 	char *u, *p;
 
 	r = new (struct rule);
-	r->deps = NULL;
+	deps = NULL;
 
 	*t = '\0';
 
@@ -605,9 +605,9 @@ char *s, *t;
 	u = expand (sc, t + 1, NULL);
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		dep = new (struct dep);
-		dep->next = r->deps;
+		dep->next = deps;
 		dep->path = parse_path (p);
-		r->deps = dep;
+		deps = dep;
 	}	
 	free (u);
 
@@ -618,6 +618,7 @@ char *s, *t;
 		f->next = sc->dir->files;
 		f->name = strdup (p);
 		f->rule = r;
+		f->deps = deps;
 		f->mtime = get_mtime (path_to_str (dir), f->name);
 		sc->dir->files = f;
 	}
@@ -949,7 +950,7 @@ struct path *prefix;
 		needs_update = (f->mtime.tv_sec == 0);
 		maxt = f->mtime;
 
-		for (dep = f->rule->deps; dep != NULL; dep = dep->next) {
+		for (dep = f->deps; dep != NULL; dep = dep->next) {
 			t = build_dir (sc, dep->path, prefix);
 			if (tv_cmp (&t, &f->mtime) >= 0)
 				needs_update = 1;
@@ -1074,13 +1075,12 @@ struct scope *sc;
 	for (f = sc->dir->files; f != NULL; f = f->next) {
 		printf ("%s:", f->name);
 	
+		for (dep = f->deps; dep != NULL; dep = dep->next)
+			printf (" %s", path_to_str (dep->path));
+		printf ("\n");
+
 		r = f->rule;
 		if (r != NULL) {
-			for (dep = r->deps; dep != NULL; dep = dep->next)
-				printf (" %s", path_to_str (dep->path));
-
-			printf ("\n");
-
 			for (s = r->code; *s != NULL; ++s)
 				printf ("\t%s\n", *s);
 		}

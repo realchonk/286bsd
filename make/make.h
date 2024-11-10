@@ -55,6 +55,7 @@ struct macro {
 	struct macro *next, *enext;
 	char *name;
 	char *value;
+	int lazy;
 };
 
 #endif // FILE_MAKE_H

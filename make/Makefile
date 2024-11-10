@@ -1,7 +1,10 @@
 CC = cc
 CFLAGS =  ${TOP_CFLAGS} -ansi -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
+PWD != pwd
+
 
 all: make
+	echo ${PWD}
 
 clean:
 	rm -f make *.core

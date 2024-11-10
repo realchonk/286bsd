@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <limits.h>
 #include <libgen.h>
@@ -7,12 +8,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <time.h>
 #include <err.h>
 #include "make.h"
 
 #define new(T) ((T *)calloc (1, sizeof (T)))
 #define MAKEFILE "MyMakefile"
+#define SHELL "sh"
 
 #define MAKE_DEBUG 1
 
@@ -102,6 +105,13 @@ char *s;
 {
 	while (*s != '\0')
 		str_push (*s++);
+	return 0;
+}
+
+str_chomp ()
+{
+	while (strbuf_len > 0 && strbuf[strbuf_len - 1] == '\n')
+		--strbuf_len;
 	return 0;
 }
 
@@ -295,6 +305,7 @@ expand_into (sc, s)
 struct scope *sc;
 char *s;
 {
+	extern expand_macro ();
 	struct macro *m;
 	char *t;
 	int ch;
@@ -308,6 +319,7 @@ char *s;
 		switch (ch) {
 		case '$':
 			str_push ('$');
+			++s;
 			break;
 		case '{':
 			// ${name}
@@ -318,13 +330,25 @@ char *s;
 			*t = '\0';
 			m = find_macro (sc, s);
 			if (m != NULL)
-				expand_into (sc, m->value);
+				expand_macro (sc, m);
 			*t = '}';
 			s = t + 1;
 			break;
 		default:
 			errx (1, "syntax error: invalid escape sequence: %s", s - 2);
 		}
+	}
+	return 0;
+}
+
+expand_macro (sc, m)
+struct scope *sc;
+struct macro *m;
+{
+	if (m->lazy) {
+		expand_into (sc, m->value);
+	} else {
+		str_push_str (m->value);
 	}
 	return 0;
 }
@@ -336,6 +360,66 @@ char *s;
 {
 	str_reset ();
 	expand_into (sc, s);
+	return str_copy ();
+}
+
+char *
+evalcom (sc, dir, cmd)
+struct scope *sc;
+struct path *dir;
+char *cmd;
+{
+	char *args[] = {
+		SHELL,
+		"-c",
+		expand (sc, cmd),
+		NULL,
+	};
+	ssize_t i, n;
+	pid_t pid;
+	int pipefd[2];
+	char buf[64 + 1];
+
+	if (pipe (pipefd) != 0)
+		err (1, "pipe()");
+
+	pid = fork ();
+	if (pid == -1)
+		err (1, "fork()");
+
+	if (pid == 0) {
+		close (STDOUT_FILENO);
+		close (pipefd[0]);
+		if (dup (pipefd[1]) != STDOUT_FILENO)
+			err (1, "failed to dup");
+		close (STDIN_FILENO);
+		if (open ("/dev/null", O_RDONLY) != STDIN_FILENO)
+			err (1, "failed to open /dev/null");
+		close (pipefd[1]);
+
+		if (chdir (path_to_str (dir)) != 0)
+			err (1, "failed to chdir");
+
+		execvp (SHELL, args);
+		err (1, "failed to launch shell");
+	} else {
+		close (pipefd[1]);
+
+		str_reset ();
+
+		while ((n = read (pipefd[0], buf, sizeof (buf) - 1)) > 0) {
+			for (i = 0; i < n; ++i)
+				str_push (buf[i]);
+		}
+		close (pipefd[0]);
+
+		if (wait (NULL) != pid)
+			err (1, "wait()");
+
+	}
+
+	str_chomp ();
+
 	return str_copy ();
 }
 
@@ -500,11 +584,21 @@ char *path;
 			r->code[len++] = strdup (s + 1);
 			r->code[len] = NULL;
 		} else if ((t = strchr (s, '=')) != NULL) {
+			// TODO: check name
 			*t = '\0';
+
 			m = new (struct macro);
 			m->next = sc->dir->macros;
+
+			if (t[-1] == '!') {
+				t[-1] = '\0';
+				m->lazy = 0;
+				m->value = evalcom (sc, dir, trim (t + 1));
+			} else {
+				m->lazy = 1;
+				m->value = strdup (trim (t + 1));
+			}
 			m->name = strdup (trim (s));
-			m->value = strdup (trim (t + 1));
 			sc->dir->macros = m;
 		} else if ((t = strchr (s, ':')) != NULL) {
 			r = new (struct rule);

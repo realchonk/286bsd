@@ -392,7 +392,7 @@ char *name;
 	struct path **p;
 	struct file *f;
 	size_t len;
-	time_t t;
+	time_t t, mt;
 	char **s, *dir;
 
 	dir = bpath_to_str ();
@@ -437,10 +437,14 @@ char *name;
 
 		needs_update = (f->mtime == 0);
 		len = bpath_len ();
+		mt = f->mtime;
 
 		for (p = f->rule->deps; *p != NULL; ++p) {
-			if (build (sc, *p) >= f->mtime)
+			t = build (sc, *p);
+			if (t >= f->mtime)
 				needs_update = 1;
+			if (t >= mt)
+				mt = t;
 			bpath_restore (len);
 		}
 
@@ -449,7 +453,16 @@ char *name;
 			goto ret;
 		}
 
-		for (s = f->rule->code; *s != NULL; ++s)
+		s = f->rule->code;
+
+		// rule is a "sum" rule
+		if (s == NULL || *s == NULL) {
+			t = mt;
+			goto ret;
+		}
+
+		// TODO: check exit code
+		for (; *s != NULL; ++s)
 			runcom (dir, *s);
 
 		t = f->mtime = time (NULL);

@@ -284,7 +284,7 @@ struct path *dir;
 char *s;
 {
 	struct scope *sub;
-	char *p;
+	char *p, *path;
 
 	sub = new (struct scope);
 	sub->next = sc->dir->subdirs;
@@ -296,6 +296,11 @@ char *s;
 		return -1;
 
 	sub->name = strdup (trim (p));
+
+	asprintf (&path, "%s/%s", path_to_str (dir), sub->name);
+	if (access (path, F_OK) != 0)
+		errx (1, "%s: directory not found: %s", path_to_str (dir), sub->name);
+	free (path);
 	
 	p = strtok (NULL, ",");
 	if (p == NULL) {
@@ -755,7 +760,8 @@ struct scope *sc;
 			break;
 		}
 		for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-			printf (".scinclude %s\n", sub->name);
+			// TODO: fix this
+			printf (".include %s\n", sub->name);
 		}
 		for (f = sc->dir->files; f != NULL; f = f->next) {
 			printf ("%s:", f->name);

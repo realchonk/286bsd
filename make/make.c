@@ -168,11 +168,12 @@ char *s;
 {
 	size_t len = 0, cap = 4;
 	struct path *p;
+	char *last;
 	char *t;
 
 	p = calloc (cap + 1, sizeof (struct path));
 
-	for (t = strtok (s, "/"); t != NULL; t = strtok (NULL, "/")) {
+	for (t = strtok_r (s, "/", &last); t != NULL; t = strtok_r (NULL, "/", &last)) {
 		if (strcmp (t, ".") == 0)
 			continue;
 
@@ -207,7 +208,7 @@ char *s, *prefix;
 	if (len_s < len_p)
 		return 0;
 
-	return memcmp (s, prefix, len_p);
+	return memcmp (s, prefix, len_p) == 0;
 }
 
 time_t
@@ -273,6 +274,63 @@ char *s;
 	return s;
 }
 
+// .include yacc
+// .include yacc, DIR
+// .include libx, GNU
+parse_include (sc, dir, s)
+struct scope *sc;
+struct path *dir;
+char *s;
+{
+	struct scope *sub;
+	char *p;
+
+	sub = new (struct scope);
+	sub->next = sc->dir->subdirs;
+	sub->parent = sc;
+	sc->dir->subdirs = sub;
+
+	p = strtok (s, ",");
+	if (p == NULL)
+		return -1;
+
+	sub->name = strdup (trim (p));
+	
+	p = strtok (NULL, ",");
+	if (p == NULL) {
+		sub->type = SC_DIR;
+		sub->dir = NULL;
+		return 0;
+	}
+
+	p = trim (p);
+	if (strcmp (p, "DIR") == 0) {
+		sub->type = SC_DIR;
+		sub->dir = NULL;
+		return 0;
+	} else if (strcmp (p, "GNU") == 0) {
+		sub->type = SC_GNU;
+		sub->gnu = new (struct gnu);
+		sub->gnu->prog = NULL;
+		sub->gnu->file = NULL;
+
+		p = strtok (NULL, ",");
+		if (p == NULL)
+			return 0;
+		sub->gnu->prog = strdup (trim (p));
+
+		p = strtok (NULL, ",");
+		if (p == NULL)
+			return 0;
+		sub->gnu->file = strdup (trim (p));
+
+		return 0;
+	} else {
+		return -1;
+	}
+
+}
+
 parse (sc, dir, path) 
 struct scope *sc;
 struct path *dir;
@@ -297,6 +355,9 @@ char *path;
 
 	while ((s = readline (file, &ln)) != NULL) {
 		if (s[0] == '#' || *trim (s) == '\0') {
+		} else if (starts_with (s, ".include ")) {
+			if (parse_include (sc, dir, s + 9) == -1)
+				errx (1, "%s:%d: syntax error", path, ln);
 		} else if (s[0] == '\t') {
 			if (r == NULL)
 				errx (1, "%s:%d: syntax error", path, ln);
@@ -517,18 +578,19 @@ struct path *prefix;
 			f = find_file (sc->dir, name);
 			if (f == NULL) {
 				for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-					if (strcmp (sub->name, name) == 0)
+					if (strcmp (sub->name, name) == 0) {
 						goto build;
+					}
 				}
 				// TODO: templates
 				f = try_find (sc, path_to_str (prefix), name);
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
 
-				tmppath.name = name;
-				new_prefix = path_cat (prefix, &tmppath);
 				sub = sc;
 			build:
+				tmppath.name = name;
+				new_prefix = path_cat (prefix, &tmppath);
 				t = build_file (sub, NULL, new_prefix);
 				goto ret;
 			}
@@ -702,6 +764,7 @@ main ()
 	struct path *path = parse_path ("all");
 
 	sc = parse_recursive (".");
+	print_sc (sc);
 
 	build (sc, path);
 

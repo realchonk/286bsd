@@ -49,7 +49,7 @@ struct file {
 	struct file *next;
 	char *name;
 	struct rule *rule; // optional
-	struct dep *deps;
+	struct dep *deps, *dtail;
 	struct timespec mtime;
 };
 
@@ -57,7 +57,7 @@ struct inference {
 	struct inference *next;
 	char *from, *to;
 	struct rule *rule;
-	struct dep *deps;
+	struct dep *deps, *dtail;
 };
 
 struct rule {

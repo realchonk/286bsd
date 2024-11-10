@@ -1,4 +1,3 @@
-YACC = ../yacc/yacc
 YFLAGS = -d -v
 CFLAGS = -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 OBJ = lex.o parse.o gen.o main.o
@@ -17,10 +16,17 @@ run: cc1
 cc1: ${OBJ}
 	${CC} -o $@ ${OBJ} ${CFLAGS}
 
-parse.o y.tab.h: parse.y
+parse.o y.tab.h: parse.y ../yacc/yacc
 	${YACC} ${YFLAGS} parse.y
 	${CC} -c -o parse.o y.tab.c ${CFLAGS}
 	rm -f y.tab.c
 
-main.o lex.o: y.tab.h
-${OBJ}: cc1.h
+lex.o: lex.c cc1.h y.tab.h
+	${CC} -c -o $@ lex.c ${CFLAGS}
+
+gen.o: gen.c cc1.h
+	${CC} -c -o $@ gen.c ${CFLAGS}
+
+main.o: main.c cc1.h y.tab.h
+	${CC} -c -o $@ main.c ${CFLAGS}
+

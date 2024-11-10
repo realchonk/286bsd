@@ -1,12 +1,17 @@
 TOP != pwd
+CC = cc
+YACC = ${TOP}/cc/yacc/yacc
+.export CC
 .export TOP
+.export YACC
 
-all: make sys
+all: make sys cc
 
-clean: make/clean sys/clean
+clean: make/clean sys/clean cc/clean
 
 distclean: clean
 	rm -f mk
 
 .include make
+.include cc
 .include sys, GNU

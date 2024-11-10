@@ -1,10 +1,16 @@
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <limits.h>
+#include <libgen.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <time.h>
 #include <err.h>
 #include "make.h"
+
+#define new(T) ((T *)calloc (1, sizeof (T)))
 
 // EXAMPLE
 
@@ -243,6 +249,11 @@ char *s;
 char *
 str_get ()
 {
+	if (strbuf == NULL) {
+		strbuf_len = 0;
+		strbuf_cap = 10;
+		strbuf = malloc (strbuf_cap + 1);
+	}
 	strbuf[strbuf_len] = '\0';
 	return strbuf;
 }
@@ -340,6 +351,176 @@ struct path *p;
 	return str_get ();
 }
 
+struct path *
+parse_path (s)
+char *s;
+{
+	size_t len = 0, cap = 4;
+	struct path *p;
+	char *t;
+
+	p = calloc (cap + 1, sizeof (struct path));
+
+	for (t = strtok (s, "/"); t != NULL; t = strtok (NULL, "/")) {
+		if (strcmp (t, ".") == 0)
+			continue;
+
+		if (len == cap) {
+			cap *= 2;
+			p = reallocarray (p, cap + 1, sizeof (struct path));
+		}
+
+		if (strcmp (t, "..") == 0) {
+			p[len].type = PATH_SUPER;
+		} else {
+			p[len].type = PATH_NAME;
+			p[len].name = strdup (t);
+		}
+		++len;
+	}
+
+	return p;
+}
+
+// PARSER
+
+time_t
+get_mtime (dir, name)
+char *dir, *name;
+{
+	struct stat st;
+	char *path = NULL;
+	time_t t = 0;
+
+	asprintf (&path, "%s/%s", dir, name);
+	if (stat (path, &st) == 0)
+		t = st.st_mtime;
+
+	free (path);
+	return t;
+}
+
+char *
+readline (file, ln)
+FILE *file;
+int *ln;
+{
+	int ch, eof = 1;
+
+	str_reset ();
+
+	while (1) {
+		ch = fgetc (file);
+		switch (ch) {
+		case EOF:
+			goto ret;
+		case '\n':
+			eof = 0;
+			++*ln;
+			goto ret;
+		case '\\':
+			ch = fgetc (file);
+			if (ch == '\n') {
+				++*ln;
+			} else {
+				str_push ('\\');
+				str_push (ch);
+			}
+			eof = 0;
+			break;
+		default:
+			str_push (ch);
+			eof = 0;
+			break;
+		}
+	}
+
+ret:
+	return eof ? NULL : str_get ();
+}
+
+char *
+trim (s)
+char *s;
+{
+	for (; isspace (*s); ++s);
+	return s;
+}
+
+parse (sc, file, path) 
+struct scope *sc;
+FILE *file;
+char *path;
+{
+	struct rule *r = NULL;
+	struct file *f;
+	size_t len, cap;
+	char *s, *t, *p;
+	char *dpath;
+	int ln = 0;
+
+	dpath = dirname (path);
+
+	if (sc->dir == NULL) {
+		sc->dir = new (struct directory);
+		sc->dir->subdirs = NULL;
+		sc->dir->files = NULL;
+	}
+
+	while ((s = readline (file, &ln)) != NULL) {
+		if (s[0] == '#' || *trim (s) == '\0') {
+		} else if (s[0] == '\t') {
+			if (r == NULL)
+				errx (1, "%s:%d: syntax error", path, ln);
+
+			if (len == cap) {
+				cap *= 2;
+				r->code = reallocarray (r->code, cap + 1, sizeof (char *));
+			}
+
+			r->code[len++] = strdup (s + 1);
+			r->code[len] = NULL;
+		} else if ((t = strchr (s, '=')) != NULL) {
+			// TODO: macros
+		} else if ((t = strchr (s, ':')) != NULL) {
+			r = new (struct rule);
+
+			// parse deps
+			len = 0;
+			cap = 1;
+			r->deps = calloc (cap + 1, sizeof (struct path *));
+			for (p = strtok (t + 1, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+				if (len == cap) {
+					cap *= 2;
+					r->deps = reallocarray (r->deps, cap + 1, sizeof (struct path *));
+				}
+				r->deps[len++] = parse_path (p);
+			}	
+			r->deps[len] = NULL;
+
+			*t = '\0';
+			for (p = strtok (s, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+				// TODO: check name, handle duplicates
+				f = new (struct file);
+				f->next = sc->dir->files;
+				f->name = strdup (p);
+				f->rule = r;
+				f->mtime = get_mtime (dpath, f->name);
+				sc->dir->files = f;
+			}
+
+			len = 0;
+			cap = 1;
+			r->code = calloc (cap + 1, sizeof (char *));
+			r->code[0] = NULL;
+		} else {
+			warnx ("%s:%d: syntax error", path, ln);
+		}
+	}
+
+	return 0;
+}
+
 // RUN COMMANDS
 
 runcom (prefix, cmd)
@@ -410,6 +591,30 @@ char *name;
 	return NULL;
 }
 
+struct file *
+try_find (sc, dir, name)
+struct scope *sc;
+char *dir, *name;
+{
+	struct file *f;
+	time_t t;
+
+	// TODO: template rules
+
+	t = get_mtime (dir, name);
+	if (t == 0)
+		return NULL;
+
+	f = new (struct file);
+	f->next = sc->dir->files;
+	f->name = strdup (name);
+	f->rule = NULL;
+	f->mtime = t;
+	sc->dir->files = f;
+
+	return f;
+}
+
 time_t
 build_file (sc, name, prefix)
 struct scope *sc;
@@ -438,20 +643,26 @@ struct path *prefix;
 			f = find_file (sc->dir, name);
 			if (f == NULL) {
 				for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-					if (strcmp (sub->name, name) == 0) {
-						tmppath.name = name;
-						new_prefix = path_cat (prefix, &tmppath);
-						t = build_file (sub, NULL, new_prefix);
-						goto ret;
-					}
+					if (strcmp (sub->name, name) == 0)
+						goto build;
 				}
 				// TODO: templates
-				errx (1, "%s: no such file: %s", path_to_str (prefix), name);
+				f = try_find (sc, path_to_str (prefix), name);
+				if (f == NULL)
+					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
+
+				tmppath.name = name;
+				new_prefix = path_cat (prefix, &tmppath);
+				sub = sc;
+			build:
+				t = build_file (sub, NULL, new_prefix);
+				goto ret;
 			}
 		} else {
 			f = sc->dir->files;
 			if (f == NULL)
 				errx (1, "%s: nothing to build", path_to_str (prefix));
+			for (; f->next != NULL; f = f->next);
 		}
 
 		if (f->rule == NULL) {
@@ -567,14 +778,73 @@ struct path *path;
 
 // MAIN
 
+print_sc (sc)
+struct scope *sc;
+{
+	struct scope *sub;
+	struct path **p;
+	struct file *f;
+	struct rule *r;
+	char **s;
+
+	if (sc->name != NULL)
+		printf ("=== %s\n", sc->name);
+
+	switch (sc->type) {
+	case SC_DIR:
+		if (sc->dir == NULL) {
+			printf ("(unread)\n");
+			break;
+		}
+		for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+			printf (".scinclude %s\n", sub->name);
+		}
+		for (f = sc->dir->files; f != NULL; f = f->next) {
+			printf ("%s:", f->name);
+			r = f->rule;
+			if (r != NULL) {
+				for (p = r->deps; *p != NULL; ++p)
+					printf (" %s", path_to_str (*p));
+				
+				printf ("\n");
+
+				for (s = r->code; *s != NULL; ++s)
+					printf ("\t%s\n", *s);
+			}
+			printf ("\n");
+		}
+		break;
+	case SC_GNU:
+		printf ("prog: %s\n", sc->gnu->prog);
+		printf ("file: %s\n", sc->gnu->file);
+		break;
+	}
+}
+
 main ()
 {
-	struct path path[] = {
-		{ .type = PATH_NAME, .name = "all" },
-		{ .type = PATH_NULL, .name = NULL },
-	};
+	struct scope sc;
+	FILE *file;
+	char *path;
 
-	build (&sc_top, path);
+	//struct path path[] = {
+	//	{ .type = PATH_NAME, .name = "all" },
+	//	{ .type = PATH_NULL, .name = NULL },
+	//};
+
+	path = "Makefile";
+	file = fopen (path, "r");
+	if (file == NULL)
+		err (1, "open()");
+
+	memset (&sc, 0, sizeof (sc));
+	parse (&sc, file, path);
+	print_sc (&sc);
+
+	build (&sc, &path_null);
+
+
+	//build (&sc_top, path);
 	return 0;
 }
 

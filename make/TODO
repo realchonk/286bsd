@@ -1,2 +1,3 @@
-- an actual parser for this thing
-- macros
+- options: -q, -p, -k
+- make MACRO=VALUE
+- template rules

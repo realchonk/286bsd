@@ -1,3 +1,4 @@
 - options: -q, -p, -k
 - make MACRO=VALUE
 - template rules
+- better-than-second time resolution

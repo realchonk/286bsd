@@ -19,6 +19,22 @@
 
 #define MAKE_DEBUG 1
 
+static struct macro m_shell = {
+	.next = NULL,
+	.enext = NULL,
+	.name = "SHELL",
+	.value = SHELL,
+	.lazy = 0,
+}, m_make = {
+	.next = &m_shell,
+	.enext = &m_shell,
+	.name = "MAKE",
+	.value = NULL,
+	.lazy = 0,
+};
+
+static struct macro *globals = &m_make;
+
 // MISC
 
 char *
@@ -298,7 +314,16 @@ char *name;
 			return m;
 	}
 
-	return find_emacro (sc->parent, name);
+	m = find_emacro (sc->parent, name);
+	if (m != NULL)
+		return m;
+
+	for (m = globals; m != NULL; m = m->next) {
+		if (strcmp (m->name, name) == 0)
+			return m;
+	}
+
+	return NULL;
 }
 
 expand_into (sc, s)
@@ -370,7 +395,7 @@ struct path *dir;
 char *cmd;
 {
 	char *args[] = {
-		SHELL,
+		m_shell.value,
 		"-c",
 		expand (sc, cmd),
 		NULL,
@@ -400,7 +425,7 @@ char *cmd;
 		if (chdir (path_to_str (dir)) != 0)
 			err (1, "failed to chdir");
 
-		execvp (SHELL, args);
+		execvp (m_shell.value, args);
 		err (1, "failed to launch shell");
 	} else {
 		close (pipefd[1]);
@@ -969,10 +994,13 @@ struct path *path;
 
 // MAIN
 
-main ()
+main (argc, argv)
+char **argv;
 {
 	struct scope *sc;
 	struct path *path = parse_path ("all");
+
+	m_make.value = argv[0];
 
 	sc = parse_recursive (".");
 

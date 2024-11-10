@@ -5,6 +5,8 @@ PWD != pwd
 
 all: make
 	echo ${PWD}
+	echo ${SHELL}
+	echo ${MAKE}
 
 clean:
 	rm -f make *.core

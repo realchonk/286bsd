@@ -15,5 +15,5 @@ run: make
 	./make
 
 make: make.c make.h
-	${CC} -o make make.c ${CFLAGS}
+	${CC} -o $@ make.c ${CFLAGS}
 

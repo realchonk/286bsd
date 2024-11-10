@@ -326,9 +326,9 @@ char *name;
 	return NULL;
 }
 
-expand_into (sc, s)
+expand_into (sc, s, target)
 struct scope *sc;
-char *s;
+char *s, *target;
 {
 	extern expand_macro ();
 	struct macro *m;
@@ -344,6 +344,12 @@ char *s;
 		switch (ch) {
 		case '$':
 			str_push ('$');
+			++s;
+			break;
+		case '@':
+			if (target == NULL)
+				errx (1, "cannot use $@ here");
+			str_push_str (target);
 			++s;
 			break;
 		case '{':
@@ -371,7 +377,7 @@ struct scope *sc;
 struct macro *m;
 {
 	if (m->lazy) {
-		expand_into (sc, m->value);
+		expand_into (sc, m->value, NULL);
 	} else {
 		str_push_str (m->value);
 	}
@@ -379,12 +385,12 @@ struct macro *m;
 }
 
 char *
-expand (sc, s)
+expand (sc, s, target)
 struct scope *sc;
-char *s;
+char *s, *target;
 {
 	str_reset ();
-	expand_into (sc, s);
+	expand_into (sc, s, target);
 	return str_copy ();
 }
 
@@ -397,7 +403,7 @@ char *cmd;
 	char *args[] = {
 		m_shell.value,
 		"-c",
-		expand (sc, cmd),
+		expand (sc, cmd, NULL),
 		NULL,
 	};
 	ssize_t i, n;
@@ -725,10 +731,10 @@ char *path;
 
 // RUN COMMANDS
 
-runcom (sc, prefix, cmd)
+runcom (sc, prefix, cmd, target)
 struct scope *sc;
 struct path *prefix;
-char *cmd;
+char *cmd, *target;
 {
 	char *line;
 	int ec, q = 0;
@@ -738,7 +744,7 @@ char *cmd;
 		++cmd;
 	}
 
-	cmd = expand (sc, cmd);
+	cmd = expand (sc, cmd, target);
 	
 	if (!q)
 		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
@@ -791,7 +797,7 @@ char *rule;
 		strcat (cmd, rule);
 	}
 
-	ec = runcom (sc, prefix, cmd);
+	ec = runcom (sc, prefix, cmd, NULL);
 	free (cmd);
 	return ec;
 }
@@ -920,7 +926,7 @@ struct path *prefix;
 		}
 
 		for (; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s) != 0)
+			if (runcom (sc, prefix, *s, f->name) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 

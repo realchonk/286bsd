@@ -6,6 +6,8 @@
 #include <err.h>
 #include "make.h"
 
+// EXAMPLE
+
 extern struct scope sc_top, sc_cc, sc_cc1, sc_yacc, sc_make, sc_libx;
 extern struct directory dir_top, dir_cc, dir_cc1, dir_yacc, dir_make;
 extern struct file f_all, f_cc1, f_cc1_c, f_yacc, f_yacc_c, f_make, f_make_c;
@@ -209,6 +211,15 @@ struct rule r_all = {
 	.code = code_make,
 };
 
+// PATH LOGIC
+
+struct path path_null[] = {
+	{ .type = PATH_NULL, .name = NULL },
+};
+
+static struct path bpath[128];
+static struct path tmppath = { .type = PATH_NAME, .name = NULL };
+
 print_path (p)
 struct path *p;
 {
@@ -226,29 +237,6 @@ struct path *p;
 		}
 	}
 }
-
-struct file *
-find_file (dir, name)
-struct directory *dir;
-char *name;
-{
-	struct file *f;
-
-	for (f = dir->files; f != NULL; f = f->next) {
-		if (strcmp (name, f->name) == 0)
-			return f;
-	}
-
-	return NULL;
-}
-
-time_t build ();
-
-struct path path_null[] = {
-	{ .type = PATH_NULL, .name = NULL },
-};
-
-static struct path bpath[128];
 
 size_t
 bpath_len ()
@@ -331,7 +319,7 @@ bpath_to_str ()
 	return s;
 }
 
-static struct path tmppath = { .type = PATH_NAME, .name = NULL };
+// RUN COMMANDS
 
 runcom (dir, cmd)
 char *dir, *cmd;
@@ -382,11 +370,29 @@ char *dir, *rule;
 	return ec;
 }
 
+// BUILD
+
+struct file *
+find_file (dir, name)
+struct directory *dir;
+char *name;
+{
+	struct file *f;
+
+	for (f = dir->files; f != NULL; f = f->next) {
+		if (strcmp (name, f->name) == 0)
+			return f;
+	}
+
+	return NULL;
+}
+
 time_t
 build_file (sc, name)
 struct scope *sc;
 char *name;
 {
+	extern time_t build ();
 	int needs_update;
 	struct scope *sub;
 	struct path **p;
@@ -519,6 +525,8 @@ struct path *path;
 		}
 	}
 }
+
+// MAIN
 
 main ()
 {

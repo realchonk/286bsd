@@ -79,20 +79,48 @@ char *s, *prefix;
 	return memcmp (s, prefix, len_p) == 0;
 }
 
-time_t
+struct timespec
 get_mtime (dir, name)
 char *dir, *name;
 {
 	struct stat st;
 	char *path = NULL;
-	time_t t = 0;
+	struct timespec t;
 
 	asprintf (&path, "%s/%s", dir, name);
-	if (stat (path, &st) == 0)
-		t = st.st_mtime;
+
+	if (stat (path, &st) == 0) {
+		t = st.st_mtim;
+	} else {
+		memset (&t, 0, sizeof (t));
+	}
 
 	free (path);
 	return t;
+}
+
+struct timespec
+now ()
+{
+	struct timespec t;
+	clock_gettime (CLOCK_REALTIME, &t);
+	return t;
+}
+
+tv_cmp (a, b)
+struct timespec *a, *b;
+{
+	if (a->tv_sec < b->tv_sec) {
+		return -1;
+	} else if (a->tv_sec > b->tv_sec) {
+		return 1;
+	} else if (a->tv_nsec < b->tv_nsec) {
+		return -1;
+	} else if (a->tv_nsec > b->tv_nsec) {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 // STRING BUFFER
@@ -828,13 +856,13 @@ try_find (sc, dir, name)
 struct scope *sc;
 char *dir, *name;
 {
+	struct timespec t;
 	struct file *f;
-	time_t t;
 
 	// TODO: template rules
 
 	t = get_mtime (dir, name);
-	if (t == 0)
+	if (t.tv_sec == 0)
 		return NULL;
 
 	f = new (struct file);
@@ -847,18 +875,18 @@ char *dir, *name;
 	return f;
 }
 
-time_t
+struct timespec
 build_file (sc, name, prefix)
 struct scope *sc;
 char *name;
 struct path *prefix;
 {
-	extern time_t build_dir ();
+	extern struct timespec build_dir ();
 	int needs_update;
 	struct scope *sub;
 	struct path **p, *new_prefix = NULL;
 	struct file *f;
-	time_t t, maxt;
+	struct timespec t, maxt;
 	char **s;
 
 #if MAKE_DEBUG
@@ -897,7 +925,7 @@ struct path *prefix;
 		}
 
 		if (f->rule == NULL) {
-			if (f->mtime > 0) {
+			if (f->mtime.tv_sec > 0) {
 				t = f->mtime;
 				goto ret;
 			} else {
@@ -905,14 +933,14 @@ struct path *prefix;
 			}
 		}
 
-		needs_update = (f->mtime == 0);
+		needs_update = (f->mtime.tv_sec == 0);
 		maxt = f->mtime;
 
 		for (p = f->rule->deps; *p != NULL; ++p) {
 			t = build_dir (sc, *p, prefix);
-			if (t >= f->mtime)
+			if (tv_cmp (&t, &f->mtime) >= 0)
 				needs_update = 1;
-			if (t > maxt)
+			if (tv_cmp (&t, &maxt) == 1)
 				maxt = t;
 		}
 
@@ -934,19 +962,19 @@ struct path *prefix;
 				errx (1, "command failed: %s", *s);
 		}
 
-		t = f->mtime = time (NULL);
+		t = f->mtime = now ();
 		goto ret;
 	case SC_GNU:
 		// first check if the target is already built
 		if (rungnu (sc, prefix, sc->gnu, name, 1) == 0) {
-			t = 0;
+			t.tv_sec = 0;
 			goto ret;
 		}
 
 		if (rungnu (sc, prefix, sc->gnu, name, 0) != 0)
 			errx (1, "building foreign directory failed");
 
-		t = time (NULL);
+		t = now ();
 		goto ret;
 	}
 	
@@ -956,14 +984,14 @@ ret:
 	return t;
 }
 
-time_t
+struct timespec
 build_dir (sc, path, prefix)
 struct scope *sc;
 struct path *path, *prefix;
 {
 	struct path *new_prefix = NULL;
 	struct scope *sub;
-	time_t t;
+	struct timespec t;
 
 	switch (path[0].type) {
 	case PATH_SUPER:
@@ -1001,7 +1029,7 @@ ret:
 	return t;
 }
 
-time_t
+struct timespec
 build (sc, path)
 struct scope *sc;
 struct path *path;

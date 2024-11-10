@@ -43,7 +43,7 @@ struct file {
 	struct file *next;
 	char *name;
 	struct rule *rule; // optional
-	time_t mtime;
+	struct timespec mtime;
 };
 
 struct rule {

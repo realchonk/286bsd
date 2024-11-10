@@ -916,6 +916,8 @@ struct path *prefix;
 				f = try_find (sc, path_to_str (prefix), name);
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
+			} else {
+				f->mtime = get_mtime (path_to_str (prefix), name);
 			}
 		} else {
 			f = sc->dir->files;

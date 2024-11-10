@@ -1,9 +1,3 @@
 - options: -q, -k
 - make MACRO=VALUE
 - template rules
-- handle this situation:
-	y.tab.c y.tab.h: parse.y
-		${YACC} -d parse.y
-	
-	parse.o: y.tab.c y.tab.h
-		${CC} -c -o $@ y.tab.c

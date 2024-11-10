@@ -28,7 +28,7 @@ str_reset ()
 str_push (ch)
 {
 	if (strbuf_len == strbuf_cap) {
-		strbuf_cap *= 2;
+		strbuf_cap = strbuf_cap > 0 ? strbuf_cap * 2 : 10;
 		strbuf = realloc (strbuf, strbuf_cap + 1);
 	}
 	strbuf[strbuf_len++] = ch;
@@ -154,9 +154,8 @@ struct path *p;
 {
 	char *s, *t;
 
-	s = path_to_str (p);
-	s = realpath (s, NULL);
-	t = basename (s);
+	s = realpath (path_to_str (p), NULL);
+	t = strdup (basename (s));
 	free (s);
 
 	return t;
@@ -263,7 +262,7 @@ int *ln;
 	}
 
 ret:
-	return eof ? NULL : str_get ();
+	return eof ? NULL : str_copy ();
 }
 
 char *
@@ -353,7 +352,7 @@ char *path;
 		sc->dir->files = NULL;
 	}
 
-	while ((s = readline (file, &ln)) != NULL) {
+	for (; (s = readline (file, &ln)) != NULL; free (s)) {
 		if (s[0] == '#' || *trim (s) == '\0') {
 		} else if (starts_with (s, ".include ")) {
 			if (parse_include (sc, dir, s + 9) == -1)
@@ -424,7 +423,7 @@ char *path;
 	sc = new (struct scope);
 	sc->next = NULL;
 	sc->type = SC_DIR;
-	sc->name = strdup (path_basename (dir));
+	sc->name = path_basename (dir);
 	sc->parent = NULL;
 	entry = sc;
 
@@ -441,7 +440,7 @@ char *path;
 		parent = new (struct scope);
 		parent->next = NULL;
 		parent->type = SC_DIR;
-		parent->name = strdup (path_basename (dir));
+		parent->name = path_basename (dir);
 		parent->parent = NULL;
 		parent->dir = new (struct directory);
 		parent->dir->subdirs = sc;

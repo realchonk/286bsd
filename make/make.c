@@ -585,6 +585,50 @@ char *s;
 
 }
 
+struct rule *
+parse_rule (sc, dir, s, t)
+struct scope *sc;
+struct path *dir;
+char *s, *t;
+{
+	struct rule *r;
+	struct file *f;
+	size_t len, cap;
+	char *u, *p;
+
+	r = new (struct rule);
+
+	*t = '\0';
+
+	// parse deps
+	len = 0;
+	cap = 1;
+	r->deps = calloc (cap + 1, sizeof (struct path *));
+	u = expand (sc, t + 1, NULL);
+	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+		if (len == cap) {
+			cap *= 2;
+			r->deps = reallocarray (r->deps, cap + 1, sizeof (struct path *));
+		}
+		r->deps[len++] = parse_path (p);
+	}	
+	r->deps[len] = NULL;
+	free (u);
+
+	u = expand (sc, s, NULL);
+	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+		// TODO: check name, handle duplicates
+		f = new (struct file);
+		f->next = sc->dir->files;
+		f->name = strdup (p);
+		f->rule = r;
+		f->mtime = get_mtime (path_to_str (dir), f->name);
+		sc->dir->files = f;
+	}
+	free (u);
+	return r;
+}
+
 parse (sc, dir, path) 
 struct scope *sc;
 struct path *dir;
@@ -592,9 +636,8 @@ char *path;
 {
 	struct macro *m;
 	struct rule *r = NULL;
-	struct file *f;
 	size_t len, cap;
-	char *s, *t, *p, *u;
+	char *s, *t;
 	FILE *file;
 	int ln = 0;
 
@@ -660,36 +703,7 @@ char *path;
 			m->name = strdup (trim (s));
 			sc->dir->macros = m;
 		} else if ((t = strchr (s, ':')) != NULL) {
-			r = new (struct rule);
-
-			*t = '\0';
-
-			// parse deps
-			len = 0;
-			cap = 1;
-			r->deps = calloc (cap + 1, sizeof (struct path *));
-			u = expand (sc, t + 1, NULL);
-			for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
-				if (len == cap) {
-					cap *= 2;
-					r->deps = reallocarray (r->deps, cap + 1, sizeof (struct path *));
-				}
-				r->deps[len++] = parse_path (p);
-			}	
-			r->deps[len] = NULL;
-			free (u);
-
-			u = expand (sc, s, NULL);
-			for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
-				// TODO: check name, handle duplicates
-				f = new (struct file);
-				f->next = sc->dir->files;
-				f->name = strdup (p);
-				f->rule = r;
-				f->mtime = get_mtime (path_to_str (dir), f->name);
-				sc->dir->files = f;
-			}
-			free (u);
+			r = parse_rule (sc, dir, s, t);
 
 			len = 0;
 			cap = 1;

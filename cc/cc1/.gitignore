@@ -1,6 +1,8 @@
 *.o
 *.swp
 *.core
+*.asm
+*.ir
 cc1
 y.tab.*
 y.output

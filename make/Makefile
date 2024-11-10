@@ -1,4 +1,3 @@
-
 all: make
 
 clean:
@@ -7,6 +6,6 @@ clean:
 run: make
 	./make
 
-make: make.c
+make: make.c make.h
 	cc -o make make.c -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 

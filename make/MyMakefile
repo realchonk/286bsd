@@ -14,3 +14,9 @@ run: make
 make: make.c make.h
 	${CC} -o $@ $< ${CFLAGS}
 
+.c:
+	${CC} -o $@ $< ${CFLAGS}
+
+.c.o:
+	${CC} -c -o $@ $< ${CFLAGS}
+

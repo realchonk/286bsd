@@ -32,6 +32,7 @@ struct directory {
 	struct file *files;
 	struct macro *macros;
 	struct macro *emacros;	// exported macros
+	struct inference *infs;
 };
 
 struct gnu {
@@ -50,6 +51,13 @@ struct file {
 	struct rule *rule; // optional
 	struct dep *deps;
 	struct timespec mtime;
+};
+
+struct inference {
+	struct inference *next;
+	char *from, *to;
+	struct rule *rule;
+	struct dep *deps;
 };
 
 struct rule {

@@ -635,6 +635,7 @@ struct scope *sc;
 struct path *dir;
 char *s, *t;
 {
+	struct inference *inf;
 	struct rule *r;
 	struct file *f;
 	struct dep *dep, *deps;
@@ -660,31 +661,51 @@ char *s, *t;
 	// parse targets
 	u = expand (sc, s, NULL, NULL);
 	flag = 1;
-	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
-		// TODO: check name
+	if (u[0] == '.') {
+		p = strchr (u + 1, '.');
+		inf = new (struct inference);
+		inf->next = sc->dir->infs;
+		inf->rule = r;
+		inf->deps = deps;
 
-		f = find_file (sc->dir, p);
-		if (f == NULL) {
-			f = new (struct file);
-			f->next = sc->dir->files;
-			f->name = strdup (p);
-			f->rule = r;
-			f->deps = deps;
-			f->mtime = get_mtime (path_to_str (dir), f->name);
-			sc->dir->files = f;
-			continue;
+		if (p != NULL) {
+			*p = '\0';
+			inf->from = strdup (u);
+			*p = '.';
+			inf->to = strdup (p); 
+		} else {
+			inf->from = strdup (u);
+			inf->to = "";
 		}
 
-		flag = 0;
+		sc->dir->infs = inf;
+	} else {
+		for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+			// TODO: check name
 
-		if (f->deps == NULL) {
-			f->deps = deps;
-			continue;
+			f = find_file (sc->dir, p);
+			if (f == NULL) {
+				f = new (struct file);
+				f->next = sc->dir->files;
+				f->name = strdup (p);
+				f->rule = r;
+				f->deps = deps;
+				f->mtime = get_mtime (path_to_str (dir), f->name);
+				sc->dir->files = f;
+				continue;
+			}
+
+			flag = 0;
+
+			if (f->deps == NULL) {
+				f->deps = deps;
+				continue;
+			}
+
+			for (dep = f->deps; dep->next != NULL; dep = dep->next);
+			dep->next = deps;
+
 		}
-
-		for (dep = f->deps; dep->next != NULL; dep = dep->next);
-		dep->next = deps;
-
 	}
 	free (u);
 	return flag ? r : NULL;
@@ -1108,6 +1129,7 @@ struct path *path;
 print_sc (sc)
 struct scope *sc;
 {
+	struct inference *inf;
 	struct scope *sub;
 	struct macro *m;
 	struct dep *dep;
@@ -1136,6 +1158,16 @@ struct scope *sc;
 			for (s = r->code; *s != NULL; ++s)
 				printf ("\t%s\n", *s);
 		}
+		printf ("\n");
+	}
+
+	for (inf = sc->dir->infs; inf != NULL; inf = inf->next) {
+		printf ("%s%s:", inf->from, inf->to);
+		for (dep = inf->deps; dep != NULL; dep = dep->next)
+			printf (" %s", path_to_str (dep->path));
+		printf ("\n");
+		for (s = inf->rule->code; *s != NULL; ++s)
+			printf ("\t%s\n", *s);
 		printf ("\n");
 	}
 	

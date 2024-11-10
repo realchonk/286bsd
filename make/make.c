@@ -213,10 +213,7 @@ struct rule r_all = {
 
 // PATH LOGIC
 
-struct path path_null[] = {
-	{ .type = PATH_NULL, .name = NULL },
-};
-
+static struct path path_null = { .type = PATH_NULL, .name = NULL };
 static struct path tmppath = { .type = PATH_NAME, .name = NULL };
 
 // return the number of path components (excl. PATH_NULL).
@@ -541,7 +538,7 @@ build (sc, path)
 struct scope *sc;
 struct path *path;
 {
-	return build_dir (sc, path, path_null);
+	return build_dir (sc, path, &path_null);
 }
 
 // MAIN

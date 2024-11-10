@@ -211,6 +211,48 @@ struct rule r_all = {
 	.code = code_make,
 };
 
+// STRING BUFFER
+
+static char *strbuf = NULL;
+static size_t strbuf_len = 0, strbuf_cap = 0;
+
+str_reset ()
+{
+	strbuf_len = 0;
+	return 0;
+}
+
+str_push (ch)
+{
+	if (strbuf_len == strbuf_cap) {
+		strbuf_cap *= 2;
+		strbuf = realloc (strbuf, strbuf_cap + 1);
+	}
+	strbuf[strbuf_len++] = ch;
+	return 0;
+}
+
+str_push_str (s)
+char *s;
+{
+	while (*s != '\0')
+		str_push (*s++);
+	return 0;
+}
+
+char *
+str_get ()
+{
+	strbuf[strbuf_len] = '\0';
+	return strbuf;
+}
+
+char *
+str_copy ()
+{
+	return strdup (str_get ());
+}
+
 // PATH LOGIC
 
 static struct path path_null = { .type = PATH_NULL, .name = NULL };
@@ -276,46 +318,26 @@ char *
 path_to_str (p)
 struct path *p;
 {
-	static char *buf = NULL;
-	static size_t buf_len = 0;
-	size_t i, j, len = 2;
+	size_t i;
+
+	str_reset ();
+	str_push ('.');
 
 	for (i = 0; p[i].type != PATH_NULL; ++i) {
 		switch (p[i].type) {
 		case PATH_NULL:
 			abort ();
 		case PATH_SUPER:
-			len += 3;
+			str_push_str ("/..");
 			break;
 		case PATH_NAME:
-			len += strlen (p[i].name) + 1;
+			str_push ('/');
+			str_push_str (p[i].name);
 			break;
 		}
 	}
 
-	if (len > buf_len) {
-		buf_len = len;
-		buf = realloc (buf, buf_len);
-	}
-
-	j = 1;
-	buf[0] = '.';
-	buf[1] = '\0';
-
-	for (i = 0; p[i].type != PATH_NULL; ++i) {
-		switch (p[i].type) {
-		case PATH_NULL:
-			abort ();
-		case PATH_SUPER:
-			j += snprintf (buf + j, len - j, "/..");
-			break;
-		case PATH_NAME:
-			j += snprintf (buf + j, len - j, "/%s", p[i].name);
-			break;
-		}
-	}
-
-	return buf;
+	return str_get ();
 }
 
 // RUN COMMANDS
@@ -423,6 +445,7 @@ struct path *prefix;
 						goto ret;
 					}
 				}
+				// TODO: templates
 				errx (1, "%s: no such file: %s", path_to_str (prefix), name);
 			}
 		} else {

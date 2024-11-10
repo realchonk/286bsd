@@ -1095,7 +1095,7 @@ struct scope *sc;
 
 usage ()
 {
-	fprintf (stderr, "usage: %s [target...]\n", m_make.value);
+	fprintf (stderr, "usage: %s [-p] [target...]\n", m_make.value);
 	return 1;
 }
 

@@ -484,6 +484,21 @@ char *cmd;
 
 // PARSER
 
+struct file *
+find_file (dir, name)
+struct directory *dir;
+char *name;
+{
+	struct file *f;
+
+	for (f = dir->files; f != NULL; f = f->next) {
+		if (strcmp (name, f->name) == 0)
+			return f;
+	}
+
+	return NULL;
+}
+
 char *
 readline (file, ln)
 FILE *file;
@@ -611,6 +626,7 @@ char *s, *t;
 	}	
 	free (u);
 
+	// parse targets
 	u = expand (sc, s, NULL);
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		// TODO: check name, handle duplicates
@@ -846,21 +862,6 @@ char *rule;
 }
 
 // BUILD
-
-struct file *
-find_file (dir, name)
-struct directory *dir;
-char *name;
-{
-	struct file *f;
-
-	for (f = dir->files; f != NULL; f = f->next) {
-		if (strcmp (name, f->name) == 0)
-			return f;
-	}
-
-	return NULL;
-}
 
 struct file *
 try_find (sc, dir, name)

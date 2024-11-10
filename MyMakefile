@@ -16,6 +16,9 @@ distclean: clean
 .c:
 	${CC} -o $@ $< ${CFLAGS}
 
+.c.o:
+	${CC} -c -o $@ $< ${CFLAGS}
+
 .include make
 .include cc
 .include sys, GNU

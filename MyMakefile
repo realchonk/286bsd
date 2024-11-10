@@ -8,6 +8,7 @@ YACC = ${TOP}/cc/yacc/yacc
 all: make sys cc
 
 clean: make/clean sys/clean cc/clean
+	rm -f *.core
 
 distclean: clean
 	rm -f mk

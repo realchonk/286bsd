@@ -5,7 +5,7 @@ OBJ = lex.o parse.o gen.o main.o
 all: cc1
 
 clean:
-	rm -f cc1 *.o y.tab.h y.output
+	rm -f cc1 *.core *.o y.tab.h y.output
 
 run: cc1
 	./cc1 < test.c > test.ir

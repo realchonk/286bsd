@@ -1007,17 +1007,44 @@ struct path *path;
 
 // MAIN
 
+usage ()
+{
+	fprintf (stderr, "usage: %s [target...]\n", m_make.value);
+	return 1;
+}
+
 main (argc, argv)
 char **argv;
 {
 	struct scope *sc;
-	struct path *path = parse_path ("all");
+	struct path *path;
+	int i, option;
 
 	m_make.value = argv[0];
 
-	sc = parse_recursive (".");
+	while ((option = getopt (argc, argv, "")) != -1) {
+		switch (option) {
+		case '?':
+			return usage ();
+		default:
+			errx (1, "unexpected option: -%c", option);
+		}
+	}
 
-	build (sc, path);
+	argv += optind;
+	argc -= optind;
+
+	sc = parse_recursive (".");
+	
+	if (argc == 0) {
+		build (sc, &path_null);
+	} else {
+		for (i = 0; i < argc; ++i) {
+			path = parse_path (argv[i]);
+			build (sc, path);
+		}
+	}
+
 
 	return 0;
 }

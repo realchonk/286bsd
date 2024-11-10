@@ -1,1 +1,20 @@
-Makefile
+CC = cc
+CFLAGS = -g -O0 -ansi -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
+PWD != pwd
+
+
+all: make
+	@echo TOP: ${TOP}
+	@echo PWD: ${PWD}
+	@echo SHELL: ${SHELL}
+	@echo MAKE: ${MAKE}
+
+clean:
+	rm -f make *.core
+
+run: make
+	./make
+
+make: make.c make.h
+	${CC} -o $@ make.c ${CFLAGS}
+

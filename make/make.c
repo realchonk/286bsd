@@ -566,7 +566,7 @@ char *path;
 	struct rule *r = NULL;
 	struct file *f;
 	size_t len, cap;
-	char *s, *t, *p;
+	char *s, *t, *p, *u;
 	FILE *file;
 	int ln = 0;
 
@@ -640,7 +640,8 @@ char *path;
 			len = 0;
 			cap = 1;
 			r->deps = calloc (cap + 1, sizeof (struct path *));
-			for (p = strtok (t + 1, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+			u = expand (sc, t + 1, NULL);
+			for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 				if (len == cap) {
 					cap *= 2;
 					r->deps = reallocarray (r->deps, cap + 1, sizeof (struct path *));
@@ -648,8 +649,10 @@ char *path;
 				r->deps[len++] = parse_path (p);
 			}	
 			r->deps[len] = NULL;
+			free (u);
 
-			for (p = strtok (s, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+			u = expand (sc, s, NULL);
+			for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 				// TODO: check name, handle duplicates
 				f = new (struct file);
 				f->next = sc->dir->files;
@@ -658,6 +661,7 @@ char *path;
 				f->mtime = get_mtime (path_to_str (dir), f->name);
 				sc->dir->files = f;
 			}
+			free (u);
 
 			len = 0;
 			cap = 1;

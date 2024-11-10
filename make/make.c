@@ -399,7 +399,7 @@ struct path *prefix;
 	struct scope *sub;
 	struct path **p, *new_prefix = NULL;
 	struct file *f;
-	time_t t, mt;
+	time_t t, maxt;
 	char **s;
 
 	printf ("dir %s", path_to_str (prefix));
@@ -441,14 +441,14 @@ struct path *prefix;
 		}
 
 		needs_update = (f->mtime == 0);
-		mt = f->mtime;
+		maxt = f->mtime;
 
 		for (p = f->rule->deps; *p != NULL; ++p) {
 			t = build_dir (sc, *p, prefix);
 			if (t >= f->mtime)
 				needs_update = 1;
-			if (t >= mt)
-				mt = t;
+			if (t > maxt)
+				maxt = t;
 		}
 
 		if (!needs_update) {
@@ -460,7 +460,7 @@ struct path *prefix;
 
 		// rule is a "sum" rule
 		if (s == NULL || *s == NULL) {
-			t = mt;
+			t = maxt;
 			goto ret;
 		}
 
@@ -471,6 +471,7 @@ struct path *prefix;
 		t = f->mtime = time (NULL);
 		goto ret;
 	case SC_GNU:
+		// first check if the target is already built
 		if (rungnu (prefix, sc->gnu, name, 1) == 0) {
 			t = 0;
 			goto ret;
@@ -547,10 +548,6 @@ main ()
 {
 	struct path path[] = {
 		{ .type = PATH_NAME, .name = "all" },
-		//{ .type = PATH_SUPER, .name = NULL },
-		//{ .type = PATH_NAME, .name = "cc" },
-		//{ .type = PATH_NAME, .name = "cc1" },
-		//{ .type = PATH_NAME, .name = "cc1" },
 		{ .type = PATH_NULL, .name = NULL },
 	};
 

@@ -4,10 +4,6 @@ PWD != pwd
 
 
 all: make
-	@echo TOP: ${TOP}
-	@echo PWD: ${PWD}
-	@echo SHELL: ${SHELL}
-	@echo MAKE: ${MAKE}
 
 clean:
 	rm -f make *.core

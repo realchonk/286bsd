@@ -259,6 +259,24 @@ char *s;
 // MACORS
 
 struct macro *
+find_emacro (sc, name)
+struct scope *sc;
+char *name;
+{
+	struct macro *m;
+
+	if (sc == NULL)
+		return NULL;
+
+	for (m = sc->dir->emacros; m != NULL; m = m->enext) {
+		if (strcmp (m->name, name) == 0)
+			return m;
+	}
+	
+	return find_emacro (sc->parent, name);
+}
+
+struct macro *
 find_macro (sc, name)
 struct scope *sc;
 char *name;
@@ -270,7 +288,7 @@ char *name;
 			return m;
 	}
 
-	return NULL;
+	return find_emacro (sc->parent, name);
 }
 
 expand_into (sc, s)
@@ -452,6 +470,24 @@ char *path;
 		} else if (starts_with (s, ".include ")) {
 			if (parse_include (sc, dir, s + 9) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);
+		} else if (starts_with (s, ".export ")) {
+			t = trim (s + 8);
+
+			for (m = sc->dir->emacros; m != NULL; m = m->enext) {
+				if (strcmp (m->name, t) == 0)
+					goto ok; // already exported
+			}
+
+			for (m = sc->dir->macros; m != NULL; m = m->next) {
+				if (strcmp (m->name, t) == 0) {
+					m->enext = sc->dir->emacros;
+					sc->dir->emacros = m;
+					goto ok;
+				}
+			}
+
+			errx (1, "%s:%d: no such macro: %s", path, ln, t);
+		ok:	;
 		} else if (s[0] == '\t') {
 			if (r == NULL)
 				errx (1, "%s:%d: syntax error", path, ln);

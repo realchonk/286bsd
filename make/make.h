@@ -31,6 +31,7 @@ struct directory {
 	struct scope *subdirs;
 	struct file *files;
 	struct macro *macros;
+	struct macro *emacros;	// exported macros
 };
 
 struct gnu {
@@ -51,7 +52,7 @@ struct rule {
 };
 
 struct macro {
-	struct macro *next;
+	struct macro *next, *enext;
 	char *name;
 	char *value;
 };

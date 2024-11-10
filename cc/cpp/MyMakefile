@@ -1,5 +1,4 @@
 CFLAGS = -g -O0 -ansi -Wno-deprecated-non-prototype -Wno-comment -DFLEXNAMES -DBSD2_86 -Di286=1 -Dunix
-OBJ = cpp.o cpy.o
 
 all: cpp
 
@@ -9,11 +8,8 @@ clean:
 test: cpp
 	./cpp -P < cpp.c | grep -v '^$$'
 
-cpp: ${OBJ}
-	${CC} -o $@ ${OBJ} ${CFLAGS}
-
-cpp.o: cpp.c
-	${CC} -c -o $@ cpp.c ${CFLAGS}
+cpp: cpp.o cpy.o
+	${CC} -o $@ $* ${CFLAGS}
 
 cpy.o: cpy.y yylex.c ../yacc/yacc
 	${YACC} cpy.y

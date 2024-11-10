@@ -9,6 +9,3 @@ run: all
 	./irc < test.ir > test.asm
 	nasm -fobj -o /dev/null test.asm
 	less test.asm
-
-irc: irc.c
-	${CC} -o $@ irc.c ${CFLAGS}

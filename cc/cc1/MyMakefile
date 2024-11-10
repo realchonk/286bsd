@@ -1,6 +1,5 @@
 YFLAGS = -d -v
 CFLAGS = -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
-OBJ = lex.o parse.o gen.o main.o
 
 all: cc1
 
@@ -13,20 +12,16 @@ run: cc1
 	nasm -fbin -o /dev/null test.asm
 	(echo '=== IR ==='; cat test.ir; echo '=== ASM ==='; cat test.asm) | less
 
-cc1: ${OBJ}
-	${CC} -o $@ ${OBJ} ${CFLAGS}
+cc1: lex.o parse.o gen.o main.o
+	${CC} -o $@ $* ${CFLAGS}
 
 parse.o y.tab.h: parse.y ../yacc/yacc
 	${YACC} ${YFLAGS} parse.y
 	${CC} -c -o parse.o y.tab.c ${CFLAGS}
 	rm -f y.tab.c
 
-lex.o: lex.c cc1.h y.tab.h
-	${CC} -c -o $@ lex.c ${CFLAGS}
+lex.o: cc1.h y.tab.h
+gen.o: cc1.h
+main.o: cc1.h y.tab.h
 
-gen.o: gen.c cc1.h
-	${CC} -c -o $@ gen.c ${CFLAGS}
-
-main.o: main.c cc1.h y.tab.h
-	${CC} -c -o $@ main.c ${CFLAGS}
 

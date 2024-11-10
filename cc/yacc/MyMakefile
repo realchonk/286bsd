@@ -6,7 +6,7 @@ SRC != echo y?.c
 all: yacc calc
 
 yacc: ${SRC}
-	${CC} -o $@ ${SRC} ${CFLAGS} ${CPPFLAGS}
+	${CC} -o $@ $* ${CFLAGS} ${CPPFLAGS}
 
 clean:
 	rm -f yacc *.o *.core y.tab.c calc.c

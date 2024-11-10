@@ -30,6 +30,7 @@ struct scope {
 struct directory {
 	struct scope *subdirs;
 	struct file *files;
+	struct macro *macros;
 };
 
 struct gnu {
@@ -47,6 +48,12 @@ struct file {
 struct rule {
 	struct path **deps;
 	char **code;
+};
+
+struct macro {
+	struct macro *next;
+	char *name;
+	char *value;
 };
 
 #endif // FILE_MAKE_H

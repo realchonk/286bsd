@@ -26,6 +26,26 @@ char *s;
 	return s;
 }
 
+char *
+rtrim (s)
+char *s;
+{
+	size_t i, len;
+
+	len = strlen (s);
+	for (i = len; i > 0 && isspace (s[i - 1]); --i)
+		s[i - 1] = '\0';
+
+	return s;
+}
+
+char *
+trim (s)
+char *s;
+{
+	return ltrim (rtrim (s));
+}
+
 starts_with (s, prefix)
 char *s, *prefix;
 {
@@ -54,14 +74,6 @@ char *dir, *name;
 
 	free (path);
 	return t;
-}
-
-// TODO: rtrim
-char *
-trim (s)
-char *s;
-{
-	return ltrim (s);
 }
 
 // STRING BUFFER
@@ -244,6 +256,71 @@ char *s;
 	return p;
 }
 
+// MACORS
+
+struct macro *
+find_macro (sc, name)
+struct scope *sc;
+char *name;
+{
+	struct macro *m;
+
+	for (m = sc->dir->macros; m != NULL; m = m->next) {
+		if (strcmp (m->name, name) == 0)
+			return m;
+	}
+
+	return NULL;
+}
+
+expand_into (sc, s)
+struct scope *sc;
+char *s;
+{
+	struct macro *m;
+	char *t;
+	int ch;
+
+	while (*s != '\0') {
+		if (*s != '$') {
+			str_push (*s++);
+			continue;
+		}
+		ch = *++s;
+		switch (ch) {
+		case '$':
+			str_push ('$');
+			break;
+		case '{':
+			// ${name}
+			++s;
+			t = strchr (s, '}');
+			if (t == NULL)
+				errx (1, "syntax error: invalid macro: %s", s - 2);
+			*t = '\0';
+			m = find_macro (sc, s);
+			if (m != NULL)
+				expand_into (sc, m->value);
+			*t = '}';
+			s = t + 1;
+			break;
+		default:
+			errx (1, "syntax error: invalid escape sequence: %s", s - 2);
+		}
+	}
+	return 0;
+}
+
+char *
+expand (sc, s)
+struct scope *sc;
+char *s;
+{
+	str_reset ();
+	expand_into (sc, s);
+	return str_copy ();
+}
+
 // PARSER
 
 char *
@@ -352,6 +429,7 @@ struct scope *sc;
 struct path *dir;
 char *path;
 {
+	struct macro *m;
 	struct rule *r = NULL;
 	struct file *f;
 	size_t len, cap;
@@ -386,7 +464,12 @@ char *path;
 			r->code[len++] = strdup (s + 1);
 			r->code[len] = NULL;
 		} else if ((t = strchr (s, '=')) != NULL) {
-			// TODO: macros
+			*t = '\0';
+			m = new (struct macro);
+			m->next = sc->dir->macros;
+			m->name = strdup (trim (s));
+			m->value = strdup (trim (t + 1));
+			sc->dir->macros = m;
 		} else if ((t = strchr (s, ':')) != NULL) {
 			r = new (struct rule);
 
@@ -487,23 +570,28 @@ char *path;
 
 // RUN COMMANDS
 
-runcom (prefix, cmd)
+runcom (sc, prefix, cmd)
+struct scope *sc;
 struct path *prefix;
 char *cmd;
 {
 	char *line;
 	int ec;
 
+	cmd = expand (sc, cmd);
 	printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
 
 	asprintf (&line, "cd '%s' && %s", path_to_str (prefix), cmd);
 	ec = system (line);
+
 	free (line);
+	free (cmd);
 
 	return ec;
 }
 
-rungnu (prefix, gnu, rule, q)
+rungnu (sc, prefix, gnu, rule, q)
+struct scope *sc;
 struct path *prefix;
 struct gnu *gnu;
 char *rule;
@@ -541,7 +629,7 @@ char *rule;
 		strcat (cmd, rule);
 	}
 
-	ec = runcom (prefix, cmd);
+	ec = runcom (sc, prefix, cmd);
 	free (cmd);
 	return ec;
 }
@@ -670,7 +758,7 @@ struct path *prefix;
 		}
 
 		for (; *s != NULL; ++s) {
-			if (runcom (prefix, *s) != 0)
+			if (runcom (sc, prefix, *s) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 
@@ -678,12 +766,12 @@ struct path *prefix;
 		goto ret;
 	case SC_GNU:
 		// first check if the target is already built
-		if (rungnu (prefix, sc->gnu, name, 1) == 0) {
+		if (rungnu (sc, prefix, sc->gnu, name, 1) == 0) {
 			t = 0;
 			goto ret;
 		}
 
-		if (rungnu (prefix, sc->gnu, name, 0) != 0)
+		if (rungnu (sc, prefix, sc->gnu, name, 0) != 0)
 			errx (1, "building foreign directory failed");
 
 		t = time (NULL);

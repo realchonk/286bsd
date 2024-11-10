@@ -5,5 +5,8 @@ all: make sys
 
 clean: make/clean sys/clean
 
+distclean: clean
+	rm -f mk
+
 .include make
 .include sys, GNU

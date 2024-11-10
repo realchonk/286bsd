@@ -1,3 +1,9 @@
-TOP_CFLAGS = -O0 -g
+TOP != pwd
+.export TOP
 
-.export TOP_CFLAGS
+all: make sys
+
+clean: make/clean sys/clean
+
+.include make
+.include sys, GNU

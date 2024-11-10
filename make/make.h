@@ -46,8 +46,13 @@ struct file {
 	struct timespec mtime;
 };
 
+struct dep {
+	struct dep *next;
+	struct path *path;
+};
+
 struct rule {
-	struct path **deps;
+	struct dep *deps;
 	char **code;
 };
 

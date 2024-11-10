@@ -593,26 +593,22 @@ char *s, *t;
 {
 	struct rule *r;
 	struct file *f;
-	size_t len, cap;
+	struct dep *dep;
 	char *u, *p;
 
 	r = new (struct rule);
+	r->deps = NULL;
 
 	*t = '\0';
 
 	// parse deps
-	len = 0;
-	cap = 1;
-	r->deps = calloc (cap + 1, sizeof (struct path *));
 	u = expand (sc, t + 1, NULL);
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
-		if (len == cap) {
-			cap *= 2;
-			r->deps = reallocarray (r->deps, cap + 1, sizeof (struct path *));
-		}
-		r->deps[len++] = parse_path (p);
+		dep = new (struct dep);
+		dep->next = r->deps;
+		dep->path = parse_path (p);
+		r->deps = dep;
 	}	
-	r->deps[len] = NULL;
 	free (u);
 
 	u = expand (sc, s, NULL);
@@ -898,9 +894,10 @@ struct path *prefix;
 	extern struct timespec build_dir ();
 	int needs_update;
 	struct scope *sub;
-	struct path **p, *new_prefix = NULL;
+	struct path *new_prefix = NULL;
 	struct file *f;
 	struct timespec t, maxt;
+	struct dep *dep;
 	char **s;
 
 #if MAKE_DEBUG
@@ -952,8 +949,8 @@ struct path *prefix;
 		needs_update = (f->mtime.tv_sec == 0);
 		maxt = f->mtime;
 
-		for (p = f->rule->deps; *p != NULL; ++p) {
-			t = build_dir (sc, *p, prefix);
+		for (dep = f->rule->deps; dep != NULL; dep = dep->next) {
+			t = build_dir (sc, dep->path, prefix);
 			if (tv_cmp (&t, &f->mtime) >= 0)
 				needs_update = 1;
 			if (tv_cmp (&t, &maxt) > 0)
@@ -1059,8 +1056,8 @@ print_sc (sc)
 struct scope *sc;
 {
 	struct scope *sub;
-	struct path **p;
 	struct macro *m;
+	struct dep *dep;
 	struct file *f;
 	struct rule *r;
 	char **s;
@@ -1079,8 +1076,8 @@ struct scope *sc;
 	
 		r = f->rule;
 		if (r != NULL) {
-			for (p = r->deps; *p != NULL; ++p)
-				printf (" %s", path_to_str (*p));
+			for (dep = r->deps; dep != NULL; dep = dep->next)
+				printf (" %s", path_to_str (dep->path));
 
 			printf ("\n");
 

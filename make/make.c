@@ -942,7 +942,7 @@ struct path *prefix;
 			t = build_dir (sc, *p, prefix);
 			if (tv_cmp (&t, &f->mtime) >= 0)
 				needs_update = 1;
-			if (tv_cmp (&t, &maxt) == 1)
+			if (tv_cmp (&t, &maxt) > 0)
 				maxt = t;
 		}
 

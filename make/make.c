@@ -217,120 +217,124 @@ struct path path_null[] = {
 	{ .type = PATH_NULL, .name = NULL },
 };
 
-static struct path bpath[128];
 static struct path tmppath = { .type = PATH_NAME, .name = NULL };
 
-print_path (p)
-struct path *p;
-{
-	printf (".");
-	for (;; ++p) {
-		switch (p->type) {
-		case PATH_NULL:
-			return 0;
-		case PATH_SUPER:
-			printf ("/..");
-			break;
-		case PATH_NAME:
-			printf ("/%s", p->name);
-			break;
-		}
-	}
-}
-
+// return the number of path components (excl. PATH_NULL).
 size_t
-bpath_len ()
+path_len (p)
+struct path *p;
 {
 	size_t i;
 
-	for (i = 0; bpath[i].type != PATH_NULL; ++i);
+	for (i = 0; p[i].type != PATH_NULL; ++i);
 
 	return i;
 }
 
-bpath_restore (len)
-size_t len;
+struct path *
+path_cpy (old, old_len, new_len)
+struct path *old;
+size_t old_len, new_len;
 {
-	bpath[len].type = PATH_NULL;
-	return 0;
+	struct path *p;
+
+	p = calloc (new_len + 1, sizeof (struct path));
+	memcpy (p, old, old_len * sizeof (struct path));
+	p[new_len].type = PATH_NULL;
+
+	return p;
 }
 
-bpath_append (p)
-struct path *p;
+struct path *
+path_cat (old, comp)
+struct path *old, *comp;
 {
-	size_t i;
+	struct path *p;
+	size_t len;
 
-	i = bpath_len ();
+	len = path_len (old);
 
-	switch (p->type) {
+	switch (comp->type) {
 	case PATH_NULL:
+		p = path_cpy (old, len, len);
 		break;
 	case PATH_SUPER:
-		if (i == 0 || bpath[i - 1].type == PATH_SUPER) {
-			bpath[i] = *p;
-			bpath[i + 1].type = PATH_NULL;
-		} else {
-			bpath[i - 1].type = PATH_NULL;
+		if (len > 0 && old[len - 1].type != PATH_SUPER) {
+			--len;
+			p = path_cpy (old, len, len);
+			break;
 		}
-		break;
+		// fallthrough
 	case PATH_NAME:
-		bpath[i] = *p;
-		bpath[i + 1].type = PATH_NULL;
+		p = path_cpy (old, len, len + 1);
+		p[len].type = PATH_NAME;
+		p[len].name = comp->name;
 		break;
 	}
-	return 0;
+
+	return p;
 }
 
 char *
-bpath_to_str ()
+path_to_str (p)
+struct path *p;
 {
+	static char *buf = NULL;
+	static size_t buf_len = 0;
 	size_t i, j, len = 2;
-	char *s;
 
-	for (i = 0; bpath[i].type != PATH_NULL; ++i) {
-		switch (bpath[i].type) {
+	for (i = 0; p[i].type != PATH_NULL; ++i) {
+		switch (p[i].type) {
 		case PATH_NULL:
 			abort ();
 		case PATH_SUPER:
 			len += 3;
 			break;
 		case PATH_NAME:
-			len += strlen (bpath[i].name) + 1;
+			len += strlen (p[i].name) + 1;
 			break;
 		}
 	}
 
-	s = malloc (len);
+	if (len > buf_len) {
+		buf_len = len;
+		buf = realloc (buf, buf_len);
+	}
+
 	j = 1;
-	s[0] = '.';
-	s[1] = '\0';
-	for (i = 0; bpath[i].type != PATH_NULL; ++i) {
-		switch (bpath[i].type) {
+	buf[0] = '.';
+	buf[1] = '\0';
+
+	for (i = 0; p[i].type != PATH_NULL; ++i) {
+		switch (p[i].type) {
 		case PATH_NULL:
 			abort ();
 		case PATH_SUPER:
-			j += snprintf (s + j, len - j, "/..");
+			j += snprintf (buf + j, len - j, "/..");
 			break;
 		case PATH_NAME:
-			j += snprintf (s + j, len - j, "/%s", bpath[i].name);
+			j += snprintf (buf + j, len - j, "/%s", p[i].name);
 			break;
 		}
 	}
-	return s;
+
+	return buf;
 }
 
 // RUN COMMANDS
 
-runcom (dir, cmd)
-char *dir, *cmd;
+runcom (prefix, cmd)
+struct path *prefix;
+char *cmd;
 {
-	printf ("[%s] $ %s\n", dir, cmd);
+	printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
 	return 0;
 }
 
-rungnu (dir, gnu, rule, q)
+rungnu (prefix, gnu, rule, q)
+struct path *prefix;
 struct gnu *gnu;
-char *dir, *rule;
+char *rule;
 {
 	size_t len = 0;
 	char *cmd, *prog;
@@ -365,7 +369,7 @@ char *dir, *rule;
 		strcat (cmd, rule);
 	}
 
-	ec = runcom (dir, cmd);
+	ec = runcom (prefix, cmd);
 	free (cmd);
 	return ec;
 }
@@ -388,22 +392,20 @@ char *name;
 }
 
 time_t
-build_file (sc, name)
+build_file (sc, name, prefix)
 struct scope *sc;
 char *name;
+struct path *prefix;
 {
-	extern time_t build ();
+	extern time_t build_dir ();
 	int needs_update;
 	struct scope *sub;
-	struct path **p;
+	struct path **p, *new_prefix = NULL;
 	struct file *f;
-	size_t len;
 	time_t t, mt;
-	char **s, *dir;
+	char **s;
 
-	dir = bpath_to_str ();
-
-	printf ("dir %s", dir);
+	printf ("dir %s", path_to_str (prefix));
 	if (name)
 		printf (" (%s)", name);
 	printf (" ...\n");
@@ -419,8 +421,8 @@ char *name;
 				for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
 					if (strcmp (sub->name, name) == 0) {
 						tmppath.name = name;
-						bpath_append (&tmppath);
-						t = build_file (sub, NULL);
+						new_prefix = path_cat (prefix, &tmppath);
+						t = build_file (sub, NULL, new_prefix);
 						goto ret;
 					}
 				}
@@ -442,16 +444,14 @@ char *name;
 		}
 
 		needs_update = (f->mtime == 0);
-		len = bpath_len ();
 		mt = f->mtime;
 
 		for (p = f->rule->deps; *p != NULL; ++p) {
-			t = build (sc, *p);
+			t = build_dir (sc, *p, prefix);
 			if (t >= f->mtime)
 				needs_update = 1;
 			if (t >= mt)
 				mt = t;
-			bpath_restore (len);
 		}
 
 		if (!needs_update) {
@@ -469,24 +469,70 @@ char *name;
 
 		// TODO: check exit code
 		for (; *s != NULL; ++s)
-			runcom (dir, *s);
+			runcom (prefix, *s);
 
 		t = f->mtime = time (NULL);
 		goto ret;
 	case SC_GNU:
-		if (rungnu (dir, sc->gnu, name, 1) == 0) {
+		if (rungnu (prefix, sc->gnu, name, 1) == 0) {
 			t = 0;
 			goto ret;
 		}
 
 		// TODO: check exit code
-		rungnu (dir, sc->gnu, name, 0);
+		rungnu (prefix, sc->gnu, name, 0);
 		t = time (NULL);
 		goto ret;
 	}
 	
 ret:
-	free (dir);
+	if (new_prefix != NULL)
+		free (new_prefix);
+	return t;
+}
+
+time_t
+build_dir (sc, path, prefix)
+struct scope *sc;
+struct path *path, *prefix;
+{
+	struct path *new_prefix = NULL;
+	struct scope *sub;
+	time_t t;
+
+	switch (path[0].type) {
+	case PATH_SUPER:
+		new_prefix = path_cat (prefix, &path[0]);
+		t = build_dir (sc->parent, path + 1, new_prefix);
+		goto ret;
+	case PATH_NULL:
+		return build_file (sc, NULL, prefix);
+	case PATH_NAME:
+		if (path[1].type == PATH_NULL) {
+			return build_file (sc, path[0].name, prefix);
+		} else {
+			if (sc->type != SC_DIR)
+				errx (1, "invalid path");
+
+			if (sc->dir == NULL)
+				errx (1, "TODO: read subdir: %s", sc->name);
+
+			new_prefix = path_cat (prefix, &path[0]);
+
+			for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+				if (strcmp (sub->name, path[0].name) == 0) {
+					t = build_dir (sub, path + 1, new_prefix);
+					goto ret;
+				}
+			}
+			
+			errx (1, "invalid subdir: %s", path[0].name);
+		}
+	}
+
+ret:
+	if (new_prefix)
+		free (new_prefix);
 	return t;
 }
 
@@ -495,35 +541,7 @@ build (sc, path)
 struct scope *sc;
 struct path *path;
 {
-	struct scope *sub;
-
-
-	switch (path[0].type) {
-	case PATH_SUPER:
-		bpath_append (&path[0]);
-		return build (sc->parent, path + 1);
-	case PATH_NULL:
-		return build_file (sc, NULL);
-	case PATH_NAME:
-		if (path[1].type == PATH_NULL) {
-			return build_file (sc, path[0].name);
-		} else {
-			if (sc->type != SC_DIR)
-				errx (1, "invalid path");
-
-			if (sc->dir == NULL)
-				errx (1, "TODO: read subdir: %s", sc->name);
-
-			bpath_append (&path[0]);
-
-			for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-				if (strcmp (sub->name, path[0].name) == 0)
-					return build (sub, path + 1);
-			}
-			
-			errx (1, "invalid subdir: %s", path[0].name);
-		}
-	}
+	return build_dir (sc, path, path_null);
 }
 
 // MAIN
@@ -538,8 +556,6 @@ main ()
 		//{ .type = PATH_NAME, .name = "cc1" },
 		{ .type = PATH_NULL, .name = NULL },
 	};
-
-	bpath[0].type = PATH_NULL;
 
 	build (&sc_top, path);
 	return 0;

@@ -238,13 +238,11 @@ struct path *old, *comp;
 	return p;
 }
 
-char *
-path_to_str (p)
+path_write (p)
 struct path *p;
 {
 	size_t i;
 
-	str_reset ();
 	str_push ('.');
 
 	for (i = 0; p[i].type != PATH_NULL; ++i) {
@@ -261,6 +259,15 @@ struct path *p;
 		}
 	}
 
+	return 0;
+}
+
+char *
+path_to_str (p)
+struct path *p;
+{
+	str_reset ();
+	path_write (p);
 	return str_get ();
 }
 
@@ -354,12 +361,14 @@ char *name;
 	return NULL;
 }
 
-expand_into (sc, s, target)
+expand_into (sc, s, target, deps)
 struct scope *sc;
 char *s, *target;
+struct dep *deps;
 {
 	extern expand_macro ();
 	struct macro *m;
+	struct dep *dep;
 	char *t;
 	int ch;
 
@@ -378,6 +387,25 @@ char *s, *target;
 			if (target == NULL)
 				errx (1, "cannot use $@ here");
 			str_push_str (target);
+			++s;
+			break;
+		case '<':
+			if (deps == NULL)
+				errx (1, "cannot use $< here");
+
+			for (dep = deps; dep->next != NULL; dep = dep->next);
+
+			path_write (dep->path);
+			++s;
+			break;
+		case '*':
+			// TODO: reverse the order
+			if (deps == NULL)
+				errx (1, "cannot use $< here");
+			for (dep = deps; dep != NULL; dep = dep->next) {
+				str_push (' ');
+				path_write (dep->path);
+			}
 			++s;
 			break;
 		case '{':
@@ -405,7 +433,7 @@ struct scope *sc;
 struct macro *m;
 {
 	if (m->lazy) {
-		expand_into (sc, m->value, NULL);
+		expand_into (sc, m->value, NULL, NULL);
 	} else {
 		str_push_str (m->value);
 	}
@@ -413,12 +441,13 @@ struct macro *m;
 }
 
 char *
-expand (sc, s, target)
+expand (sc, s, target, deps)
 struct scope *sc;
 char *s, *target;
+struct dep *deps;
 {
 	str_reset ();
-	expand_into (sc, s, target);
+	expand_into (sc, s, target, deps);
 	return str_copy ();
 }
 
@@ -431,7 +460,7 @@ char *cmd;
 	char *args[] = {
 		m_shell.value,
 		"-c",
-		expand (sc, cmd, NULL),
+		expand (sc, cmd, NULL, NULL),
 		NULL,
 	};
 	ssize_t i, n;
@@ -619,7 +648,7 @@ char *s, *t;
 	*t = '\0';
 
 	// parse deps
-	u = expand (sc, t + 1, NULL);
+	u = expand (sc, t + 1, NULL, NULL);
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		dep = new (struct dep);
 		dep->next = deps;
@@ -629,7 +658,7 @@ char *s, *t;
 	free (u);
 
 	// parse targets
-	u = expand (sc, s, NULL);
+	u = expand (sc, s, NULL, NULL);
 	flag = 1;
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		// TODO: check name
@@ -811,9 +840,10 @@ char *path;
 
 // RUN COMMANDS
 
-runcom (sc, prefix, cmd, target)
+runcom (sc, prefix, cmd, target, deps)
 struct scope *sc;
 struct path *prefix;
+struct dep *deps;
 char *cmd, *target;
 {
 	char *line;
@@ -824,7 +854,7 @@ char *cmd, *target;
 		++cmd;
 	}
 
-	cmd = expand (sc, cmd, target);
+	cmd = expand (sc, cmd, target, deps);
 	
 	if (!q)
 		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
@@ -877,7 +907,7 @@ char *rule;
 		strcat (cmd, rule);
 	}
 
-	ec = runcom (sc, prefix, cmd, NULL);
+	ec = runcom (sc, prefix, cmd, NULL, NULL);
 	free (cmd);
 	return ec;
 }
@@ -994,7 +1024,7 @@ struct path *prefix;
 		}
 
 		for (; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, f->name) != 0)
+			if (runcom (sc, prefix, *s, f->name, f->deps) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 

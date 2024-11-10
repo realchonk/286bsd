@@ -340,20 +340,23 @@ char *dir, *cmd;
 	return 0;
 }
 
-rungnu (dir, prog, file, rule)
-char *dir, *prog, *file, *rule;
+rungnu (dir, gnu, rule, q)
+struct gnu *gnu;
+char *dir, *rule;
 {
 	size_t len = 0;
-	char *cmd;
+	char *cmd, *prog;
 	int ec;
 
-	if (prog == NULL)
-		prog = "make";
+	prog = gnu->prog != NULL ? gnu->prog : "make";
 
 	len += strlen (prog);
 
-	if (file != NULL)
-		len += strlen (file) + 4;
+	if (q)
+		len += 3;
+
+	if (gnu->file != NULL)
+		len += strlen (gnu->file) + 4;
 
 	if (rule != NULL)
 		len += strlen (rule) + 1;
@@ -361,9 +364,12 @@ char *dir, *prog, *file, *rule;
 	cmd = malloc (len + 1);
 	strcpy (cmd, prog);
 
-	if (file != NULL) {
+	if (q)
+		strcat (cmd, " -q");
+
+	if (gnu->file != NULL) {
 		strcat (cmd, " -f ");
-		strcat (cmd, file);
+		strcat (cmd, gnu->file);
 	}
 
 	if (rule != NULL) {
@@ -430,7 +436,6 @@ char *name;
 		}
 
 		needs_update = (f->mtime == 0);
-
 		len = bpath_len ();
 
 		for (p = f->rule->deps; *p != NULL; ++p) {
@@ -450,7 +455,13 @@ char *name;
 		t = f->mtime = time (NULL);
 		goto ret;
 	case SC_GNU:
-		rungnu (dir, sc->gnu->prog, sc->gnu->file, name);
+		if (rungnu (dir, sc->gnu, name, 1) == 0) {
+			t = 0;
+			goto ret;
+		}
+
+		// TODO: check exit code
+		rungnu (dir, sc->gnu, name, 0);
 		t = time (NULL);
 		goto ret;
 	}

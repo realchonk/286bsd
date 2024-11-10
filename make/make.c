@@ -731,10 +731,17 @@ struct path *prefix;
 char *cmd;
 {
 	char *line;
-	int ec;
+	int ec, q = 0;
+
+	if (*cmd == '@') {
+		q = 1;
+		++cmd;
+	}
 
 	cmd = expand (sc, cmd);
-	printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
+	
+	if (!q)
+		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
 
 	asprintf (&line, "cd '%s' && %s", path_to_str (prefix), cmd);
 	ec = system (line);

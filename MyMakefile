@@ -21,4 +21,4 @@ distclean: clean
 
 .include make
 .include cc
-.include sys, GNU
+.include sys

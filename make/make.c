@@ -1003,7 +1003,7 @@ char *dir, *name;
 	}
 
 	free (base);
-	return inf;
+	return inf != NULL || sc->parent == NULL ? inf : find_inf (sc->parent, dir, name);
 }
 
 struct file *

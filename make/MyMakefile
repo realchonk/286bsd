@@ -11,5 +11,3 @@ clean:
 run: make
 	./make
 
-.c:
-	${CC} -o $@ $< ${CFLAGS}

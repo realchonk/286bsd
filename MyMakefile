@@ -13,6 +13,9 @@ clean: make/clean sys/clean cc/clean
 distclean: clean
 	rm -f mk
 
+.c:
+	${CC} -o $@ $< ${CFLAGS}
+
 .include make
 .include cc
 .include sys, GNU

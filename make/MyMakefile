@@ -9,3 +9,5 @@ clean:
 run: make
 	./make
 
+make: make.h
+

@@ -610,8 +610,10 @@ char *s, *t;
 	struct file *f;
 	struct dep *dep, *deps;
 	char *u, *p;
+	int flag;
 
 	r = new (struct rule);
+	r->code = NULL;
 	deps = NULL;
 
 	*t = '\0';
@@ -628,18 +630,35 @@ char *s, *t;
 
 	// parse targets
 	u = expand (sc, s, NULL);
+	flag = 1;
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
-		// TODO: check name, handle duplicates
-		f = new (struct file);
-		f->next = sc->dir->files;
-		f->name = strdup (p);
-		f->rule = r;
-		f->deps = deps;
-		f->mtime = get_mtime (path_to_str (dir), f->name);
-		sc->dir->files = f;
+		// TODO: check name
+
+		f = find_file (sc->dir, p);
+		if (f == NULL) {
+			f = new (struct file);
+			f->next = sc->dir->files;
+			f->name = strdup (p);
+			f->rule = r;
+			f->deps = deps;
+			f->mtime = get_mtime (path_to_str (dir), f->name);
+			sc->dir->files = f;
+			continue;
+		}
+
+		flag = 0;
+
+		if (f->deps == NULL) {
+			f->deps = deps;
+			continue;
+		}
+
+		for (dep = f->deps; dep->next != NULL; dep = dep->next);
+		dep->next = deps;
+
 	}
 	free (u);
-	return r;
+	return flag ? r : NULL;
 }
 
 parse (sc, dir, path) 
@@ -717,6 +736,8 @@ char *path;
 			sc->dir->macros = m;
 		} else if ((t = strchr (s, ':')) != NULL) {
 			r = parse_rule (sc, dir, s, t);
+			if (r == NULL)
+				continue;
 
 			len = 0;
 			cap = 1;

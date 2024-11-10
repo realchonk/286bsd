@@ -1,2 +1,11 @@
-all:
-	echo LIBX
+all: libx.so
+
+libx.so: libx.o
+	cc -shared -o libx.so libx.o
+
+libx.o: libx.c ../libx.h
+	cc -c -o libx.o libx.c
+
+libx.c:
+	echo CODE > libx.c
+

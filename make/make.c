@@ -14,6 +14,8 @@
 #define new(T) ((T *)calloc (1, sizeof (T)))
 #define MAKEFILE "MyMakefile"
 
+#define MAKE_DEBUG 1
+
 // STRING BUFFER
 
 static char *strbuf = NULL;
@@ -410,6 +412,19 @@ char *path;
 	return 0;
 }
 
+parse_dir (sc, dir)
+struct scope *sc;
+struct path *dir;
+{
+	char *path;
+
+	asprintf (&path, "%s/" MAKEFILE, path_to_str (dir));
+	parse (sc, dir, path);
+	free (path);
+
+	return 0;
+}
+
 struct scope *
 parse_recursive (path)
 char *path;
@@ -563,35 +578,33 @@ struct path *prefix;
 	time_t t, maxt;
 	char **s;
 
+#if MAKE_DEBUG
 	printf ("dir %s", path_to_str (prefix));
 	if (name)
 		printf (" (%s)", name);
 	printf (" ...\n");
+#endif
 
 	switch (sc->type) {
 	case SC_DIR:
 		if (sc->dir == NULL)
-			errx (1, "TODO: read subdir: %s", sc->name);
+			parse_dir (sc, prefix);
 
 		if (name != NULL) {
 			f = find_file (sc->dir, name);
 			if (f == NULL) {
 				for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
 					if (strcmp (sub->name, name) == 0) {
-						goto build;
+						tmppath.name = name;
+						new_prefix = path_cat (prefix, &tmppath);
+						t = build_file (sub, NULL, new_prefix);
+						goto ret;
 					}
 				}
 				// TODO: templates
 				f = try_find (sc, path_to_str (prefix), name);
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
-
-				sub = sc;
-			build:
-				tmppath.name = name;
-				new_prefix = path_cat (prefix, &tmppath);
-				t = build_file (sub, NULL, new_prefix);
-				goto ret;
 			}
 		} else {
 			f = sc->dir->files;
@@ -682,7 +695,7 @@ struct path *path, *prefix;
 				errx (1, "%s: invalid path", path_to_str (prefix));
 
 			if (sc->dir == NULL)
-				errx (1, "TODO: read subdir: %s", sc->name);
+				parse_dir (sc, prefix);
 
 			new_prefix = path_cat (prefix, &path[0]);
 
@@ -763,7 +776,10 @@ main ()
 	struct path *path = parse_path ("all");
 
 	sc = parse_recursive (".");
+
+#if MAKE_DEBUG
 	print_sc (sc);
+#endif
 
 	build (sc, path);
 

@@ -476,8 +476,16 @@ runcom (prefix, cmd)
 struct path *prefix;
 char *cmd;
 {
+	char *line;
+	int ec;
+
 	printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
-	return 0;
+
+	asprintf (&line, "cd '%s' && %s", path_to_str (prefix), cmd);
+	ec = system (line);
+	free (line);
+
+	return ec;
 }
 
 rungnu (prefix, gnu, rule, q)
@@ -646,9 +654,10 @@ struct path *prefix;
 			goto ret;
 		}
 
-		// TODO: check exit code
-		for (; *s != NULL; ++s)
-			runcom (prefix, *s);
+		for (; *s != NULL; ++s) {
+			if (runcom (prefix, *s) != 0)
+				errx (1, "command failed: %s", *s);
+		}
 
 		t = f->mtime = time (NULL);
 		goto ret;
@@ -659,8 +668,9 @@ struct path *prefix;
 			goto ret;
 		}
 
-		// TODO: check exit code
-		rungnu (prefix, sc->gnu, name, 0);
+		if (rungnu (prefix, sc->gnu, name, 0) != 0)
+			errx (1, "building foreign directory failed");
+
 		t = time (NULL);
 		goto ret;
 	}

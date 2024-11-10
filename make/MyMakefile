@@ -7,10 +7,7 @@ clean:
 run: make
 	./make
 
-make: make.c make.h libx
+make: make.c make.h
 	cc -o make make.c -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
-
-libx.h:
-	echo HEADER > libx.h
 
 .include libx

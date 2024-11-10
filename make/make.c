@@ -1011,6 +1011,60 @@ struct path *path;
 
 // MAIN
 
+print_sc (sc)
+struct scope *sc;
+{
+	struct scope *sub;
+	struct path **p;
+	struct macro *m;
+	struct file *f;
+	struct rule *r;
+	char **s;
+
+	if (sc->type != SC_DIR || sc->dir == NULL)
+		errx (1, "print_sc(): must be of type SC_DIR");
+
+	for (m = sc->dir->macros; m != NULL; m = m->next) {
+		printf ("%s = %s\n", m->name, m->value);
+	}
+
+	printf ("\n");
+
+	for (f = sc->dir->files; f != NULL; f = f->next) {
+		printf ("%s:", f->name);
+	
+		r = f->rule;
+		if (r != NULL) {
+			for (p = r->deps; *p != NULL; ++p)
+				printf (" %s", path_to_str (*p));
+
+			printf ("\n");
+
+			for (s = r->code; *s != NULL; ++s)
+				printf ("\t%s\n", *s);
+		}
+		printf ("\n");
+	}
+	
+	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+		switch (sub->type) {
+		case SC_DIR:
+			printf (".include %s, DIR\n", sub->name);
+			break;
+		case SC_GNU:
+			printf (".include %s, GNU", sub->name);
+			if (sub->gnu->prog)
+				printf (", %s", sub->gnu->prog);
+			if (sub->gnu->file)
+				printf (", %s", sub->gnu->file);
+			printf ("\n");
+			break;
+		}
+	}
+
+	return 0;
+}
+
 usage ()
 {
 	fprintf (stderr, "usage: %s [target...]\n", m_make.value);
@@ -1022,12 +1076,15 @@ char **argv;
 {
 	struct scope *sc;
 	struct path *path;
-	int i, option;
+	int i, option, pr = 0;
 
 	m_make.value = argv[0];
 
-	while ((option = getopt (argc, argv, "")) != -1) {
+	while ((option = getopt (argc, argv, "p")) != -1) {
 		switch (option) {
+		case 'p':
+			pr = 1;
+			break;
 		case '?':
 			return usage ();
 		default:
@@ -1039,6 +1096,11 @@ char **argv;
 	argc -= optind;
 
 	sc = parse_recursive (".");
+
+	if (pr) {
+		print_sc (sc);
+		return 0;
+	}
 	
 	if (argc == 0) {
 		build (sc, &path_null);

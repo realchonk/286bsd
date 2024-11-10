@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <limits.h>
 #include <libgen.h>
 #include <string.h>
@@ -11,6 +12,7 @@
 #include "make.h"
 
 #define new(T) ((T *)calloc (1, sizeof (T)))
+#define MAKEFILE "MyMakefile"
 
 // STRING BUFFER
 
@@ -62,6 +64,7 @@ str_copy ()
 // PATH LOGIC
 
 static struct path path_null = { .type = PATH_NULL, .name = NULL };
+static struct path path_super = { .type = PATH_SUPER, .name = NULL };
 static struct path tmppath = { .type = PATH_NAME, .name = NULL };
 
 // return the number of path components (excl. PATH_NULL).
@@ -112,8 +115,7 @@ struct path *old, *comp;
 		// fallthrough
 	case PATH_NAME:
 		p = path_cpy (old, len, len + 1);
-		p[len].type = PATH_NAME;
-		p[len].name = comp->name;
+		p[len] = *comp;
 		break;
 	}
 
@@ -146,6 +148,20 @@ struct path *p;
 	return str_get ();
 }
 
+char *
+path_basename (p)
+struct path *p;
+{
+	char *s, *t;
+
+	s = path_to_str (p);
+	s = realpath (s, NULL);
+	t = basename (s);
+	free (s);
+
+	return t;
+}
+
 struct path *
 parse_path (s)
 char *s;
@@ -173,11 +189,26 @@ char *s;
 		}
 		++len;
 	}
+	p[len].type = PATH_NULL;
 
 	return p;
 }
 
 // PARSER
+
+starts_with (s, prefix)
+char *s, *prefix;
+{
+	size_t len_s, len_p;
+
+	len_s = strlen (s);
+	len_p = strlen (prefix);
+
+	if (len_s < len_p)
+		return 0;
+
+	return memcmp (s, prefix, len_p);
+}
 
 time_t
 get_mtime (dir, name)
@@ -242,19 +273,21 @@ char *s;
 	return s;
 }
 
-parse (sc, file, path) 
+parse (sc, dir, path) 
 struct scope *sc;
-FILE *file;
+struct path *dir;
 char *path;
 {
 	struct rule *r = NULL;
 	struct file *f;
 	size_t len, cap;
 	char *s, *t, *p;
-	char *dpath;
+	FILE *file;
 	int ln = 0;
 
-	dpath = dirname (path);
+	file = fopen (path, "r");
+	if (file == NULL)
+		err (1, "open(\"%s\")", path);
 
 	if (sc->dir == NULL) {
 		sc->dir = new (struct directory);
@@ -280,6 +313,8 @@ char *path;
 		} else if ((t = strchr (s, ':')) != NULL) {
 			r = new (struct rule);
 
+			*t = '\0';
+
 			// parse deps
 			len = 0;
 			cap = 1;
@@ -293,14 +328,13 @@ char *path;
 			}	
 			r->deps[len] = NULL;
 
-			*t = '\0';
 			for (p = strtok (s, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 				// TODO: check name, handle duplicates
 				f = new (struct file);
 				f->next = sc->dir->files;
 				f->name = strdup (p);
 				f->rule = r;
-				f->mtime = get_mtime (dpath, f->name);
+				f->mtime = get_mtime (path_to_str (dir), f->name);
 				sc->dir->files = f;
 			}
 
@@ -314,6 +348,51 @@ char *path;
 	}
 
 	return 0;
+}
+
+struct scope *
+parse_recursive (path)
+char *path;
+{
+	struct scope *sc, *entry, *parent;
+	struct path *dir;
+
+	//dir = parse_path (realpath (path, NULL));
+	dir = parse_path (path);
+
+	sc = new (struct scope);
+	sc->next = NULL;
+	sc->type = SC_DIR;
+	sc->name = strdup (path_basename (dir));
+	sc->parent = NULL;
+	entry = sc;
+
+	asprintf (&path, "%s/" MAKEFILE, path_to_str (dir));
+	parse (sc, dir, path);
+	free (path);
+
+	while (1) {
+		dir = path_cat (dir, &path_super);
+		asprintf (&path, "%s/" MAKEFILE, path_to_str (dir));
+		if (access (path, F_OK) == -1)
+			break;
+
+		parent = new (struct scope);
+		parent->next = NULL;
+		parent->type = SC_DIR;
+		parent->name = strdup (path_basename (dir));
+		parent->parent = NULL;
+		parent->dir = new (struct directory);
+		parent->dir->subdirs = sc;
+		parent->dir->files = NULL;
+		sc->parent = parent;
+		sc = parent;
+
+		parse (sc, dir, path);
+		free (path);
+	}
+
+	return entry;
 }
 
 // RUN COMMANDS
@@ -614,24 +693,18 @@ struct scope *sc;
 		printf ("file: %s\n", sc->gnu->file);
 		break;
 	}
+	return 0;
 }
 
 main ()
 {
-	struct scope sc;
-	FILE *file;
-	char *path;
+	struct scope *sc;
+	struct path *path = parse_path ("all");
 
-	path = "Makefile";
-	file = fopen (path, "r");
-	if (file == NULL)
-		err (1, "open()");
+	sc = parse_recursive (".");
 
-	memset (&sc, 0, sizeof (sc));
-	parse (&sc, file, path);
-	print_sc (&sc);
+	build (sc, path);
 
-	build (&sc, &path_null);
 	return 0;
 }
 

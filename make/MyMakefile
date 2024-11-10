@@ -10,4 +10,3 @@ run: make
 make: make.c make.h
 	cc -o make make.c -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 
-.include libx

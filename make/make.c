@@ -393,13 +393,10 @@ struct dep *deps;
 			if (deps == NULL)
 				errx (1, "cannot use $< here");
 
-			for (dep = deps; dep->next != NULL; dep = dep->next);
-
-			path_write (dep->path);
+			path_write (deps->path);
 			++s;
 			break;
 		case '*':
-			// TODO: reverse the order
 			if (deps == NULL)
 				errx (1, "cannot use $< here");
 			for (dep = deps; dep != NULL; dep = dep->next) {
@@ -638,13 +635,13 @@ char *s, *t;
 	struct inference *inf;
 	struct rule *r;
 	struct file *f;
-	struct dep *dep, *deps;
+	struct dep *dep, *deps, *dt;
 	char *u, *p;
 	int flag;
 
 	r = new (struct rule);
 	r->code = NULL;
-	deps = NULL;
+	dt = deps = NULL;
 
 	*t = '\0';
 
@@ -652,9 +649,15 @@ char *s, *t;
 	u = expand (sc, t + 1, NULL, NULL);
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		dep = new (struct dep);
-		dep->next = deps;
+		dep->next = NULL;
 		dep->path = parse_path (p);
-		deps = dep;
+
+		if (dt != NULL) {
+			dt->next = dep;
+			dt = dep;
+		} else {
+			dt = deps = dep;
+		}
 	}	
 	free (u);
 
@@ -667,6 +670,7 @@ char *s, *t;
 		inf->next = sc->dir->infs;
 		inf->rule = r;
 		inf->deps = deps;
+		inf->dtail = dt;
 
 		if (p != NULL) {
 			*p = '\0';
@@ -690,6 +694,7 @@ char *s, *t;
 				f->name = strdup (p);
 				f->rule = r;
 				f->deps = deps;
+				f->dtail = dt;
 				f->mtime = get_mtime (path_to_str (dir), f->name);
 				sc->dir->files = f;
 				continue;
@@ -699,12 +704,13 @@ char *s, *t;
 
 			if (f->deps == NULL) {
 				f->deps = deps;
+				f->dtail = dt;
 				continue;
 			}
 
 			for (dep = f->deps; dep->next != NULL; dep = dep->next);
 			dep->next = deps;
-
+			f->dtail = dt;
 		}
 	}
 	free (u);
@@ -966,9 +972,39 @@ char *name;
 	dep->path[0].name = s;
 	dep->path[1].type = PATH_NULL;
 	f->deps = dep;
+	f->dtail = inf->dtail;
 	sc->dir->files = f;
 
 	return f;
+}
+
+inf_inst_file (f, inf)
+struct file *f;
+struct inference *inf;
+{
+	struct dep *dep;
+	char *s, *ext;
+
+	ext = strrchr (f->name, '.');
+	if (ext != NULL)
+		*ext = '\0';
+	asprintf (&s, "%s%s", f->name, inf->from);
+	if (ext != NULL)
+		*ext = '.';
+
+	dep = new (struct dep);
+	dep->next = f->deps;
+	dep->path = calloc (2, sizeof (struct path));
+	dep->path[0].type = PATH_NAME;
+	dep->path[0].name = s;
+	dep->path[1].type = PATH_NULL;
+	f->deps = dep;
+	if (f->dtail == NULL)
+		f->dtail = dep;
+
+	f->dtail->next = inf->deps;
+	f->rule = inf->rule;
+	return 0;
 }
 
 struct inference *
@@ -1047,6 +1083,7 @@ struct path *prefix;
 	struct path *new_prefix = NULL;
 	struct file *f;
 	struct timespec t, maxt;
+	struct inference *inf;
 	struct dep *dep;
 	char **s;
 
@@ -1087,12 +1124,17 @@ struct path *prefix;
 			for (; f->next != NULL; f = f->next);
 		}
 
-		if (f->rule == NULL) {
-			if (f->mtime.tv_sec > 0) {
-				t = f->mtime;
-				goto ret;
-			} else {
-				errx (1, "%s: no rule to build: %s", path_to_str (prefix), name);
+		if (f->rule == NULL || *f->rule->code == NULL) {
+			inf = name != NULL ? find_inf (sc, path_to_str (prefix), name) : NULL;
+			if (inf != NULL) {
+				inf_inst_file (f, inf);
+			} else if (f->rule == NULL) {
+				if (f->mtime.tv_sec > 0) {
+					t = f->mtime;
+					goto ret;
+				} else {
+					errx (1, "%s: no rule to build: %s", path_to_str (prefix), name);
+				}
 			}
 		}
 

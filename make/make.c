@@ -17,8 +17,6 @@
 #define MAKEFILE "MyMakefile"
 #define SHELL "sh"
 
-// #define MAKE_DEBUG 1
-
 static struct macro m_shell = {
 	.next = NULL,
 	.enext = NULL,
@@ -34,6 +32,7 @@ static struct macro m_shell = {
 };
 
 static struct macro *globals = &m_make;
+static int verbose = 0;
 
 // MISC
 
@@ -1087,12 +1086,12 @@ struct path *prefix;
 	struct dep *dep;
 	char **s;
 
-#if MAKE_DEBUG
-	printf ("dir %s", path_to_str (prefix));
-	if (name)
-		printf (" (%s)", name);
-	printf (" ...\n");
-#endif
+	if (verbose) {
+		printf ("dir %s", path_to_str (prefix));
+		if (name)
+			printf (" (%s)", name);
+		printf (" ...\n");
+	}
 
 	switch (sc->type) {
 	case SC_DIR:
@@ -1310,7 +1309,7 @@ struct scope *sc;
 
 usage ()
 {
-	fprintf (stderr, "usage: %s [-p] [target...]\n", m_make.value);
+	fprintf (stderr, "usage: %s [-pv] [target...]\n", m_make.value);
 	return 1;
 }
 
@@ -1323,10 +1322,13 @@ char **argv;
 
 	m_make.value = argv[0];
 
-	while ((option = getopt (argc, argv, "p")) != -1) {
+	while ((option = getopt (argc, argv, "pv")) != -1) {
 		switch (option) {
 		case 'p':
 			pr = 1;
+			break;
+		case 'v':
+			verbose = 1;
 			break;
 		case '?':
 			return usage ();

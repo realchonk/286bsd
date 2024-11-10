@@ -1,9 +1,6 @@
 TOP != pwd
 CC = cc
 YACC = ${TOP}/cc/yacc/yacc
-.export CC
-.export TOP
-.export YACC
 
 all: make sys cc
 
@@ -14,11 +11,14 @@ distclean: clean
 	rm -f mk
 
 .c:
-	${CC} -o $@ $< ${CFLAGS}
+	${CC} -o $@ $< ${CFLAGS} ${CPPFLAGS}
 
 .c.o:
-	${CC} -c -o $@ $< ${CFLAGS}
+	${CC} -c -o $@ $< ${CFLAGS} ${CPPFLAGS}
 
+.export CC
+.export TOP
+.export YACC
 .include make
 .include cc
 .include sys

@@ -16,6 +16,54 @@
 
 #define MAKE_DEBUG 1
 
+// MISC
+
+char *
+ltrim (s)
+char *s;
+{
+	for (; isspace (*s); ++s);
+	return s;
+}
+
+starts_with (s, prefix)
+char *s, *prefix;
+{
+	size_t len_s, len_p;
+
+	len_s = strlen (s);
+	len_p = strlen (prefix);
+
+	if (len_s < len_p)
+		return 0;
+
+	return memcmp (s, prefix, len_p) == 0;
+}
+
+time_t
+get_mtime (dir, name)
+char *dir, *name;
+{
+	struct stat st;
+	char *path = NULL;
+	time_t t = 0;
+
+	asprintf (&path, "%s/%s", dir, name);
+	if (stat (path, &st) == 0)
+		t = st.st_mtime;
+
+	free (path);
+	return t;
+}
+
+// TODO: rtrim
+char *
+trim (s)
+char *s;
+{
+	return ltrim (s);
+}
+
 // STRING BUFFER
 
 static char *strbuf = NULL;
@@ -198,36 +246,6 @@ char *s;
 
 // PARSER
 
-starts_with (s, prefix)
-char *s, *prefix;
-{
-	size_t len_s, len_p;
-
-	len_s = strlen (s);
-	len_p = strlen (prefix);
-
-	if (len_s < len_p)
-		return 0;
-
-	return memcmp (s, prefix, len_p) == 0;
-}
-
-time_t
-get_mtime (dir, name)
-char *dir, *name;
-{
-	struct stat st;
-	char *path = NULL;
-	time_t t = 0;
-
-	asprintf (&path, "%s/%s", dir, name);
-	if (stat (path, &st) == 0)
-		t = st.st_mtime;
-
-	free (path);
-	return t;
-}
-
 char *
 readline (file, ln)
 FILE *file;
@@ -265,14 +283,6 @@ int *ln;
 
 ret:
 	return eof ? NULL : str_copy ();
-}
-
-char *
-trim (s)
-char *s;
-{
-	for (; isspace (*s); ++s);
-	return s;
 }
 
 // .include yacc
@@ -741,61 +751,12 @@ struct path *path;
 
 // MAIN
 
-print_sc (sc)
-struct scope *sc;
-{
-	struct scope *sub;
-	struct path **p;
-	struct file *f;
-	struct rule *r;
-	char **s;
-
-	if (sc->name != NULL)
-		printf ("=== %s\n", sc->name);
-
-	switch (sc->type) {
-	case SC_DIR:
-		if (sc->dir == NULL) {
-			printf ("(unread)\n");
-			break;
-		}
-		for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-			// TODO: fix this
-			printf (".include %s\n", sub->name);
-		}
-		for (f = sc->dir->files; f != NULL; f = f->next) {
-			printf ("%s:", f->name);
-			r = f->rule;
-			if (r != NULL) {
-				for (p = r->deps; *p != NULL; ++p)
-					printf (" %s", path_to_str (*p));
-				
-				printf ("\n");
-
-				for (s = r->code; *s != NULL; ++s)
-					printf ("\t%s\n", *s);
-			}
-			printf ("\n");
-		}
-		break;
-	case SC_GNU:
-		printf ("prog: %s\n", sc->gnu->prog);
-		printf ("file: %s\n", sc->gnu->file);
-		break;
-	}
-	return 0;
-}
-
 main ()
 {
 	struct scope *sc;
 	struct path *path = parse_path ("all");
 
 	sc = parse_recursive (".");
-
-#if MAKE_DEBUG
-	print_sc (sc);
-#endif
 
 	build (sc, path);
 

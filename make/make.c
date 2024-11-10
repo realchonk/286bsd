@@ -936,18 +936,94 @@ char *rule;
 // BUILD
 
 struct file *
+inst_inf (sc, inf, name)
+struct scope *sc;
+struct inference *inf;
+char *name;
+{
+	struct file *f;
+	struct dep *dep;
+	char *s, *ext;
+
+	ext = strrchr (name, '.');
+	if (ext != NULL)
+		*ext = '\0';
+	asprintf (&s, "%s%s", name, inf->from);
+	if (ext != NULL)
+		*ext = '.';
+
+	f = new (struct file);
+	f->next = sc->dir->files;
+	f->name = strdup (name);
+	f->rule = inf->rule;
+	f->deps = inf->deps;
+	memset (&f->mtime, 0, sizeof (f->mtime));
+
+	dep = new (struct dep);
+	dep->next = f->deps;
+	dep->path = calloc (2, sizeof (struct path));
+	dep->path[0].type = PATH_NAME;
+	dep->path[0].name = s;
+	dep->path[1].type = PATH_NULL;
+	f->deps = dep;
+	sc->dir->files = f;
+
+	return f;
+}
+
+struct inference *
+find_inf (sc, dir, name)
+struct scope *sc;
+char *dir, *name;
+{
+	extern struct file *try_find ();
+	struct inference *inf;
+	struct file *sf;
+	char *sn, *base;
+	char *ext;
+
+	ext = strrchr (name, '.');
+	base = strdup (name);
+	if (ext == NULL) {
+		ext = "";
+	} else {
+		base[ext - name] = '\0';
+	}
+
+	for (inf = sc->dir->infs; inf != NULL; inf = inf->next) {
+		if (strcmp (inf->to, ext) == 0) {
+			asprintf (&sn, "%s%s", base, inf->from);
+			sf = find_file (sc->dir, sn);
+			if (sf == NULL)
+				sf = try_find (sc, dir, sn);
+			free (sn);
+			if (sf != NULL)
+				break;
+		}
+	}
+
+	free (base);
+	return inf;
+}
+
+struct file *
 try_find (sc, dir, name)
 struct scope *sc;
 char *dir, *name;
 {
+	struct inference *inf;
 	struct timespec t;
 	struct file *f;
 
 	// TODO: template rules
 
 	t = get_mtime (dir, name);
-	if (t.tv_sec == 0)
-		return NULL;
+	if (t.tv_sec == 0) {
+		inf = find_inf (sc, dir, name);
+		if (inf == NULL)
+			return NULL;
+		return inst_inf (sc, inf, name);
+	}
 
 	f = new (struct file);
 	f->next = sc->dir->files;

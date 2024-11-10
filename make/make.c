@@ -17,7 +17,7 @@
 #define MAKEFILE "MyMakefile"
 #define SHELL "sh"
 
-#define MAKE_DEBUG 1
+// #define MAKE_DEBUG 1
 
 static struct macro m_shell = {
 	.next = NULL,

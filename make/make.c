@@ -423,12 +423,12 @@ struct path *prefix;
 						goto ret;
 					}
 				}
-				errx (1, "no such file: %s", name);
+				errx (1, "%s: no such file: %s", path_to_str (prefix), name);
 			}
 		} else {
 			f = sc->dir->files;
 			if (f == NULL)
-				errx (1, "nothing to build");
+				errx (1, "%s: nothing to build", path_to_str (prefix));
 		}
 
 		if (f->rule == NULL) {
@@ -436,7 +436,7 @@ struct path *prefix;
 				t = f->mtime;
 				goto ret;
 			} else {
-				errx (1, "no rule to build: %s", name);
+				errx (1, "%s: no rule to build: %s", path_to_str (prefix), name);
 			}
 		}
 
@@ -510,7 +510,7 @@ struct path *path, *prefix;
 			return build_file (sc, path[0].name, prefix);
 		} else {
 			if (sc->type != SC_DIR)
-				errx (1, "invalid path");
+				errx (1, "%s: invalid path", path_to_str (prefix));
 
 			if (sc->dir == NULL)
 				errx (1, "TODO: read subdir: %s", sc->name);
@@ -524,7 +524,7 @@ struct path *path, *prefix;
 				}
 			}
 			
-			errx (1, "invalid subdir: %s", path[0].name);
+			errx (1, "%s: invalid subdir: %s", path_to_str (prefix), path[0].name);
 		}
 	}
 

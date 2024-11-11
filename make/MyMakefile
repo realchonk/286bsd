@@ -1,6 +1,11 @@
+PREFIX ?= /usr
 CFLAGS = -g -O0 -ansi -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 
 all: make
+
+install: make
+	mkdir -p ${DESTDIR}${PREFIX}/bin
+	cp -f make ${DESTDIR}${PREFIX}/bin/
 
 clean:
 	rm -f make *.core

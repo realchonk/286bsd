@@ -1,6 +1,5 @@
 - write a useful README about how this make differs from all the other makes
 - options: -q, -k
-- make MACRO=VALUE
 - make this work:
 	=== MyMakefile
 	CFLAGS = -ansi

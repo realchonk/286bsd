@@ -7,7 +7,10 @@ mkdir -p tools/bin
 
 ${CC} -o 'tools/bin/mk' 'make/make.c' ${CFLAGS}
 
+./tools/bin/mk clean
 ./tools/bin/mk CC="${CC}" PREFIX="${PWD}/tools" cc/yacc/install
+./tools/bin/mk clean
+
 ln -sf yacc tools/bin/xyacc
 
 echo 'Please run:'

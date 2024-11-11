@@ -11,7 +11,7 @@ test: cpp
 cpp: cpp.o cpy.o
 	${CC} -o $@ $* ${CFLAGS}
 
-cpy.o: cpy.y yylex.c ../yacc/yacc
+cpy.o: cpy.y yylex.c
 	${YACC} cpy.y
 	${CC} -c -o $@ y.tab.c ${CFLAGS}
 	rm -f y.tab.c

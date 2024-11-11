@@ -15,7 +15,7 @@ run: cc1 ../irc/irc
 cc1: lex.o parse.o gen.o main.o
 	${CC} -o $@ $* ${CFLAGS}
 
-parse.o y.tab.h: parse.y ../yacc/yacc
+parse.o y.tab.h: parse.y
 	${YACC} ${YFLAGS} parse.y
 	${CC} -c -o parse.o y.tab.c ${CFLAGS}
 	rm -f y.tab.c

@@ -1,11 +1,17 @@
 PWD != pwd
+PREFIX ?= /usr
+
 CFLAGS = -ansi -Wall -Wno-return-type -Wno-comment -Wno-deprecated-non-prototype -Wno-implicit-int -Wno-implicit-function-declaration
-CPPFLAGS = -DWORD32 -DPARSER=\"${PWD}/yaccpar\"
-SRC != echo y?.c
+CPPFLAGS = -DWORD32 -DPARSER=\"${PREFIX}/lib/yaccpar\"
 
-all: yacc calc
+all: yacc
 
-yacc: ${SRC}
+install: yacc
+	mkdir -p ${DESTDIR}${PREFIX}/bin ${DESTDIR}${PREFIX}/lib
+	cp -f yacc ${DESTDIR}${PREFIX}/bin/
+	cp -f yaccpar ${DESTDIR}${PREFIX}/lib/
+
+yacc: y1.c y2.c y3.c y4.c
 	${CC} -o $@ $* ${CFLAGS} ${CPPFLAGS}
 
 clean:

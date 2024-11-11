@@ -1,4 +1,5 @@
 - write a useful README about how this make differs from all the other makes
+- first read parent, before reading current directory
 - options: -q, -k
 - make this work:
 	=== MyMakefile

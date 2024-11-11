@@ -1,6 +1,14 @@
-#!/bin/sh
+#!/bin/sh -e
 
 [ -z "${CC}" ] && CC=cc
 CFLAGS='-ansi -O0 -g -w'
 
-${CC} -o 'mk' 'make/make.c' ${CFLAGS}
+mkdir -p tools/bin
+
+${CC} -o 'tools/bin/mk' 'make/make.c' ${CFLAGS}
+
+./tools/bin/mk CC="${CC}" PREFIX="${PWD}/tools" cc/yacc/install
+ln -sf yacc tools/bin/xyacc
+
+echo 'Please run:'
+echo '$ . ./.env'

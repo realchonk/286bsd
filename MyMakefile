@@ -1,6 +1,6 @@
 TOP != pwd
-CC = cc
-YACC = ${TOP}/cc/yacc/yacc
+CC ?= cc
+YACC ?= ${TOP}/tools/bin/yacc
 
 all: make sys cc
 
@@ -8,7 +8,7 @@ clean: make/clean sys/clean cc/clean
 	rm -f *.core
 
 distclean: clean
-	rm -f mk
+	rm -rf tools
 
 .c:
 	${CC} -o $@ $< ${CFLAGS} ${CPPFLAGS}

@@ -721,7 +721,7 @@ struct scope *sc;
 struct path *dir;
 char *path;
 {
-	struct macro *m;
+	struct macro *m, *m2;
 	struct rule *r = NULL;
 	size_t len, cap;
 	char *s, *t;
@@ -783,6 +783,15 @@ char *path;
 				t[-1] = '\0';
 				m->lazy = 0;
 				m->value = evalcom (sc, dir, trim (t + 1));
+			} else if (t[-1] == '?') {
+				t[-1] = '\0';
+				m2 = find_macro (sc, trim (s));
+				if (m2 != NULL) {
+					m->value = m2->value;
+				} else {
+					m->value = strdup (trim (t + 1));
+				}
+				m->lazy = 1;
 			} else {
 				m->lazy = 1;
 				m->value = strdup (trim (t + 1));
@@ -1318,7 +1327,9 @@ char **argv;
 {
 	struct scope *sc;
 	struct path *path;
-	int i, option, pr = 0;
+	struct macro *m;
+	char *s;
+	int i, option, pr = 0, n = 0;
 
 	m_make.value = argv[0];
 
@@ -1340,22 +1351,39 @@ char **argv;
 	argv += optind;
 	argc -= optind;
 
+	for (i = 0; i < argc; ++i) {
+		s = strchr (argv[i], '=');
+		if (s == NULL)
+			continue;
+
+		*s = '\0';
+		m = new (struct macro);
+		m->next = globals;
+		m->name = trim (argv[i]);
+		m->value = trim (s + 1);
+		globals = m;
+
+		argv[i] = NULL;
+	}
+
 	sc = parse_recursive (".");
 
 	if (pr) {
 		print_sc (sc);
 		return 0;
 	}
-	
-	if (argc == 0) {
-		build (sc, &path_null);
-	} else {
-		for (i = 0; i < argc; ++i) {
-			path = parse_path (argv[i]);
-			build (sc, path);
-		}
+
+	for (i = 0; i < argc; ++i) {
+		if (argv[i] == NULL)
+			continue;
+
+		path = parse_path (argv[i]);
+		build (sc, path);
+		++n;
 	}
 
+	if (n == 0)
+		build (sc, &path_null);
 
 	return 0;
 }

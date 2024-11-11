@@ -6,7 +6,7 @@ all: cc1
 clean:
 	rm -f cc1 *.core *.o y.tab.h y.output
 
-run: cc1
+run: cc1 ../irc/irc
 	./cc1 < test.c > test.ir
 	../irc/irc < test.ir > test.asm
 	nasm -fbin -o /dev/null test.asm

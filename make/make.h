@@ -19,11 +19,11 @@ enum scope_type {
 struct scope {
 	struct scope *next;
 	enum scope_type type;
-	char *name; // optional
-	struct scope *parent; // optional
+	char *name; /* optional */
+	struct scope *parent; /* optional */
 	union {
-		struct directory *dir; // optional
-		struct gnu *gnu; // required
+		struct directory *dir; /* optional */
+		struct gnu *gnu; /* required */
 	};
 };
 
@@ -31,13 +31,13 @@ struct directory {
 	struct scope *subdirs;
 	struct file *files;
 	struct macro *macros;
-	struct macro *emacros;	// exported macros
+	struct macro *emacros;	/* exported macros */
 	struct inference *infs;
 };
 
 struct gnu {
-	char *prog;	// optional (default: "make")
-	char *file;	// optional
+	char *prog;	/* optional (default: "make") */
+	char *file;	/* optional */
 };
 
 struct dep {
@@ -48,7 +48,7 @@ struct dep {
 struct file {
 	struct file *next;
 	char *name;
-	struct rule *rule; // optional
+	struct rule *rule; /* optional */
 	struct dep *deps, *dtail;
 	struct timespec mtime;
 };
@@ -71,4 +71,4 @@ struct macro {
 	int lazy;
 };
 
-#endif // FILE_MAKE_H
+#endif /* FILE_MAKE_H */

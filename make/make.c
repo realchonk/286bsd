@@ -1,3 +1,7 @@
+#if __linux__
+# define _GNU_SOURCE
+# define _XOPEN_SOURCE 700
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -34,7 +38,7 @@ static struct macro m_shell = {
 static struct macro *globals = &m_make;
 static int verbose = 0;
 
-// MISC
+/* MISC */
 
 char *
 ltrim (s)
@@ -122,7 +126,7 @@ struct timespec *a, *b;
 	}
 }
 
-// STRING BUFFER
+/* STRING BUFFER */
 
 static char *strbuf = NULL;
 static size_t strbuf_len = 0, strbuf_cap = 0;
@@ -176,13 +180,13 @@ str_copy ()
 	return strdup (str_get ());
 }
 
-// PATH LOGIC
+/* PATH LOGIC */
 
 static struct path path_null = { .type = PATH_NULL, .name = NULL };
 static struct path path_super = { .type = PATH_SUPER, .name = NULL };
 static struct path tmppath = { .type = PATH_NAME, .name = NULL };
 
-// return the number of path components (excl. PATH_NULL).
+/* return the number of path components (excl. PATH_NULL). */
 size_t
 path_len (p)
 struct path *p;
@@ -227,7 +231,7 @@ struct path *old, *comp;
 			p = path_cpy (old, len, len);
 			break;
 		}
-		// fallthrough
+		/* fallthrough */
 	case PATH_NAME:
 		p = path_cpy (old, len, len + 1);
 		p[len] = *comp;
@@ -316,7 +320,7 @@ char *s;
 	return p;
 }
 
-// MACORS
+/* MACORS */
 
 struct macro *
 find_emacro (sc, name)
@@ -405,7 +409,7 @@ struct dep *deps;
 			++s;
 			break;
 		case '{':
-			// ${name}
+			/* ${name} */
 			++s;
 			t = strchr (s, '}');
 			if (t == NULL)
@@ -507,7 +511,7 @@ char *cmd;
 	return str_copy ();
 }
 
-// PARSER
+/* PARSER */
 
 struct file *
 find_file (dir, name)
@@ -563,9 +567,11 @@ ret:
 	return eof ? NULL : str_copy ();
 }
 
-// .include yacc
-// .include yacc, DIR
-// .include libx, GNU
+/*
+ * .include yacc
+ * .include yacc, DIR
+ * .include libx, GNU
+ */
 parse_include (sc, dir, s)
 struct scope *sc;
 struct path *dir;
@@ -644,7 +650,7 @@ char *s, *t;
 
 	*t = '\0';
 
-	// parse deps
+	/* parse deps */
 	u = expand (sc, t + 1, NULL, NULL);
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		dep = new (struct dep);
@@ -660,7 +666,7 @@ char *s, *t;
 	}	
 	free (u);
 
-	// parse targets
+	/* parse targets */
 	u = expand (sc, s, NULL, NULL);
 	flag = 1;
 	if (u[0] == '.') {
@@ -684,7 +690,7 @@ char *s, *t;
 		sc->dir->infs = inf;
 	} else {
 		for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
-			// TODO: check name
+			/* TODO: check name */
 
 			f = find_file (sc->dir, p);
 			if (f == NULL) {
@@ -748,7 +754,7 @@ char *path;
 
 			for (m = sc->dir->emacros; m != NULL; m = m->enext) {
 				if (strcmp (m->name, t) == 0)
-					goto ok; // already exported
+					goto ok; /* already exported */
 			}
 
 			for (m = sc->dir->macros; m != NULL; m = m->next) {
@@ -773,7 +779,7 @@ char *path;
 			r->code[len++] = strdup (s + 1);
 			r->code[len] = NULL;
 		} else if ((t = strchr (s, '=')) != NULL) {
-			// TODO: check name
+			/* TODO: check name */
 			*t = '\0';
 
 			m = new (struct macro);
@@ -835,7 +841,6 @@ char *path;
 	struct scope *sc, *entry, *parent;
 	struct path *dir;
 
-	//dir = parse_path (realpath (path, NULL));
 	dir = parse_path (path);
 
 	sc = new (struct scope);
@@ -873,7 +878,7 @@ char *path;
 	return entry;
 }
 
-// RUN COMMANDS
+/* RUN COMMANDS */
 
 runcom (sc, prefix, cmd, target, deps)
 struct scope *sc;
@@ -947,7 +952,7 @@ char *rule;
 	return ec;
 }
 
-// BUILD
+/* BUILD */
 
 struct file *
 inst_inf (sc, inf, name)
@@ -1059,8 +1064,6 @@ char *dir, *name;
 	struct timespec t;
 	struct file *f;
 
-	// TODO: template rules
-
 	t = get_mtime (dir, name);
 	if (t.tv_sec == 0) {
 		inf = find_inf (sc, dir, name);
@@ -1118,7 +1121,6 @@ struct path *prefix;
 						goto ret;
 					}
 				}
-				// TODO: templates
 				f = try_find (sc, path_to_str (prefix), name);
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
@@ -1164,7 +1166,7 @@ struct path *prefix;
 
 		s = f->rule->code;
 
-		// rule is a "sum" rule
+		/* rule is a "sum" rule */
 		if (s == NULL || *s == NULL) {
 			t = maxt;
 			goto ret;
@@ -1178,7 +1180,7 @@ struct path *prefix;
 		t = f->mtime = now ();
 		goto ret;
 	case SC_GNU:
-		// first check if the target is already built
+		/* first check if the target is already built */
 		if (rungnu (sc, prefix, sc->gnu, name, 1) == 0) {
 			t.tv_sec = 0;
 			goto ret;
@@ -1250,7 +1252,7 @@ struct path *path;
 	return build_dir (sc, path, &path_null);
 }
 
-// MAIN
+/* MAIN */
 
 print_sc (sc)
 struct scope *sc;

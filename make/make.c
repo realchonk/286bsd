@@ -1264,9 +1264,11 @@ struct path *path;
 
 /* MAIN */
 
-print_sc (sc)
+print_sc (prefix, sc, verbose)
+struct path *prefix;
 struct scope *sc;
 {
+	struct path *new_prefix;
 	struct inference *inf;
 	struct scope *sub;
 	struct macro *m;
@@ -1274,6 +1276,9 @@ struct scope *sc;
 	struct file *f;
 	struct rule *r;
 	char **s;
+
+	if (verbose)
+		printf ("=== %s/%s\n", path_to_str (prefix), MAKEFILE);
 
 	if (sc->type != SC_DIR || sc->dir == NULL)
 		errx (1, "print_sc(): must be of type SC_DIR");
@@ -1322,6 +1327,20 @@ struct scope *sc;
 				printf (", %s", sub->gnu->file);
 			printf ("\n");
 			break;
+		}
+	}
+
+	if (verbose) {
+		for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+			if (sub->type != SC_DIR)
+				continue;
+
+			printf ("\n");
+			tmppath.name = sub->name;
+			new_prefix = path_cat (prefix, &tmppath);
+			parse_dir (sub, new_prefix);
+			print_sc (new_prefix, sub, verbose);
+			free (new_prefix);
 		}
 	}
 
@@ -1380,12 +1399,13 @@ char **argv;
 
 	path = parse_path (".");
 	sc = parse_recursive (path);
-	free (path);
 
 	if (pr) {
-		print_sc (sc);
+		print_sc (path, sc, verbose);
 		return 0;
 	}
+
+	free (path);
 
 	for (i = 0; i < argc; ++i) {
 		if (argv[i] == NULL)

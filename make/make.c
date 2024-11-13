@@ -865,7 +865,6 @@ struct path *dir;
 			if (strcmp (sc->name, name) == 0) {
 				if (sc->type != SC_DIR)
 					errx (1, "%s: invalid type", path_to_str (mfpath));
-				sc->parent = parent;
 				goto parse;
 			}
 		}
@@ -876,11 +875,11 @@ struct path *dir;
 		sc = new (struct scope);
 		sc->type = SC_DIR;
 		sc->name = name;
-		sc->parent = parent;
 		sc->dir = NULL;
 	}
 
 parse:
+	sc->parent = parent;
 	path = strdup (path_to_str (mfpath));
 	parse (sc, dir, path);
 	free (path);

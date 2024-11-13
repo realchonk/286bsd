@@ -860,10 +860,12 @@ struct path *dir;
 		if (parent->type != SC_DIR)
 			errx (1, "%s: invalid parent type", path_to_str (mfpath));
 
+
 		for (sc = parent->dir->subdirs; sc != NULL; sc = sc->next) {
-			if (sc->name == name) {
+			if (strcmp (sc->name, name) == 0) {
 				if (sc->type != SC_DIR)
 					errx (1, "%s: invalid type", path_to_str (mfpath));
+				sc->parent = parent;
 				goto parse;
 			}
 		}
@@ -874,7 +876,7 @@ struct path *dir;
 		sc = new (struct scope);
 		sc->type = SC_DIR;
 		sc->name = name;
-		sc->parent = NULL;
+		sc->parent = parent;
 		sc->dir = NULL;
 	}
 

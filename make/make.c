@@ -835,47 +835,57 @@ struct path *dir;
 }
 
 struct scope *
-parse_recursive (path)
-char *path;
+parse_recursive (dir)
+struct path *dir;
 {
-	struct scope *sc, *entry, *parent;
-	struct path *dir;
+	struct path *mfpath, *ppath;
+	struct scope *sc, *parent;
+	char *path, *name;
 
-	dir = parse_path (path);
+	tmppath.name = MAKEFILE;
+	mfpath = path_cat (dir, &tmppath);
+	path = path_to_str (mfpath);
+	if (access (path, F_OK) != 0) {
+		sc = NULL;
+		goto ret;
+	}
 
-	sc = new (struct scope);
-	sc->next = NULL;
-	sc->type = SC_DIR;
-	sc->name = path_basename (dir);
-	sc->parent = NULL;
-	entry = sc;
+	ppath = path_cat (dir, &path_super);
+	parent = parse_recursive (ppath);
+	free (ppath);
 
-	asprintf (&path, "%s/" MAKEFILE, path_to_str (dir));
+	name = path_basename (dir);
+
+	if (parent != NULL) {
+		if (parent->type != SC_DIR)
+			errx (1, "%s: invalid parent type", path_to_str (mfpath));
+
+		for (sc = parent->dir->subdirs; sc != NULL; sc = sc->next) {
+			if (sc->name == name) {
+				if (sc->type != SC_DIR)
+					errx (1, "%s: invalid type", path_to_str (mfpath));
+				goto parse;
+			}
+		}
+
+		goto create;
+	} else {
+	create:
+		sc = new (struct scope);
+		sc->type = SC_DIR;
+		sc->name = name;
+		sc->parent = NULL;
+		sc->dir = NULL;
+	}
+
+parse:
+	path = strdup (path_to_str (mfpath));
 	parse (sc, dir, path);
 	free (path);
 
-	while (1) {
-		dir = path_cat (dir, &path_super);
-		asprintf (&path, "%s/" MAKEFILE, path_to_str (dir));
-		if (access (path, F_OK) == -1)
-			break;
-
-		parent = new (struct scope);
-		parent->next = NULL;
-		parent->type = SC_DIR;
-		parent->name = path_basename (dir);
-		parent->parent = NULL;
-		parent->dir = new (struct directory);
-		parent->dir->subdirs = sc;
-		parent->dir->files = NULL;
-		sc->parent = parent;
-		sc = parent;
-
-		parse (sc, dir, path);
-		free (path);
-	}
-
-	return entry;
+ret:
+	free (mfpath);
+	return sc;
 }
 
 /* RUN COMMANDS */
@@ -1368,7 +1378,9 @@ char **argv;
 		argv[i] = NULL;
 	}
 
-	sc = parse_recursive (".");
+	path = parse_path (".");
+	sc = parse_recursive (path);
+	free (path);
 
 	if (pr) {
 		print_sc (sc);
@@ -1381,6 +1393,7 @@ char **argv;
 
 		path = parse_path (argv[i]);
 		build (sc, path);
+		free (path);
 		++n;
 	}
 

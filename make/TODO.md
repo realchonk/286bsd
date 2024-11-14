@@ -76,4 +76,34 @@ install-man: ${NAME}.1
 .endif
 ```
 
+# Position-dependent macro
+## MyMakefile
+```make
+TOP = $.
+
+print:
+    @echo TOP: ${TOP}
+```
+
+## sub/MyMakefile
+```make
+print:
+    @echo TOP: ${TOP}
+```
+
+## Output
+```
+$ make print
+TOP: .
+
+$ make sub/print
+TOP: ./..
+```
+
+# Support for artifact directories
+
+# Check file names for validity
+
+# Create a specification
+
 # Create a freestanding version, written in Rust, so that other projects can use this make

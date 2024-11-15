@@ -439,6 +439,8 @@ struct dep *deps;
 			*t = '}';
 			s = t + 1;
 			break;
+		case '(':
+			errx (1, "syntax error: $(...) syntax is reserved for future use, please use ${...} instead.");
 		default:
 			errx (1, "syntax error: invalid escape sequence: %s", s - 2);
 		}

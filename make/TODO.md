@@ -186,6 +186,14 @@ This must be defined at the top of the file.
 
 ## `.POSIX:` and `.SUFFIXES:` should give a warnings about this make not being POSIX
 
+# Replace usage of `strtok()` and `strtok_r()` with `strsep()`
+
+# Provide implementations of non-standard functions (libcompat)
+- `err(3)` and `errx(3)`
+- `reallocarray(3)`
+- `asprintf(3)`
+- `strsep(3)` or `strtok_r(3)`
+
 
 # Future TODOs
 ## Support for artifact directories

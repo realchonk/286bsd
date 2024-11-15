@@ -1382,7 +1382,7 @@ struct scope *sc;
 
 usage ()
 {
-	fprintf (stderr, "usage: %s [-pv] [target...]\n", m_make.value);
+	fprintf (stderr, "usage: %s [-pv] [-C dir] [target...]\n", m_make.value);
 	return 1;
 }
 
@@ -1392,22 +1392,24 @@ char **argv;
 	struct scope *sc;
 	struct path *path;
 	struct macro *m;
-	char *s;
+	char *s, *cd = NULL;
 	int i, option, pr = 0, n = 0;
 
 	m_dmake.value = m_make.value = argv[0];
 
 	str_reset ();
-	while ((option = getopt (argc, argv, "pv")) != -1) {
-		str_push (' ');
-		str_push ('-');
-		str_push (option);
+	while ((option = getopt (argc, argv, "pvC:")) != -1) {
 		switch (option) {
 		case 'p':
+			str_push_str (" -p");
 			pr = 1;
 			break;
 		case 'v':
+			str_push_str (" -v");
 			verbose = 1;
+			break;
+		case 'C':
+			cd = optarg;
 			break;
 		case '?':
 			return usage ();
@@ -1415,6 +1417,9 @@ char **argv;
 			errx (1, "unexpected option: -%c", option);
 		}
 	}
+
+	if (cd != NULL && chdir (cd) != 0)
+		err (1, "chdir()");
 
 	argv += optind;
 	argc -= optind;

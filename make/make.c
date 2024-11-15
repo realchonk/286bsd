@@ -448,7 +448,7 @@ struct dep *deps;
 {
 	str_reset ();
 	expand_into (sc, s, target, deps);
-	return str_copy ();
+	return str_get ();
 }
 
 char *
@@ -460,7 +460,7 @@ char *cmd;
 	char *args[] = {
 		m_shell.value,
 		"-c",
-		expand (sc, cmd, NULL, NULL),
+		strdup (expand (sc, cmd, NULL, NULL)),
 		NULL,
 	};
 	ssize_t i, n;
@@ -506,6 +506,7 @@ char *cmd;
 
 	}
 
+	free (args[2]);
 	str_chomp ();
 
 	return str_copy ();
@@ -651,7 +652,7 @@ char *s, *t;
 	*t = '\0';
 
 	/* parse deps */
-	u = expand (sc, t + 1, NULL, NULL);
+	u = strdup (trim (expand (sc, t + 1, NULL, NULL)));
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		dep = new (struct dep);
 		dep->next = NULL;
@@ -667,7 +668,7 @@ char *s, *t;
 	free (u);
 
 	/* parse targets */
-	u = expand (sc, s, NULL, NULL);
+	u = strdup (trim (expand (sc, s, NULL, NULL)));
 	flag = 1;
 	if (u[0] == '.') {
 		p = strchr (u + 1, '.');
@@ -905,7 +906,7 @@ char *cmd, *target;
 		++cmd;
 	}
 
-	cmd = expand (sc, cmd, target, deps);
+	cmd = strdup (expand (sc, cmd, target, deps));
 	
 	if (!q)
 		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);

@@ -26,11 +26,6 @@ CFLAGS = -ansi
 CFLAGS += -Wall
 ```
 
-## `:=`: Immediate Assignment (easy)
-```make
-MACRO := value
-```
-
 
 # Doc comments for help page
 ```make
@@ -152,3 +147,4 @@ This must be defined at the top of the file.
 ## Write a tutorial on how to correctly use this make
 ## Write a specification
 ## Create a freestanding version, written in Rust, so that other projects can use this make
+# `.include xxx, DIR, Makefile`

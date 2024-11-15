@@ -799,6 +799,11 @@ char *path;
 					m->value = strdup (trim (t + 1));
 				}
 				m->lazy = 1;
+			} else if (t[-1] == ':') {
+				// handle both `:=` and `::=`
+				t[t[-2] == ':' ? -2 : -1] = '\0';
+				m->lazy = 0;
+				m->value = strdup (trim (expand (sc, trim (t + 1), NULL, NULL)));
 			} else {
 				m->lazy = 1;
 				m->value = strdup (trim (t + 1));

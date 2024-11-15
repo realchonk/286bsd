@@ -33,9 +33,27 @@ static struct macro m_shell = {
 	.name = "MAKE",
 	.value = NULL,
 	.lazy = 0,
+}, m_dmake = {
+	.next = &m_make,
+	.enext = &m_make,
+	.name = ".MAKE",
+	.value = NULL,
+	.lazy = 0,
+}, m_makeflags = {
+	.next = &m_dmake,
+	.enext = &m_dmake,
+	.name = "MAKEFLAGS",
+	.value = NULL,
+	.lazy = 0,
+}, m_dmakeflags = {
+	.next = &m_makeflags,
+	.enext = &m_makeflags,
+	.name = ".MAKEFLAGS",
+	.value = NULL,
+	.lazy = 0,
 };
 
-static struct macro *globals = &m_make;
+static struct macro *globals = &m_dmakeflags;
 static int verbose = 0;
 
 /* MISC */
@@ -1369,9 +1387,13 @@ char **argv;
 	char *s;
 	int i, option, pr = 0, n = 0;
 
-	m_make.value = argv[0];
+	m_dmake.value = m_make.value = argv[0];
 
+	str_reset ();
 	while ((option = getopt (argc, argv, "pv")) != -1) {
+		str_push (' ');
+		str_push ('-');
+		str_push (option);
 		switch (option) {
 		case 'p':
 			pr = 1;
@@ -1394,6 +1416,9 @@ char **argv;
 		if (s == NULL)
 			continue;
 
+		str_push (' ');
+		str_push_str (argv[i]);
+
 		*s = '\0';
 		m = new (struct macro);
 		m->next = globals;
@@ -1403,6 +1428,8 @@ char **argv;
 
 		argv[i] = NULL;
 	}
+
+	m_dmakeflags.value = m_makeflags.value = strdup (trim (str_get ()));
 
 	path = parse_path (".");
 	sc = parse_recursive (path);

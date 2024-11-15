@@ -152,6 +152,9 @@ $ make sub/print
 TOP: ./..
 ```
 
+## Rename `$*` to something different
+POSIX specifies, that `$*` evaluates to the current target's basename, without the suffix.
+
 ## `${.SUBDIRS}`
 Useful for this:
 ```make
@@ -165,8 +168,6 @@ clean:
 all: ${.SUBDIRS}
 clean: ${.SUBDIRS/clean}
 ```
-
-## `${MAKE}`, `${.MAKE}`, `${MAKEFLAGS}` and `${.MAKEFLAGS}`
 
 ## `${name:subst1=subst2}`: Macro Substitution
 Substitute all occurences of `subst1` with `subst2` in macro `name`.

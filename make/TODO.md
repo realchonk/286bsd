@@ -175,10 +175,6 @@ Substitute all occurences of `subst1` with `subst2` in macro `name`.
 ## `${name/suffix}`
 Append `suffix` to each of the files in `${name}`.
 
-## `$(...)`
-This syntax is reserved for future use.
-A hint about `${...}` should be printed.
-
 
 # Special targets
 ## `.TOP:` to stop the upward recursion
@@ -186,7 +182,12 @@ This must be defined at the top of the file.
 
 ## `.POSIX:` and `.SUFFIXES:` should give a warnings about this make not being POSIX
 
+## `.PATH:`
+Allow specifying additional `PATH` directories.
+
+
 # Replace usage of `strtok()` and `strtok_r()` with `strsep()`
+
 
 # Provide implementations of non-standard functions (libcompat)
 - `err(3)` and `errx(3)`

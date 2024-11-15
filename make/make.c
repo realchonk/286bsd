@@ -382,10 +382,14 @@ char *name;
 	return NULL;
 }
 
-expand_into (sc, s, target, deps)
+struct expand_ctx {
+	struct file *f;
+};
+
+expand_into (sc, s, ctx)
 struct scope *sc;
-char *s, *target;
-struct dep *deps;
+char *s;
+struct expand_ctx *ctx;
 {
 	extern expand_macro ();
 	struct macro *m;
@@ -399,36 +403,35 @@ struct dep *deps;
 			continue;
 		}
 		ch = *++s;
+		++s;
 		switch (ch) {
 		case '$':
 			str_push ('$');
-			++s;
 			break;
 		case '@':
-			if (target == NULL)
+			if (ctx == NULL)
 				errx (1, "cannot use $@ here");
-			str_push_str (target);
-			++s;
+			str_push_str (ctx->f->name);
 			break;
 		case '<':
-			if (deps == NULL)
+			if (ctx == NULL)
 				errx (1, "cannot use $< here");
 
-			path_write (deps->path);
-			++s;
+			if (ctx->f->deps == NULL)
+				continue;
+
+			path_write (ctx->f->deps->path);
 			break;
 		case '*':
-			if (deps == NULL)
+			if (ctx == NULL)
 				errx (1, "cannot use $< here");
-			for (dep = deps; dep != NULL; dep = dep->next) {
+			for (dep = ctx->f->deps; dep != NULL; dep = dep->next) {
 				str_push (' ');
 				path_write (dep->path);
 			}
-			++s;
 			break;
 		case '{':
 			/* ${name} */
-			++s;
 			t = strchr (s, '}');
 			if (t == NULL)
 				errx (1, "syntax error: invalid macro: %s", s - 2);
@@ -453,7 +456,7 @@ struct scope *sc;
 struct macro *m;
 {
 	if (m->lazy) {
-		expand_into (sc, m->value, NULL, NULL);
+		expand_into (sc, m->value, NULL);
 	} else {
 		str_push_str (m->value);
 	}
@@ -461,13 +464,13 @@ struct macro *m;
 }
 
 char *
-expand (sc, s, target, deps)
+expand (sc, s, ctx)
 struct scope *sc;
-char *s, *target;
-struct dep *deps;
+char *s;
+struct expand_ctx *ctx;
 {
 	str_reset ();
-	expand_into (sc, s, target, deps);
+	expand_into (sc, s, ctx);
 	return str_get ();
 }
 
@@ -480,7 +483,7 @@ char *cmd;
 	char *args[] = {
 		m_shell.value,
 		"-c",
-		strdup (expand (sc, cmd, NULL, NULL)),
+		strdup (expand (sc, cmd, NULL)),
 		NULL,
 	};
 	ssize_t i, n;
@@ -672,7 +675,7 @@ char *s, *t;
 	*t = '\0';
 
 	/* parse deps */
-	u = strdup (trim (expand (sc, t + 1, NULL, NULL)));
+	u = strdup (trim (expand (sc, t + 1, NULL)));
 	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
 		dep = new (struct dep);
 		dep->next = NULL;
@@ -688,7 +691,7 @@ char *s, *t;
 	free (u);
 
 	/* parse targets */
-	u = strdup (trim (expand (sc, s, NULL, NULL)));
+	u = strdup (trim (expand (sc, s, NULL)));
 	flag = 1;
 	if (u[0] == '.') {
 		p = strchr (u + 1, '.');
@@ -823,7 +826,7 @@ char *path;
 				// handle both `:=` and `::=`
 				t[t[-2] == ':' ? -2 : -1] = '\0';
 				m->lazy = 0;
-				m->value = strdup (trim (expand (sc, trim (t + 1), NULL, NULL)));
+				m->value = strdup (trim (expand (sc, trim (t + 1), NULL)));
 			} else {
 				m->lazy = 1;
 				m->value = strdup (trim (t + 1));
@@ -917,11 +920,11 @@ ret:
 
 /* RUN COMMANDS */
 
-runcom (sc, prefix, cmd, target, deps)
+runcom (sc, prefix, cmd, ctx)
 struct scope *sc;
 struct path *prefix;
-struct dep *deps;
-char *cmd, *target;
+char *cmd;
+struct expand_ctx *ctx;
 {
 	char *line;
 	int ec, q = 0;
@@ -931,7 +934,7 @@ char *cmd, *target;
 		++cmd;
 	}
 
-	cmd = strdup (expand (sc, cmd, target, deps));
+	cmd = strdup (expand (sc, cmd, ctx));
 	
 	if (!q)
 		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
@@ -984,7 +987,7 @@ char *rule;
 		strcat (cmd, rule);
 	}
 
-	ec = runcom (sc, prefix, cmd, NULL, NULL);
+	ec = runcom (sc, prefix, cmd, NULL);
 	free (cmd);
 	return ec;
 }
@@ -1132,6 +1135,7 @@ struct path *prefix;
 	struct file *f;
 	struct timespec t, maxt;
 	struct inference *inf;
+	struct expand_ctx ctx;
 	struct dep *dep;
 	char **s;
 
@@ -1209,8 +1213,10 @@ struct path *prefix;
 			goto ret;
 		}
 
+		ctx.f = f;
+
 		for (; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, f->name, f->deps) != 0)
+			if (runcom (sc, prefix, *s, &ctx) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 

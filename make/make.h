@@ -21,6 +21,7 @@ struct scope {
 	enum scope_type type;
 	char *name; /* optional */
 	struct scope *parent; /* optional */
+	char *makefile; /* required */
 	union {
 		struct directory *dir; /* optional */
 		struct gnu *gnu; /* required */
@@ -37,7 +38,6 @@ struct directory {
 
 struct gnu {
 	char *prog;	/* optional (default: "make") */
-	char *file;	/* optional */
 };
 
 struct dep {

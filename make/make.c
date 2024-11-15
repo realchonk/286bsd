@@ -607,6 +607,7 @@ char *s;
 	sub = new (struct scope);
 	sub->next = sc->dir->subdirs;
 	sub->parent = sc;
+	sub->makefile = NULL;
 	sc->dir->subdirs = sub;
 
 	p = strtok (s, ",");
@@ -624,6 +625,7 @@ char *s;
 	if (p == NULL) {
 		sub->type = SC_DIR;
 		sub->dir = NULL;
+		sub->makefile = MAKEFILE;
 		return 0;
 	}
 
@@ -631,12 +633,18 @@ char *s;
 	if (strcmp (p, "DIR") == 0) {
 		sub->type = SC_DIR;
 		sub->dir = NULL;
+		sub->makefile = MAKEFILE;
+
+		p = strtok (NULL, ",");
+		if (p == NULL)
+			return 0;
+
+		sub->makefile = strdup (trim (p));
 		return 0;
 	} else if (strcmp (p, "GNU") == 0) {
 		sub->type = SC_GNU;
 		sub->gnu = new (struct gnu);
 		sub->gnu->prog = NULL;
-		sub->gnu->file = NULL;
 
 		p = strtok (NULL, ",");
 		if (p == NULL)
@@ -646,7 +654,7 @@ char *s;
 		p = strtok (NULL, ",");
 		if (p == NULL)
 			return 0;
-		sub->gnu->file = strdup (trim (p));
+		sub->makefile = strdup (trim (p));
 
 		return 0;
 	} else {
@@ -856,7 +864,7 @@ struct path *dir;
 {
 	char *path;
 
-	asprintf (&path, "%s/" MAKEFILE, path_to_str (dir));
+	asprintf (&path, "%s/%s", path_to_str (dir), sc->makefile);
 	parse (sc, dir, path);
 	free (path);
 
@@ -864,14 +872,15 @@ struct path *dir;
 }
 
 struct scope *
-parse_recursive (dir)
+parse_recursive (dir, makefile)
 struct path *dir;
+char *makefile;
 {
 	struct path *mfpath, *ppath;
 	struct scope *sc, *parent;
 	char *path, *name;
 
-	tmppath.name = MAKEFILE;
+	tmppath.name = makefile;
 	mfpath = path_cat (dir, &tmppath);
 	path = path_to_str (mfpath);
 	if (access (path, F_OK) != 0) {
@@ -880,7 +889,9 @@ struct path *dir;
 	}
 
 	ppath = path_cat (dir, &path_super);
-	parent = parse_recursive (ppath);
+	parent = parse_recursive (ppath, makefile);
+	if (parent == NULL)
+		parent = parse_recursive (ppath, MAKEFILE);
 	free (ppath);
 
 	name = path_basename (dir);
@@ -908,6 +919,7 @@ struct path *dir;
 	}
 
 parse:
+	sc->makefile = makefile;
 	sc->parent = parent;
 	path = strdup (path_to_str (mfpath));
 	parse (sc, dir, path);
@@ -948,25 +960,25 @@ struct expand_ctx *ctx;
 	return ec;
 }
 
-rungnu (sc, prefix, gnu, rule, q)
+rungnu (sc, prefix, rule, q)
 struct scope *sc;
 struct path *prefix;
-struct gnu *gnu;
 char *rule;
 {
 	size_t len = 0;
 	char *cmd, *prog;
 	int ec;
 
-	prog = gnu->prog != NULL ? gnu->prog : "make";
+	/* TODO: use str_*() API */
+	prog = sc->gnu->prog != NULL ? sc->gnu->prog : "make";
 
 	len += strlen (prog);
 
 	if (q)
 		len += 3;
 
-	if (gnu->file != NULL)
-		len += strlen (gnu->file) + 4;
+	if (sc->makefile != NULL)
+		len += strlen (sc->makefile) + 4;
 
 	if (rule != NULL)
 		len += strlen (rule) + 1;
@@ -977,9 +989,9 @@ char *rule;
 	if (q)
 		strcat (cmd, " -q");
 
-	if (gnu->file != NULL) {
+	if (sc->makefile != NULL) {
 		strcat (cmd, " -f ");
-		strcat (cmd, gnu->file);
+		strcat (cmd, sc->makefile);
 	}
 
 	if (rule != NULL) {
@@ -1224,12 +1236,12 @@ struct path *prefix;
 		goto ret;
 	case SC_GNU:
 		/* first check if the target is already built */
-		if (rungnu (sc, prefix, sc->gnu, name, 1) == 0) {
+		if (rungnu (sc, prefix, name, 1) == 0) {
 			t.tv_sec = 0;
 			goto ret;
 		}
 
-		if (rungnu (sc, prefix, sc->gnu, name, 0) != 0)
+		if (rungnu (sc, prefix, name, 0) != 0)
 			errx (1, "building foreign directory failed");
 
 		t = now ();
@@ -1311,7 +1323,7 @@ struct scope *sc;
 	char **s;
 
 	if (verbose)
-		printf ("=== %s/%s\n", path_to_str (prefix), MAKEFILE);
+		printf ("=== %s/%s\n", path_to_str (prefix), sc->makefile);
 
 	if (sc->type != SC_DIR || sc->dir == NULL)
 		errx (1, "print_sc(): must be of type SC_DIR");
@@ -1350,14 +1362,17 @@ struct scope *sc;
 	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
 		switch (sub->type) {
 		case SC_DIR:
-			printf (".include %s, DIR\n", sub->name);
+			printf (".include %s, DIR", sub->name);
+			if (sc->makefile != NULL)
+				printf (", %s", sc->makefile);
+			printf ("\n");
 			break;
 		case SC_GNU:
 			printf (".include %s, GNU", sub->name);
-			if (sub->gnu->prog)
+			if (sub->gnu->prog != NULL)
 				printf (", %s", sub->gnu->prog);
-			if (sub->gnu->file)
-				printf (", %s", sub->gnu->file);
+			if (sc->makefile != NULL)
+				printf (", %s", sc->makefile);
 			printf ("\n");
 			break;
 		}
@@ -1382,7 +1397,7 @@ struct scope *sc;
 
 usage ()
 {
-	fprintf (stderr, "usage: %s [-pv] [-C dir] [target...]\n", m_make.value);
+	fprintf (stderr, "usage: %s [-pv] [-C dir] [-f makefile] [target...]\n", m_make.value);
 	return 1;
 }
 
@@ -1392,13 +1407,13 @@ char **argv;
 	struct scope *sc;
 	struct path *path;
 	struct macro *m;
-	char *s, *cd = NULL;
+	char *s, *cd = NULL, *makefile = MAKEFILE;
 	int i, option, pr = 0, n = 0;
 
 	m_dmake.value = m_make.value = argv[0];
 
 	str_reset ();
-	while ((option = getopt (argc, argv, "pvC:")) != -1) {
+	while ((option = getopt (argc, argv, "pvC:f:")) != -1) {
 		switch (option) {
 		case 'p':
 			str_push_str (" -p");
@@ -1410,6 +1425,9 @@ char **argv;
 			break;
 		case 'C':
 			cd = optarg;
+			break;
+		case 'f':
+			makefile = optarg;
 			break;
 		case '?':
 			return usage ();
@@ -1445,7 +1463,9 @@ char **argv;
 	m_dmakeflags.value = m_makeflags.value = strdup (trim (str_get ()));
 
 	path = parse_path (".");
-	sc = parse_recursive (path);
+	sc = parse_recursive (path, makefile);
+	if (sc == NULL)
+		errx (1, "failed to find or parse makefile");
 
 	if (pr) {
 		print_sc (path, sc, verbose);

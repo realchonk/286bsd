@@ -53,7 +53,6 @@
 -S          opposite of `-k`
 -h	        print a generated help page
 -s          silent, do not write commands to stdout
--f file     read `file` instead of `MyMakefile`
 
 
 # "normal" `include file`
@@ -202,4 +201,3 @@ Allow specifying additional `PATH` directories.
 ## Write a tutorial on how to correctly use this make
 ## Write a specification
 ## Create a freestanding version, written in Rust, so that other projects can use this make
-# `.include xxx, DIR, Makefile`

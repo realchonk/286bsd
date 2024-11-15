@@ -1,15 +1,19 @@
+## Installation prefix
 PREFIX ?= /usr
 CFLAGS = -g -O0 -ansi -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 
 all: make
 
+## Install make into ${DESTDIR}${PREFIX}/bin/make.
 install: make
 	mkdir -p ${DESTDIR}${PREFIX}/bin
 	cp -f make ${DESTDIR}${PREFIX}/bin/
 
+## Remove any build artifacts.
 clean:
 	rm -f make *.core
 
+## Run make.
 run: make
 	./make
 

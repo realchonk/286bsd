@@ -664,10 +664,10 @@ char *s;
 }
 
 struct rule *
-parse_rule (sc, dir, s, t)
+parse_rule (sc, dir, s, t, help)
 struct scope *sc;
 struct path *dir;
-char *s, *t;
+char *s, *t, *help;
 {
 	struct inference *inf;
 	struct rule *r;
@@ -733,11 +733,15 @@ char *s, *t;
 				f->deps = deps;
 				f->dtail = dt;
 				f->mtime = get_mtime (path_to_str (dir), f->name);
+				f->help = help;
 				sc->dir->files = f;
 				continue;
 			}
 
 			flag = 0;
+
+			if (f->help == NULL)
+				f->help = help;
 
 			if (f->deps == NULL) {
 				f->deps = deps;
@@ -762,7 +766,7 @@ char *path;
 	struct macro *m, *m2;
 	struct rule *r = NULL;
 	size_t len, cap;
-	char *s, *t;
+	char *s, *t, *help = NULL;
 	FILE *file;
 	int ln = 0;
 
@@ -777,7 +781,11 @@ char *path;
 	}
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {
-		if (s[0] == '#' || *trim (s) == '\0') {
+		if (s[0] == '#' && s[1] == '#') {
+			help = strdup (expand (sc, trim (s + 2), NULL));
+			continue;
+		} else if (s[0] == '#' || *trim (s) == '\0') {
+			continue;
 		} else if (starts_with (s, ".include ")) {
 			if (parse_include (sc, dir, s + 9) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);
@@ -786,19 +794,18 @@ char *path;
 
 			for (m = sc->dir->emacros; m != NULL; m = m->enext) {
 				if (strcmp (m->name, t) == 0)
-					goto ok; /* already exported */
+					goto cont; /* already exported */
 			}
 
 			for (m = sc->dir->macros; m != NULL; m = m->next) {
 				if (strcmp (m->name, t) == 0) {
 					m->enext = sc->dir->emacros;
 					sc->dir->emacros = m;
-					goto ok;
+					goto cont;
 				}
 			}
 
 			errx (1, "%s:%d: no such macro: %s", path, ln, t);
-		ok:	;
 		} else if (s[0] == '\t') {
 			if (r == NULL)
 				errx (1, "%s:%d: syntax error", path, ln);
@@ -816,6 +823,7 @@ char *path;
 
 			m = new (struct macro);
 			m->next = sc->dir->macros;
+			m->help = help;
 
 			if (t[-1] == '!') {
 				t[-1] = '\0';
@@ -842,9 +850,9 @@ char *path;
 			m->name = strdup (trim (s));
 			sc->dir->macros = m;
 		} else if ((t = strchr (s, ':')) != NULL) {
-			r = parse_rule (sc, dir, s, t);
+			r = parse_rule (sc, dir, s, t, help);
 			if (r == NULL)
-				continue;
+				goto cont;
 
 			len = 0;
 			cap = 1;
@@ -853,6 +861,9 @@ char *path;
 		} else {
 			warnx ("%s:%d: syntax error", path, ln);
 		}
+
+	cont:
+		help = NULL;
 	}
 
 	return 0;
@@ -1316,12 +1327,16 @@ struct scope *sc;
 		errx (1, "print_sc(): must be of type SC_DIR");
 
 	for (m = sc->dir->macros; m != NULL; m = m->next) {
+		if (m->help != NULL)
+			printf ("\n## %s\n", m->help);
 		printf ("%s = %s\n", m->name, m->value);
 	}
 
 	printf ("\n");
 
 	for (f = sc->dir->files; f != NULL; f = f->next) {
+		if (f->help != NULL)
+			printf ("## %s\n", f->help);
 		printf ("%s:", f->name);
 	
 		for (dep = f->deps; dep != NULL; dep = dep->next)

@@ -70,23 +70,6 @@ CFLAGS = -ansi
 CFLAGS += -Wall
 ```
 
-
-# Doc comments for help page
-```make
-## build the code base
-all: a b
-
-## delete build artifacts
-clean:
-
-## build component "a"
-a:
-
-## build component "b"
-b:
-```
-
-
 # Templates
 ## MyMakefile
 ```make

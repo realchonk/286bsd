@@ -51,6 +51,7 @@ struct file {
 	struct rule *rule; /* optional */
 	struct dep *deps, *dtail;
 	struct timespec mtime;
+	char *help; /* optional */
 };
 
 struct inference {
@@ -68,6 +69,7 @@ struct macro {
 	struct macro *next, *enext;
 	char *name;
 	char *value;
+	char *help;
 	int lazy;
 };
 

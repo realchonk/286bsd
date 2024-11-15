@@ -1,5 +1,50 @@
+# Choose a name for this make
+- hmake (hireachical make)
+- rmake (recursive make)
+- bmake (already used by BSD Make)
+- dmake/dirmk/dmk (directory make)
+
+
 # Write a useful README about how this make differs from all the other makes
-- Current situation of using make in big projects
+- Motivation for writing this make
+    - Make is great, but not really suitable for large projects
+        - Either recursive make, or one gigantic Makefile (both are bad)
+    - Alternatives
+        - Autotools is way too painful and uses recursive make
+        - CMake is too fat and is written in C++
+        - Meson is written in Python
+        - All of the above require learning new languages
+- Fundamental difference between this make, and all the others
+    - Targets/Dependencies are treated as paths, not strings
+    - Every directory is associated with a scope
+    - There is a Tree of Scopes
+    - Minor differences
+        - Inference rules can be arbitrarily deep
+        - No need for `.SUFFIXES:`
+        - Macro assignment works slightly different
+            - use `?=` if you want to allow overriding an assignment
+- Explain how this make works
+    - Data Structures
+        - `scope`
+        - `directory` and `gnu`
+        - `file`
+        - `rule`
+        - `dep`
+    - Algorithms
+        - `parse_recursive()` (bottom-up)
+        - `parse()` (top-down)
+        - lazy includes
+        - `expand()`
+        - `build()` and `build_file()`
+        - Inference rules
+- List of Features
+    - "Usual" Make Features
+    - Scoped Include
+    - Integration with "foreign" make directories (GNU, BSD, ...)
+    - "Exporting" macros into child scopes
+- Where this make could be useful
+    - Large projects with many subdirectories
+- Future Work
 
 
 # Options

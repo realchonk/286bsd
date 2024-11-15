@@ -938,7 +938,6 @@ struct path *prefix;
 char *cmd;
 struct expand_ctx *ctx;
 {
-	char *line;
 	int ec, q = 0;
 
 	if (*cmd == '@') {
@@ -951,10 +950,12 @@ struct expand_ctx *ctx;
 	if (!q)
 		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
 
-	asprintf (&line, "cd '%s' && %s", path_to_str (prefix), cmd);
-	ec = system (line);
-
-	free (line);
+	str_reset ();
+	str_push_str ("cd '");
+	path_write (prefix);
+	str_push_str ("' && ");
+	str_push_str (cmd);
+	ec = system (str_get ());
 	free (cmd);
 
 	return ec;
@@ -965,40 +966,26 @@ struct scope *sc;
 struct path *prefix;
 char *rule;
 {
-	size_t len = 0;
-	char *cmd, *prog;
+	char *cmd;
 	int ec;
 
-	/* TODO: use str_*() API */
-	prog = sc->gnu->prog != NULL ? sc->gnu->prog : "make";
-
-	len += strlen (prog);
+	str_reset ();
+	str_push_str (sc->gnu->prog != NULL ? sc->gnu->prog : "make");
 
 	if (q)
-		len += 3;
-
-	if (sc->makefile != NULL)
-		len += strlen (sc->makefile) + 4;
-
-	if (rule != NULL)
-		len += strlen (rule) + 1;
-
-	cmd = malloc (len + 1);
-	strcpy (cmd, prog);
-
-	if (q)
-		strcat (cmd, " -q");
+		str_push_str (" -q");
 
 	if (sc->makefile != NULL) {
-		strcat (cmd, " -f ");
-		strcat (cmd, sc->makefile);
+		str_push_str (" -f ");
+		str_push_str (sc->makefile);
 	}
 
 	if (rule != NULL) {
-		strcat (cmd, " ");
-		strcat (cmd, rule);
+		str_push (' ');
+		str_push_str (rule);
 	}
 
+	cmd = str_copy ();
 	ec = runcom (sc, prefix, cmd, NULL);
 	free (cmd);
 	return ec;

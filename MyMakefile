@@ -10,6 +10,13 @@ clean: make/clean sys/clean cc/clean
 distclean: clean
 	rm -rf tools
 
+todo:
+	@find . -name 'TODO*' | while read -r file; do	\
+		echo "=== $$file";			\
+		cat "$$file";				\
+		printf '\n\n';				\
+	done | less
+
 .c:
 	${CC} -o $@ $< ${CFLAGS} ${CPPFLAGS}
 

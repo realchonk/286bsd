@@ -635,7 +635,7 @@ char *s;
 	sub->makefile = NULL;
 	sc->dir->subdirs = sub;
 
-	p = strtok (s, ",");
+	p = strsep (&s, ",");
 	if (p == NULL)
 		return -1;
 
@@ -645,7 +645,7 @@ char *s;
 	if (access (path, F_OK) != 0)
 		errx (1, "%s: directory not found: %s", path_to_str (dir), sub->name);
 	
-	p = strtok (NULL, ",");
+	p = strsep (&s, ",");
 	if (p == NULL) {
 		sub->type = SC_DIR;
 		sub->dir = NULL;
@@ -653,13 +653,14 @@ char *s;
 		return 0;
 	}
 
+	// TODO: handle empty fields
 	p = trim (p);
 	if (strcmp (p, "DIR") == 0) {
 		sub->type = SC_DIR;
 		sub->dir = NULL;
 		sub->makefile = MAKEFILE;
 
-		p = strtok (NULL, ",");
+		p = strsep (&s, ",");
 		if (p == NULL)
 			return 0;
 
@@ -670,12 +671,12 @@ char *s;
 		sub->gnu = new (struct gnu);
 		sub->gnu->prog = NULL;
 
-		p = strtok (NULL, ",");
+		p = strsep (&s, ",");
 		if (p == NULL)
 			return 0;
 		sub->gnu->prog = strdup (trim (p));
 
-		p = strtok (NULL, ",");
+		p = strsep (&s, ",");
 		if (p == NULL)
 			return 0;
 		sub->makefile = strdup (trim (p));
@@ -684,7 +685,6 @@ char *s;
 	} else {
 		return -1;
 	}
-
 }
 
 struct rule *

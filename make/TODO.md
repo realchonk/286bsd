@@ -165,14 +165,10 @@ This must be defined at the top of the file.
 Allow specifying additional `PATH` directories.
 
 
-# Replace usage of `strtok()` and `strtok_r()` with `strsep()`
-
-
 # Provide implementations of non-standard functions (libcompat)
 - `err(3)` and `errx(3)`
 - `reallocarray(3)`
-- `asprintf(3)`
-- `strsep(3)` or `strtok_r(3)`
+- `strsep(3)`
 
 
 # Future TODOs

@@ -260,6 +260,18 @@ struct path *old, *comp;
 	return p;
 }
 
+char *
+path_cat_str (dir, file)
+struct path *dir;
+char *file;
+{
+	str_reset ();
+	path_write (dir);
+	str_push ('/');
+	str_push_str (file);
+	return str_get ();
+}
+
 path_write (p)
 struct path *p;
 {
@@ -616,10 +628,9 @@ char *s;
 
 	sub->name = strdup (trim (p));
 
-	asprintf (&path, "%s/%s", path_to_str (dir), sub->name);
+	path = path_cat_str (dir, sub->name);
 	if (access (path, F_OK) != 0)
 		errx (1, "%s: directory not found: %s", path_to_str (dir), sub->name);
-	free (path);
 	
 	p = strtok (NULL, ",");
 	if (p == NULL) {
@@ -797,7 +808,7 @@ char *path;
 			if (*t == '/') {
 				u = t;
 			} else {
-				asprintf (&u, "%s/%s", path_to_str (dir), t);
+				u = strdup (path_cat_str (dir, t));
 			}
 			parse (sc, dir, u);
 			if (u != t)
@@ -892,7 +903,7 @@ struct path *dir;
 {
 	char *path;
 
-	asprintf (&path, "%s/%s", path_to_str (dir), sc->makefile);
+	path = strdup (path_cat_str (dir, sc->makefile));
 	parse (sc, dir, path);
 	free (path);
 

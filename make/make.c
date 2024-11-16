@@ -260,18 +260,6 @@ struct path *old, *comp;
 	return p;
 }
 
-char *
-path_cat_str (dir, file)
-struct path *dir;
-char *file;
-{
-	str_reset ();
-	path_write (dir);
-	str_push ('/');
-	str_push_str (file);
-	return str_get ();
-}
-
 path_write (p)
 struct path *p;
 {
@@ -316,6 +304,18 @@ struct path *p;
 	free (s);
 
 	return t;
+}
+
+char *
+path_cat_str (dir, file)
+struct path *dir;
+char *file;
+{
+	str_reset ();
+	path_write (dir);
+	str_push ('/');
+	str_push_str (file);
+	return str_get ();
 }
 
 struct path *

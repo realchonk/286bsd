@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <assert.h>
 #include <unistd.h>
 #include <limits.h>
 #include <libgen.h>
@@ -1307,6 +1308,19 @@ struct path *path;
 
 /* MAIN */
 
+struct path *	
+parse_subdir (prefix, sub)
+struct path *prefix;
+struct scope *sub;
+{
+	struct path *np;
+
+	tmppath.name = sub->name;
+	np = path_cat (prefix, &tmppath);
+	parse_dir (sub, np);
+	return np;
+}
+
 print_sc (prefix, sc, verbose)
 struct path *prefix;
 struct scope *sc;
@@ -1386,9 +1400,8 @@ struct scope *sc;
 				continue;
 
 			printf ("\n");
-			tmppath.name = sub->name;
-			new_prefix = path_cat (prefix, &tmppath);
-			parse_dir (sub, new_prefix);
+
+			new_prefix = parse_subdir (prefix, sub);
 			print_sc (new_prefix, sub, verbose);
 			free (new_prefix);
 		}
@@ -1397,9 +1410,87 @@ struct scope *sc;
 	return 0;
 }
 
-usage ()
+usage (uc)
 {
-	fprintf (stderr, "usage: %s [-pv] [-C dir] [-f makefile] [target...]\n", m_make.value);
+	fprintf (stderr, "%s: %s [-hpv] [-C dir] [-f makefile] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
+	return 1;
+}
+
+help_macros (sc)
+struct scope *sc;
+{
+	struct macro *m;
+
+	assert (sc->dir != NULL);
+
+	for (m = sc->dir->macros; m != NULL; m = m->next) {
+		if (m->help == NULL)
+			continue;
+
+		printf ("%-30s- %s\n", m->name, m->help);
+	}
+
+	return 0;
+}
+
+help_files (prefix, sc)
+struct path *prefix;
+struct scope *sc;
+{
+	struct path *new_prefix;
+	struct scope *sub;
+	struct file *f;
+	char *p;
+	int n;
+
+	p = path_to_str (prefix);
+	if (strcmp (p, ".") == 0) {
+		p = NULL;
+	} else {
+		p += 2; /* skip ./ */
+	}
+
+	// TODO: this should be sorted from top to down
+	for (f = sc->dir->files; f != NULL; f = f->next) {
+		if (f->help == NULL)
+			continue;
+
+		n = 0;
+		if (p != NULL)
+			n += printf ("%s/", p);
+		n += printf ("%s", f->name);
+		printf ("%-*s- %s\n", n < 30 ? 30 - n : 0, "", f->help);
+	}
+
+	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+		new_prefix = parse_subdir (prefix, sub);
+		help_files (new_prefix, sub);
+		free (new_prefix);
+	}
+
+	return 0;
+}
+
+help (prefix, sc)
+struct path *prefix;
+struct scope *sc;
+{
+	usage (1);
+
+	fputs ("\nOPTIONS:\n", stderr);
+	fputs ("-C dir                        - chdir(dir)\n", stderr);
+	fputs ("-f file                       - read `file` instead of \"" MAKEFILE "\"\n", stderr);
+	fputs ("-h                            - print this page\n", stderr);
+	fputs ("-p                            - dump tree\n", stderr);
+	fputs ("-pv                           - dump tree, recursively\n", stderr);
+	fputs ("-v                            - verbose output\n", stderr);
+
+	fputs ("\nMACROS:\n", stderr);
+	help_macros (sc);
+
+	fputs ("\nTARGETS:\n", stderr);
+	help_files (prefix, sc);
+
 	return 1;
 }
 
@@ -1410,13 +1501,16 @@ char **argv;
 	struct path *path;
 	struct macro *m;
 	char *s, *cd = NULL, *makefile = MAKEFILE;
-	int i, option, pr = 0, n = 0;
+	int i, option, pr = 0, n = 0, dohelp = 0;
 
 	m_dmake.value = m_make.value = argv[0];
 
 	str_reset ();
-	while ((option = getopt (argc, argv, "pvC:f:")) != -1) {
+	while ((option = getopt (argc, argv, "hpvC:f:")) != -1) {
 		switch (option) {
+		case 'h':
+			dohelp = 1;
+			break;
 		case 'p':
 			str_push_str (" -p");
 			pr = 1;
@@ -1432,7 +1526,7 @@ char **argv;
 			makefile = optarg;
 			break;
 		case '?':
-			return usage ();
+			return usage (0);
 		default:
 			errx (1, "unexpected option: -%c", option);
 		}
@@ -1468,6 +1562,9 @@ char **argv;
 	sc = parse_recursive (path, makefile);
 	if (sc == NULL)
 		errx (1, "failed to find or parse makefile");
+
+	if (dohelp)
+		return help (path, sc);
 
 	if (pr) {
 		print_sc (path, sc, verbose);

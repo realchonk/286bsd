@@ -4,7 +4,7 @@ CFLAGS = -g -O0 -ansi -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-impl
 
 all: make
 
-## Install make into ${DESTDIR}${PREFIX}/bin/make.
+## Install make into ${DESTDIR}${PREFIX}/bin.
 install: make
 	mkdir -p ${DESTDIR}${PREFIX}/bin
 	cp -f make ${DESTDIR}${PREFIX}/bin/

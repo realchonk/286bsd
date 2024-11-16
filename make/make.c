@@ -103,13 +103,15 @@ char *s, *prefix;
 
 struct timespec
 get_mtime (dir, name)
-char *dir, *name;
+struct path *dir;
+char *name;
 {
+	extern char *path_cat_str ();
 	struct stat st;
-	char *path = NULL;
+	char *path;
 	struct timespec t;
 
-	asprintf (&path, "%s/%s", dir, name);
+	path = path_cat_str (dir, name);
 
 	if (stat (path, &st) == 0) {
 		t = st.st_mtim;
@@ -117,7 +119,6 @@ char *dir, *name;
 		memset (&t, 0, sizeof (t));
 	}
 
-	free (path);
 	return t;
 }
 
@@ -535,10 +536,7 @@ char *cmd;
 				str_push (buf[i]);
 		}
 		close (pipefd[0]);
-
-		if (wait (NULL) != pid)
-			err (1, "wait()");
-
+		wait (NULL);
 	}
 
 	free (args[2]);
@@ -749,7 +747,7 @@ char *s, *t, *help;
 				f->rule = r;
 				f->deps = deps;
 				f->dtail = dt;
-				f->mtime = get_mtime (path_to_str (dir), f->name);
+				f->mtime = get_mtime (dir, f->name);
 				f->help = help;
 				sc->dir->files = f;
 				continue;
@@ -1101,7 +1099,8 @@ struct inference *inf;
 struct inference *
 find_inf (sc, dir, name)
 struct scope *sc;
-char *dir, *name;
+struct path *dir;
+char *name;
 {
 	extern struct file *try_find ();
 	struct inference *inf;
@@ -1136,7 +1135,8 @@ char *dir, *name;
 struct file *
 try_find (sc, dir, name)
 struct scope *sc;
-char *dir, *name;
+struct path *dir;
+char *name;
 {
 	struct inference *inf;
 	struct timespec t;
@@ -1200,11 +1200,11 @@ struct path *prefix;
 						goto ret;
 					}
 				}
-				f = try_find (sc, path_to_str (prefix), name);
+				f = try_find (sc, prefix, name);
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
 			} else {
-				f->mtime = get_mtime (path_to_str (prefix), name);
+				f->mtime = get_mtime (prefix, name);
 			}
 		} else {
 			f = sc->dir->files;
@@ -1214,7 +1214,7 @@ struct path *prefix;
 		}
 
 		if (f->rule == NULL || *f->rule->code == NULL) {
-			inf = name != NULL ? find_inf (sc, path_to_str (prefix), name) : NULL;
+			inf = name != NULL ? find_inf (sc, prefix, name) : NULL;
 			if (inf != NULL) {
 				inf_inst_file (f, inf);
 			} else if (f->rule == NULL) {

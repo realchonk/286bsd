@@ -312,13 +312,12 @@ char *s;
 {
 	size_t len = 0, cap = 4;
 	struct path *p;
-	char *last;
 	char *t;
 
 	p = calloc (cap + 1, sizeof (struct path));
 
-	for (t = strtok_r (s, "/", &last); t != NULL; t = strtok_r (NULL, "/", &last)) {
-		if (strcmp (t, ".") == 0)
+	while ((t = strsep (&s, "/")) != NULL) {
+		if (*t == '\0' || strcmp (t, ".") == 0)
 			continue;
 
 		if (len == cap) {
@@ -674,7 +673,7 @@ char *s, *t, *help;
 	struct rule *r;
 	struct file *f;
 	struct dep *dep, *deps, *dt;
-	char *u, *p;
+	char *u, *v, *p;
 	int flag;
 
 	r = new (struct rule);
@@ -684,8 +683,11 @@ char *s, *t, *help;
 	*t = '\0';
 
 	/* parse deps */
-	u = strdup (trim (expand (sc, t + 1, NULL)));
-	for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+	v = u = strdup (trim (expand (sc, t + 1, NULL)));
+	while ((p = strsep (&v, " \t")) != NULL) {
+		if (*p == '\0')
+			continue;
+
 		dep = new (struct dep);
 		dep->next = NULL;
 		dep->path = parse_path (p);
@@ -722,7 +724,10 @@ char *s, *t, *help;
 
 		sc->dir->infs = inf;
 	} else {
-		for (p = strtok (u, " \t"); p != NULL; p = strtok (NULL, " \t")) {
+		v = u;
+		while ((p = strsep (&v, " \t")) != NULL) {
+			if (*p == '\0')
+				continue;
 			/* TODO: check name */
 
 			f = find_file (sc->dir, p);

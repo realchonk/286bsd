@@ -1,15 +1,23 @@
 TOP != pwd
+
+## Path to the C Compiler
 CC ?= cc
+
+## Path to Yacc
 YACC ?= ${TOP}/tools/bin/yacc
 
+## Build everything
 all: make sys cc
 
+## Clean everything
 clean: make/clean sys/clean cc/clean
 	rm -f *.core
 
+## Clean even more things
 distclean: clean
 	rm -rf tools
 
+## Get a list of all things to be done
 todo:
 	@find . -name 'TODO*' | while read -r file; do	\
 		echo "=== $$file";			\

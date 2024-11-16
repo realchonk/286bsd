@@ -200,6 +200,21 @@ str_copy ()
 	return strdup (str_get ());
 }
 
+char *
+str_cat (s, t)
+char *s, *t;
+{
+	char *u;
+	size_t len_s, len_t;
+
+	len_s = strlen (s);
+	len_t = strlen (t);
+	u = malloc (len_s + len_t + 1);
+	memcpy (u, s, len_s);
+	memcpy (u + len_s, t, len_t + 1);
+	return u;
+}
+
 /* PATH LOGIC */
 
 static struct path path_null = { .type = PATH_NULL, .name = NULL };
@@ -1043,7 +1058,7 @@ char *name;
 	ext = strrchr (name, '.');
 	if (ext != NULL)
 		*ext = '\0';
-	asprintf (&s, "%s%s", name, inf->from);
+	s = str_cat (name, inf->from);
 	if (ext != NULL)
 		*ext = '.';
 
@@ -1077,7 +1092,7 @@ struct inference *inf;
 	ext = strrchr (f->name, '.');
 	if (ext != NULL)
 		*ext = '\0';
-	asprintf (&s, "%s%s", f->name, inf->from);
+	s = str_cat (f->name, inf->from);
 	if (ext != NULL)
 		*ext = '.';
 
@@ -1118,7 +1133,7 @@ char *name;
 
 	for (inf = sc->dir->infs; inf != NULL; inf = inf->next) {
 		if (strcmp (inf->to, ext) == 0) {
-			asprintf (&sn, "%s%s", base, inf->from);
+			sn = str_cat (base, inf->from);
 			sf = find_file (sc->dir, sn);
 			if (sf == NULL)
 				sf = try_find (sc, dir, sn);

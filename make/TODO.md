@@ -55,9 +55,6 @@
 -s          silent, do not write commands to stdout
 
 
-# "normal" `include file`
-
-
 # Macro Definition Operators
 ## `+=`: Append Assignment
 ### MyMakefile

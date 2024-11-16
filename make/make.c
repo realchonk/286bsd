@@ -767,7 +767,7 @@ char *path;
 	struct macro *m, *m2;
 	struct rule *r = NULL;
 	size_t len, cap;
-	char *s, *t, *help = NULL;
+	char *s, *t, *u, *help = NULL;
 	FILE *file;
 	int ln = 0;
 
@@ -787,6 +787,17 @@ char *path;
 			continue;
 		} else if (s[0] == '#' || *trim (s) == '\0') {
 			continue;
+		} else if (starts_with (s, "include ")) {
+			t = strdup (trim (expand (sc, s + 8, NULL)));
+			if (*t == '/') {
+				u = t;
+			} else {
+				asprintf (&u, "%s/%s", path_to_str (dir), t);
+			}
+			parse (sc, dir, u);
+			if (u != t)
+				free (u);
+			free (t);
 		} else if (starts_with (s, ".include ")) {
 			if (parse_include (sc, dir, s + 9) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);

@@ -1433,7 +1433,7 @@ struct scope *sc;
 	return 0;
 }
 
-help_files (prefix, sc)
+help_files (prefix, sc, v)
 struct path *prefix;
 struct scope *sc;
 {
@@ -1462,6 +1462,9 @@ struct scope *sc;
 		printf ("%-*s- %s\n", n < 30 ? 30 - n : 0, "", f->help);
 	}
 
+	if (!v)
+		return 0;
+
 	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
 		new_prefix = parse_subdir (prefix, sub);
 		help_files (new_prefix, sub);
@@ -1471,7 +1474,7 @@ struct scope *sc;
 	return 0;
 }
 
-help (prefix, sc)
+help (prefix, sc, v)
 struct path *prefix;
 struct scope *sc;
 {
@@ -1480,7 +1483,8 @@ struct scope *sc;
 	fputs ("\nOPTIONS:\n", stderr);
 	fputs ("-C dir                        - chdir(dir)\n", stderr);
 	fputs ("-f file                       - read `file` instead of \"" MAKEFILE "\"\n", stderr);
-	fputs ("-h                            - print this page\n", stderr);
+	fputs ("-h                            - print help page\n", stderr);
+	fputs ("-hv                           - print help page, recursively\n", stderr);
 	fputs ("-p                            - dump tree\n", stderr);
 	fputs ("-pv                           - dump tree, recursively\n", stderr);
 	fputs ("-v                            - verbose output\n", stderr);
@@ -1489,7 +1493,7 @@ struct scope *sc;
 	help_macros (sc);
 
 	fputs ("\nTARGETS:\n", stderr);
-	help_files (prefix, sc);
+	help_files (prefix, sc, v);
 
 	return 1;
 }
@@ -1564,7 +1568,7 @@ char **argv;
 		errx (1, "failed to find or parse makefile");
 
 	if (dohelp)
-		return help (path, sc);
+		return help (path, sc, verbose);
 
 	if (pr) {
 		print_sc (path, sc, verbose);

@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <err.h>
 #include "cc1.h"
 
 int reg;
@@ -124,10 +125,26 @@ struct expr *e;
 	return r;
 }
 
+gen_stmt (st)
+struct stmt *st;
+{
+	switch (st->type) {
+	case ST_NULL:
+		puts ("\t# ;");
+		break;
+	case ST_EXPR:
+	case ST_LABEL:
+		errx (1, "TODO: gen_stmt()");
+		break;
+	}
+	return 0;
+}
+
 gen_fn (fn)
 struct function *fn;
 {
 	struct symbol *sym;
+	struct stmt **st;
 	int r, ch;
 
 	for (sym = fn->ahead; sym != NULL; sym = sym->xnext)
@@ -193,6 +210,10 @@ struct function *fn;
 	}
 
 	// TODO: define static variables
+
+	for (st = fn->body; *st != NULL; ++st) {
+		gen_stmt (*st);
+	}
 
 	printf ("}\n\n");
 

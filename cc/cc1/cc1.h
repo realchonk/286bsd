@@ -106,6 +106,21 @@ struct expr {
 	};
 };
 
+enum stmt_type {
+	ST_NULL,
+	ST_EXPR,
+	ST_LABEL,
+};
+
+struct stmt {
+	enum stmt_type type;
+
+	union {
+		struct expr *ex;
+		char ident[IDENT_LEN + 1];
+	};
+};
+
 struct ident_list {
 	struct ident_list *next;
 	char ident[IDENT_LEN + 1];
@@ -153,6 +168,7 @@ struct function {
 	struct dtype *dt;
 	char ident[IDENT_LEN + 1];
 	struct symbol *ahead, *vhead;
+	struct stmt **body;
 };
 
 extern struct scope gscope, fscope;

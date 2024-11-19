@@ -16,12 +16,17 @@
 	struct decl_init *di;
 	struct decls_list *dd;
 	struct expr *ex;
+	struct stmt *st;
 	int i;
 	
 	struct {
 		struct decls_list *dd;
-		// stmts
+		struct stmt **st;
 	} fb;
+	struct list {
+		void **ptr;
+		size_t cap, len;
+	} lst;
 };
 
 %token INTEGER
@@ -47,10 +52,12 @@
 %type <in> initializer
 %type <di> init_decl decl_list
 %type <ex> expression
+%type <st> statement
 %type <il> ident_list
 %type <dd> decls_list decls_list_opt
 %type <fb> fbody
 %type <fn> function
+%type <lst> stmts
 
 %%
 
@@ -59,16 +66,20 @@ file		: file declaration		{ declare (&$2); }
       		|
 		;
 
-function	: decl_specs declarator decls_list fbody	{ fn (&$$, &$1, &$2, $3, $4.dd); }
-	 	| declarator decls_list fbody			{ fn (&$$, NULL, &$1, $2, $3.dd); }
+function	: decl_specs declarator decls_list fbody	{ fn (&$$, &$1, &$2, $3, $4.dd, $4.st); }
+	 	| declarator decls_list fbody			{ fn (&$$, NULL, &$1, $2, $3.dd, $3.st); }
 	 	;
 
 ident_list	: ident_list ',' IDENT		{ $$ = il_append ($1, lval.ident); }
 	   	| IDENT				{ $$ = il_append (NULL, lval.ident); }
 		;
 
-fbody		: '{' decls_list_opt '}'	{ $$.dd = $2; }
+fbody		: '{' decls_list_opt stmts '}'	{ $$.dd = $2; $$.st = lst_fin (&$3); }
        		;
+
+stmts		: stmts statement		{ $$ = $1; lst_append (&$$, $2); }
+       		|				{ lst_new (&$$); }
+		;
 
 decls_list_opt	: decls_list			{ $$ = $1; }
 	       	|				{ $$ = NULL; }
@@ -130,6 +141,11 @@ declarator1	: IDENT				{ $$.type = DL_IDENT; cpident ($$.ident, lval.ident); }
 initializer	: '=' expression		{ $$.type = IN_EX; $$.ex = $2; }
 	    	;
 
+statement	: expression ';'		{ $$ = new (struct stmt); $$->type = ST_EXPR; $$->ex = $1; }
+	  	| IDENT ':'			{ $$ = new (struct stmt); $$->type = ST_LABEL; cpident ($$->ident, lval.ident); }
+	  	| ';'				{ $$ = new (struct stmt); $$->type = ST_NULL; }
+	  	;
+
 expression	: INTEGER			{ $$ = new (struct expr); $$->type = EX_INT; $$->i = lval.i; }
 	   	;
 
@@ -137,6 +153,35 @@ expression	: INTEGER			{ $$ = new (struct expr); $$->type = EX_INT; $$->i = lval
 %%
 
 static struct dtype default_int = { DT_INT };
+
+lst_new (lst)
+struct list *lst;
+{
+	lst->len = 0;
+	lst->cap = 2;
+	lst->ptr = calloc (lst->cap + 1, sizeof (void *));
+	return 0;
+}
+
+lst_append (lst, x)
+struct list *lst;
+void *x;
+{
+	if (lst->len == lst->cap) {
+		lst->cap *= 2;
+		lst->ptr = reallocarray (lst->ptr, lst->cap + 1, sizeof (void *));
+	}
+	lst->ptr[lst->len++] = x;
+	return 0;
+}
+
+void *
+lst_fin (lst)
+struct list *lst;
+{
+	lst->ptr[lst->len] = NULL;
+	return lst->ptr;
+}
 
 struct ident_list *
 il_append (head, ident)
@@ -326,11 +371,12 @@ char *ident;
 	return NULL;
 }
 
-fn (fn, ds, dl, args, vars)
+fn (fn, ds, dl, args, vars, stmts)
 struct function *fn;
 struct decl_spec *ds;
 struct declarator *dl;
 struct decls_list *args, *vars;
+struct stmt **stmts;
 {
 	struct symbol *sym, *atail, *vtail;
 	struct decl_init *di;
@@ -365,6 +411,7 @@ struct decls_list *args, *vars;
 	fscope.typedefs = fscope.vars = NULL;
 	fn->ahead = atail = NULL;
 	fn->vhead = vtail = NULL;
+	fn->body = stmts;
 
 	// declare arguments as implicit int
 	for (il = dl->def.il; il != NULL; il = il->next) {

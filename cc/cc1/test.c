@@ -20,6 +20,8 @@ main (argc, argv)
 char **argv;
 {
 	int i = 0, j, k = 42;
+
+	;;;
 }
 
 extern h ();

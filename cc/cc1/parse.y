@@ -315,7 +315,6 @@ struct type_spec *ts;
 			dt->type = us ? DT_USHORT : DT_SHORT;
 		} else if (bt & BT_LONG) {
 			dt->type = us ? DT_ULONG : DT_LONG;
-			puts ("LOOOOOONG");
 		} else {
 			dt->type = us ? DT_UINT : DT_INT;
 		}

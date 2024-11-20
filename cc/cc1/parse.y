@@ -313,7 +313,7 @@ struct type_spec *ts;
 			}
 		} else if (bt & BT_SHORT) {
 			dt->type = us ? DT_USHORT : DT_SHORT;
-		} else if (bt & DT_LONG) {
+		} else if (bt & BT_LONG) {
 			dt->type = us ? DT_ULONG : DT_LONG;
 			puts ("LOOOOOONG");
 		} else {

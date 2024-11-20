@@ -95,13 +95,16 @@ struct decl_spec {
 };
 
 enum expr_type {
+	EX_PAR,
 	EX_INT,
 };
 
 struct expr {
 	enum expr_type type;
+	struct dtype *dt;
 
 	union {
+		struct expr *e;
 		int i;
 	};
 };
@@ -173,6 +176,6 @@ struct function {
 
 extern struct scope gscope, fscope;
 extern yyerror (), yylex ();
-extern reg;
+extern reg, linenum;
 
 #endif // FILE_CC1_H

@@ -10,6 +10,8 @@ eval_expr (e)
 struct expr *e;
 {
 	switch (e->type) {
+	case EX_PAR:
+		return eval_expr (e->e);
 	case EX_INT:
 		return e->i;
 	}
@@ -107,17 +109,46 @@ char *name;
 	return NULL;
 }
 
-gen_expr (dt, e)
+dt_is_eq (a, b)
+struct dtype *a, *b;
+{
+	if (a->type != b->type)
+		return 0;
+
+	switch (a->type) {
+	case DT_PTR:
+	case DT_FUNC:
+		return dt_is_eq (a->inner, b->inner);
+	default:
+		return 1;
+	}
+}
+
+struct expr *
+cast (e, dt, imp)
+struct expr *e;
 struct dtype *dt;
+{
+	// TODO: casting
+	if (!dt_is_eq (e->dt, dt))
+		errx (1, "%d: TODO: cast(): %d, %d", linenum, e->dt->type, dt->type);
+
+	return e;
+}
+
+gen_expr (e)
 struct expr *e;
 {
 	int r;
 
 	switch (e->type) {
+	case EX_PAR:
+		r = gen_expr (e->e);
+		break;
 	case EX_INT:
 		r = reg++;
 		printf ("\tlet $%d: ", r);
-		print_dt (dt);
+		print_dt (e->dt);
 		printf (" = %d;\n", e->i);
 		break;
 	}
@@ -145,6 +176,7 @@ struct function *fn;
 {
 	struct symbol *sym;
 	struct stmt **st;
+	struct expr *ex;
 	int r, ch;
 
 	for (sym = fn->ahead; sym != NULL; sym = sym->xnext)
@@ -203,7 +235,8 @@ struct function *fn;
 		printf (";\n");
 
 		if (sym->sc == SC_AUTO && sym->init.type != IN_NONE) {
-			r = gen_expr (sym->dt, sym->init.ex);
+			ex = cast (sym->init.ex, sym->dt, 0);
+			r = gen_expr (ex);
 			printf ("\twrite $%d, $%d;\n", sym->reg, r);
 		}
 		printf ("\n");

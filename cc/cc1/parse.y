@@ -112,8 +112,8 @@ type_spec	: basic_type			{ $$.type = TS_BASIC; $$.bt = $1; }
 	  	;
        	
 basic_type	: CHAR				{ $$ = BT_CHAR; }
-	   	| INT				{ $$ = BT_SHORT; }
-	   	| SHORT				{ $$ = BT_INT; }
+	   	| SHORT				{ $$ = BT_SHORT; }
+	   	| INT				{ $$ = BT_INT; }
 		| LONG				{ $$ = BT_LONG; }
 		| SIGNED			{ $$ = BT_SIGNED; }
 		| UNSIGNED			{ $$ = BT_UNSIGNED; }
@@ -146,13 +146,27 @@ statement	: expression ';'		{ $$ = new (struct stmt); $$->type = ST_EXPR; $$->ex
 	  	| ';'				{ $$ = new (struct stmt); $$->type = ST_NULL; }
 	  	;
 
-expression	: INTEGER			{ $$ = new (struct expr); $$->type = EX_INT; $$->i = lval.i; }
+expression	: '(' expression ')'		{ $$ = new_expr (EX_PAR, $2->dt); $$->e = $2; }
+	   	| INTEGER			{ $$ = new_expr (EX_INT, &default_int); $$->i = lval.i; }
 	   	;
 
 
 %%
 
-static struct dtype default_int = { DT_INT };
+static struct dtype default_int = { .type = DT_INT };
+
+struct expr *
+new_expr (type, dt)
+struct dtype *dt;
+{
+	struct expr *e;
+
+	e = new (struct expr);
+	e->type = type;
+	e->dt = dt;
+	
+	return e;
+}
 
 lst_new (lst)
 struct list *lst;
@@ -301,6 +315,7 @@ struct type_spec *ts;
 			dt->type = us ? DT_USHORT : DT_SHORT;
 		} else if (bt & DT_LONG) {
 			dt->type = us ? DT_ULONG : DT_LONG;
+			puts ("LOOOOOONG");
 		} else {
 			dt->type = us ? DT_UINT : DT_INT;
 		}

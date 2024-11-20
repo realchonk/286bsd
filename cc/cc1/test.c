@@ -19,9 +19,7 @@ int i, j;
 main (argc, argv)
 char **argv;
 {
-	int i = 0, j, k = 42;
-
-	;;;
+	int i, j, k = 0;
 }
 
 extern h ();

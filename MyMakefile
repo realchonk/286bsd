@@ -6,6 +6,10 @@ CC ?= cc
 ## Path to Yacc
 YACC ?= ${TOP}/tools/bin/yacc
 
+## Default C Compiler Flags
+CFLAGS ?= -O2
+CFLAGS += -ansi -Wall -Wno-deprecated-non-prototype -Wno-implicit-int
+
 ## Build everything
 all: make sys cc
 
@@ -34,6 +38,7 @@ todo:
 .export CC
 .export TOP
 .export YACC
+.export CFLAGS
 .include make
 .include cc
 .include sys

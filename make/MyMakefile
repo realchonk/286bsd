@@ -1,6 +1,5 @@
 ## Installation prefix
 PREFIX ?= /usr
-CFLAGS = -g -O0 -ansi -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
 
 all: make
 

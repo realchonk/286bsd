@@ -663,7 +663,7 @@ char *s;
 		return 0;
 	}
 
-	// TODO: handle empty fields
+	/* TODO: handle empty fields */
 	p = trim (p);
 	if (strcmp (p, "DIR") == 0) {
 		sub->type = SC_DIR;
@@ -892,7 +892,7 @@ char *path;
 				}
 				m->lazy = 1;
 			} else if (t[-1] == ':') {
-				// handle both `:=` and `::=`
+				/* handle both `:=` and `::=` */
 				t[t[-2] == ':' ? -2 : -1] = '\0';
 				m->lazy = 0;
 				m->value = strdup (trim (expand (sc, trim (t + 1), NULL)));
@@ -1509,7 +1509,7 @@ struct scope *sc;
 		p += 2; /* skip ./ */
 	}
 
-	// TODO: this should be sorted from top to down
+	/* TODO: this should be sorted from top to down */
 	for (f = sc->dir->files; f != NULL; f = f->next) {
 		if (f->help == NULL)
 			continue;

@@ -66,7 +66,7 @@ struct rule {
 };
 
 struct macro {
-	struct macro *next, *enext;
+	struct macro *next, *enext, *prepend;
 	char *name;
 	char *value;
 	char *help;

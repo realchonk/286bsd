@@ -25,30 +25,35 @@
 static struct macro m_shell = {
 	.next = NULL,
 	.enext = NULL,
+	.prepend = NULL,
 	.name = "SHELL",
 	.value = SHELL,
 	.lazy = 0,
 }, m_make = {
 	.next = &m_shell,
 	.enext = &m_shell,
+	.prepend = NULL,
 	.name = "MAKE",
 	.value = NULL,
 	.lazy = 0,
 }, m_dmake = {
 	.next = &m_make,
 	.enext = &m_make,
+	.prepend = NULL,
 	.name = ".MAKE",
 	.value = NULL,
 	.lazy = 0,
 }, m_makeflags = {
 	.next = &m_dmake,
 	.enext = &m_dmake,
+	.prepend = NULL,
 	.name = "MAKEFLAGS",
 	.value = NULL,
 	.lazy = 0,
 }, m_dmakeflags = {
 	.next = &m_makeflags,
 	.enext = &m_makeflags,
+	.prepend = NULL,
 	.name = ".MAKEFLAGS",
 	.value = NULL,
 	.lazy = 0,
@@ -483,6 +488,11 @@ expand_macro (sc, m)
 struct scope *sc;
 struct macro *m;
 {
+	if (m->prepend != NULL) {
+		expand_macro (sc, m->prepend);
+		str_push (' ');
+	}
+
 	if (m->lazy) {
 		expand_into (sc, m->value, NULL);
 	} else {
@@ -864,7 +874,9 @@ char *path;
 
 			m = new (struct macro);
 			m->next = sc->dir->macros;
+			m->enext = NULL;
 			m->help = help;
+			m->prepend = NULL;
 
 			if (t[-1] == '!') {
 				t[-1] = '\0';
@@ -884,6 +896,11 @@ char *path;
 				t[t[-2] == ':' ? -2 : -1] = '\0';
 				m->lazy = 0;
 				m->value = strdup (trim (expand (sc, trim (t + 1), NULL)));
+			} else if (t[-1] == '+') {
+				t[-1] = '\0';
+				m->value = strdup (trim (t + 1));
+				m->prepend = find_macro (sc, trim (s));
+				m->lazy = 1;
 			} else {
 				m->lazy = 1;
 				m->value = strdup (trim (t + 1));
@@ -1385,7 +1402,7 @@ struct scope *sc;
 	for (m = sc->dir->macros; m != NULL; m = m->next) {
 		if (m->help != NULL)
 			printf ("\n## %s\n", m->help);
-		printf ("%s = %s\n", m->name, m->value);
+		printf ("%s %s= %s\n", m->name, m->prepend != NULL ? "+" : "", m->value);
 	}
 
 	printf ("\n");

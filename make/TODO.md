@@ -55,18 +55,6 @@
 -s          silent, do not write commands to stdout
 
 
-# Macro Definition Operators
-## `+=`: Append Assignment
-### MyMakefile
-```make
-CFLAGS = -ansi
-.export CFLAGS
-```
-### sub/MyMakefile
-```
-CFLAGS += -Wall
-```
-
 # Templates
 ## MyMakefile
 ```make

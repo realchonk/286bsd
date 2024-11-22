@@ -1,7 +1,7 @@
 PWD != pwd
 PREFIX ?= /usr
 
-CFLAGS = -ansi -Wall -Wno-return-type -Wno-comment -Wno-deprecated-non-prototype -Wno-implicit-int -Wno-implicit-function-declaration
+CFLAGS += -Wno-return-type -Wno-implicit-function-declaration -Wno-comment
 CPPFLAGS = -DWORD32 -DPARSER=\"${PREFIX}/lib/yaccpar\"
 
 all: yacc

@@ -1,5 +1,5 @@
 YFLAGS = -d -v
-CFLAGS = -ansi -g -O0 -Wall -Wno-deprecated-non-prototype -Wno-comment -Wno-implicit-int
+CFLAGS += -Wno-comment
 
 all: cc1
 

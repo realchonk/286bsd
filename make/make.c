@@ -419,13 +419,25 @@ struct expand_ctx {
 	struct file *f;
 };
 
+subst (sc, s)
+struct scope *sc;
+char *s;
+{
+	extern expand_macro ();
+	struct macro *m;
+
+	m = find_macro (sc, s);
+	if (m != NULL)
+		expand_macro (sc, m);
+
+	return 0;
+}
+
 expand_into (sc, s, ctx)
 struct scope *sc;
 char *s;
 struct expand_ctx *ctx;
 {
-	extern expand_macro ();
-	struct macro *m;
 	struct dep *dep;
 	char *t;
 	int ch;
@@ -469,9 +481,7 @@ struct expand_ctx *ctx;
 			if (t == NULL)
 				errx (1, "syntax error: invalid macro: %s", s - 2);
 			*t = '\0';
-			m = find_macro (sc, s);
-			if (m != NULL)
-				expand_macro (sc, m);
+			subst (sc, s);
 			*t = '}';
 			s = t + 1;
 			break;

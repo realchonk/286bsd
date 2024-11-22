@@ -419,17 +419,70 @@ struct expand_ctx {
 	struct file *f;
 };
 
+/* TODO: this is probably slower, than it needs to be */
+replace_into (s, old, new)
+char *s, *old, *new;
+{
+	size_t len_old;
+
+	len_old = strlen (old);
+
+	while (*s != '\0') {
+		if (strncmp (s, old, len_old) == 0) {
+			str_push_str (new);
+			s += len_old;
+		} else {
+			str_push (*s++);
+		}
+	}
+	
+	return 0;
+}
+
+/* ${name}
+ * ${name:old_string=new_string}
+ * TODO:
+ * ${name/suffix}	append `suffix` after each word
+ */
 subst (sc, s)
 struct scope *sc;
 char *s;
 {
-	extern expand_macro ();
+	extern char *expand_macro ();
+	extern expand_macro_into ();
 	struct macro *m;
+	char *t, *v;
+
+	t = strchr (s, ':');
+
+	if (t != NULL)
+		*t = '\0';
 
 	m = find_macro (sc, s);
-	if (m != NULL)
-		expand_macro (sc, m);
 
+	/* s = "name" */
+	if (t == NULL)
+		return expand_macro_into (sc, m);
+
+	/* s = "name:..." */
+	*t = ':';
+
+	v = expand_macro (sc, m);
+
+	/* skip "name:", s = "..." */
+	s = t + 1;
+
+	t = strchr (s, '=');
+
+	/* s = "..." */
+	if (t == NULL)
+		errx (1, "subst(): TODO");
+
+	/* s = "...=..." */
+	*t = '\0';
+	replace_into (v, s, t + 1);
+
+	free (v);
 	return 0;
 }
 
@@ -494,12 +547,15 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-expand_macro (sc, m)
+expand_macro_into (sc, m)
 struct scope *sc;
 struct macro *m;
 {
+	if (m == NULL)
+		return -1;
+
 	if (m->prepend != NULL) {
-		expand_macro (sc, m->prepend);
+		expand_macro_into (sc, m->prepend);
 		str_push (' ');
 	}
 
@@ -509,6 +565,24 @@ struct macro *m;
 		str_push_str (m->value);
 	}
 	return 0;
+}
+
+char *
+expand_macro (sc, m)
+struct scope *sc;
+struct macro *m;
+{
+	char *old, *s;
+
+	old = str_copy ();
+	str_reset ();
+	expand_macro_into (sc, m);
+	s = str_copy ();
+	str_reset ();
+	str_push_str (old);
+	free (old);
+	
+	return s;
 }
 
 char *

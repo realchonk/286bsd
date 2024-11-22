@@ -136,9 +136,6 @@ all: ${.SUBDIRS}
 clean: ${.SUBDIRS/clean}
 ```
 
-## `${name:subst1=subst2}`: Macro Substitution
-Substitute all occurences of `subst1` with `subst2` in macro `name`.
-
 ## `${name/suffix}`
 Append `suffix` to each of the files in `${name}`.
 

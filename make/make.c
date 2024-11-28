@@ -882,12 +882,57 @@ char *s, *t, *help;
 	return flag ? r : NULL;
 }
 
+parse_assign (sc, dir, s, t, help)
+struct scope *sc;
+struct path *dir;
+char *s, *t, *help;
+{
+	struct macro *m, *m2;
+
+	m = new (struct macro);
+	m->next = sc->dir->macros;
+	m->enext = NULL;
+	m->help = help;
+	m->prepend = NULL;
+
+	if (t[-1] == '!') {
+		t[-1] = '\0';
+		m->lazy = 0;
+		m->value = evalcom (sc, dir, trim (t + 1));
+	} else if (t[-1] == '?') {
+		t[-1] = '\0';
+		m2 = find_macro (sc, trim (s));
+		if (m2 != NULL) {
+			m->value = m2->value;
+		} else {
+			m->value = strdup (trim (t + 1));
+		}
+		m->lazy = 1;
+	} else if (t[-1] == ':') {
+		/* handle both `:=` and `::=` */
+		t[t[-2] == ':' ? -2 : -1] = '\0';
+		m->lazy = 0;
+		m->value = strdup (trim (expand (sc, trim (t + 1), NULL)));
+	} else if (t[-1] == '+') {
+		t[-1] = '\0';
+		m->value = strdup (trim (t + 1));
+		m->prepend = find_macro (sc, trim (s));
+		m->lazy = 1;
+	} else {
+		m->lazy = 1;
+		m->value = strdup (trim (t + 1));
+	}
+	m->name = strdup (trim (s));
+	sc->dir->macros = m;
+	return 0;
+}
+
 parse (sc, dir, path) 
 struct scope *sc;
 struct path *dir;
 char *path;
 {
-	struct macro *m, *m2;
+	struct macro *m;
 	struct rule *r = NULL;
 	size_t len, cap;
 	char *s, *t, *u, *help = NULL;
@@ -955,42 +1000,7 @@ char *path;
 		} else if ((t = strchr (s, '=')) != NULL) {
 			/* TODO: check name */
 			*t = '\0';
-
-			m = new (struct macro);
-			m->next = sc->dir->macros;
-			m->enext = NULL;
-			m->help = help;
-			m->prepend = NULL;
-
-			if (t[-1] == '!') {
-				t[-1] = '\0';
-				m->lazy = 0;
-				m->value = evalcom (sc, dir, trim (t + 1));
-			} else if (t[-1] == '?') {
-				t[-1] = '\0';
-				m2 = find_macro (sc, trim (s));
-				if (m2 != NULL) {
-					m->value = m2->value;
-				} else {
-					m->value = strdup (trim (t + 1));
-				}
-				m->lazy = 1;
-			} else if (t[-1] == ':') {
-				/* handle both `:=` and `::=` */
-				t[t[-2] == ':' ? -2 : -1] = '\0';
-				m->lazy = 0;
-				m->value = strdup (trim (expand (sc, trim (t + 1), NULL)));
-			} else if (t[-1] == '+') {
-				t[-1] = '\0';
-				m->value = strdup (trim (t + 1));
-				m->prepend = find_macro (sc, trim (s));
-				m->lazy = 1;
-			} else {
-				m->lazy = 1;
-				m->value = strdup (trim (t + 1));
-			}
-			m->name = strdup (trim (s));
-			sc->dir->macros = m;
+			parse_assign (sc, dir, s, t, help);
 		} else if ((t = strchr (s, ':')) != NULL) {
 			r = parse_rule (sc, dir, s, t, help);
 			if (r == NULL)

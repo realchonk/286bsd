@@ -494,7 +494,7 @@ struct expand_ctx *ctx;
 	struct scope *sc2;
 	struct dep *dep;
 	char *t;
-	int ch;
+	int ch, x;
 
 	while (*s != '\0') {
 		if (*s != '$') {
@@ -505,8 +505,9 @@ struct expand_ctx *ctx;
 		++s;
 		switch (ch) {
 		case '.':
-			for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->next)
-				str_push_str ("../");
+			for (sc2 = sc->parent, x = 0; sc2 != NULL; sc2 = sc2->next, x = 1) {
+				str_push_str (x ? "/.." : "..");
+			}
 			break;
 		case '$':
 			str_push ('$');

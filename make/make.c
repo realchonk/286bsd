@@ -947,6 +947,8 @@ char *path;
 		sc->dir = new (struct directory);
 		sc->dir->subdirs = NULL;
 		sc->dir->files = NULL;
+	} else {
+		warn ("%d: maybe parsing this file again?", ln);
 	}
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {

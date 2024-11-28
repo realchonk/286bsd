@@ -48,7 +48,7 @@
 %type <i> sc_spec basic_type
 %type <ts> type_spec
 %type <ds> decl_spec decl_specs
-%type <dl> declarator declarator1
+%type <dl> declarator declarator1 abstdecl abstdecl1
 %type <in> initializer
 %type <di> init_decl decl_list
 %type <ex> expression
@@ -138,6 +138,19 @@ declarator1	: IDENT				{ $$.type = DL_IDENT; cpident ($$.ident, lval.ident); }
 		| '(' declarator ')'		{ $$ = $2; }
 		;
 
+typename	: type_spec abstdecl
+	 	;
+
+abstdecl	:				{ $$.type = DL_IDENT; $$.ident[0] = '\0'; }
+	 	| abstdecl1			{ $$ = $1; }
+		;
+
+abstdecl1	: '(' abstdecl1 ')'		{ $$ = $2; }
+	  	| '*' abstdecl			{ $$.type = DL_PTR; $$.dl = new (struct declarator); *$$.dl = $2; }
+		//| abstdecl '(' ')'		{ $$.type = DL_FUNC; $$.dl = new (struct declarator); *$$.dl = $1; }
+		//| abstdecl '[' const_expr ']'
+		;
+
 initializer	: '=' expression		{ $$.type = IN_EX; $$.ex = $2; }
 	    	;
 
@@ -147,6 +160,7 @@ statement	: expression ';'		{ $$ = new (struct stmt); $$->type = ST_EXPR; $$->ex
 	  	;
 
 expression	: '(' expression ')'		{ $$ = new_expr (EX_PAR, $2->dt); $$->e = $2; }
+	   	| '(' typename ')' expression	{ }
 	   	| INTEGER			{ $$ = new_expr (EX_INT, &default_int); $$->i = lval.i; }
 	   	;
 

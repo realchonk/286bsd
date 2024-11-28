@@ -14,6 +14,8 @@ struct expr *e;
 		return eval_expr (e->e);
 	case EX_INT:
 		return e->i;
+	case EX_CAST:
+		errx (1, "eval_expr(): todo: EX_CAST");
 	}
 }
 
@@ -109,37 +111,10 @@ char *name;
 	return NULL;
 }
 
-dt_is_eq (a, b)
-struct dtype *a, *b;
-{
-	if (a->type != b->type)
-		return 0;
-
-	switch (a->type) {
-	case DT_PTR:
-	case DT_FUNC:
-		return dt_is_eq (a->inner, b->inner);
-	default:
-		return 1;
-	}
-}
-
-struct expr *
-cast (e, dt, imp)
-struct expr *e;
-struct dtype *dt;
-{
-	// TODO: casting
-	if (!dt_is_eq (e->dt, dt))
-		errx (1, "%d: TODO: cast(): %d, %d", linenum, e->dt->type, dt->type);
-
-	return e;
-}
-
 gen_expr (e)
 struct expr *e;
 {
-	int r;
+	int r, a;
 
 	switch (e->type) {
 	case EX_PAR:
@@ -150,6 +125,10 @@ struct expr *e;
 		printf ("\tlet $%d: ", r);
 		print_dt (e->dt);
 		printf (" = %d;\n", e->i);
+		break;
+	case EX_CAST:
+		a = gen_expr (e->cast.e);
+		errx (1, "gen_expr(): todo: EX_CAST");
 		break;
 	}
 

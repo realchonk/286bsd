@@ -12,7 +12,7 @@ run: cc1 ../irc/irc
 	nasm -fbin -o /dev/null test.asm
 	(echo '=== IR ==='; cat test.ir; echo '=== ASM ==='; cat test.asm) | less
 
-cc1: lex.o parse.o gen.o main.o
+cc1: lex.o parse.o gen.o main.o dt.o
 	${CC} -o $@ $* ${CFLAGS}
 
 parse.o y.tab.h: parse.y
@@ -23,5 +23,4 @@ parse.o y.tab.h: parse.y
 lex.o: cc1.h y.tab.h
 gen.o: cc1.h
 main.o: cc1.h y.tab.h
-
-
+dt.o: cc1.h

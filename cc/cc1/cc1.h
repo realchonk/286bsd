@@ -97,6 +97,7 @@ struct decl_spec {
 enum expr_type {
 	EX_PAR,
 	EX_INT,
+	EX_CAST,
 };
 
 struct expr {
@@ -106,6 +107,11 @@ struct expr {
 	union {
 		struct expr *e;
 		int i;
+
+		struct {
+			struct dtype *dt;
+			struct expr *e;
+		} cast;
 	};
 };
 
@@ -166,6 +172,11 @@ struct decls_list {
 	struct declaration d;
 };
 
+struct typename {
+	struct type_spec ts;
+	struct declarator dl;
+};
+
 struct function {
 	int pub;
 	struct dtype *dt;
@@ -174,8 +185,16 @@ struct function {
 	struct stmt **body;
 };
 
+enum irc_type {
+	IT_BYTE,	// char
+	IT_WORD,	// short, int
+	IT_DWORD,	// long
+	IT_QWORD,	// (unused for now)
+};
+
 extern struct scope gscope, fscope;
 extern yyerror (), yylex ();
 extern reg, linenum;
+extern struct expr *cast ();
 
 #endif // FILE_CC1_H

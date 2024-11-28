@@ -117,20 +117,6 @@ install-man: ${NAME}.1
 ## Rename `$*` to something different
 POSIX specifies, that `$*` evaluates to the current target's basename, without the suffix.
 
-## `${.SUBDIRS}`
-Useful for this:
-```make
-all:
-clean:
-
-.include sub1
-.include sub2
-.include sub3
-
-all: ${.SUBDIRS}
-clean: ${.SUBDIRS/clean}
-```
-
 ## `${name/suffix}`
 Append `suffix` to each of the files in `${name}`.
 

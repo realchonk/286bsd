@@ -721,12 +721,14 @@ ret:
  * .include yacc, DIR
  * .include libx, GNU
  */
-parse_include (sc, dir, s)
+parse_include (sc, dir, s, subdirs)
 struct scope *sc;
 struct path *dir;
+struct macro **subdirs;
 char *s;
 {
 	struct scope *sub;
+	struct macro *m;
 	char *p, *path;
 
 	sub = new (struct scope);
@@ -740,6 +742,16 @@ char *s;
 		return -1;
 
 	sub->name = strdup (trim (p));
+
+	m = new (struct macro);
+	m->next = sc->dir->macros;
+	m->enext = NULL;
+	m->prepend = *subdirs;
+	m->name = ".SUBDIRS";
+	m->value = sub->name;
+	m->lazy = 0;
+	sc->dir->macros = m;
+	*subdirs = m;
 
 	path = path_cat_str (dir, sub->name);
 	if (access (path, F_OK) != 0)
@@ -938,7 +950,7 @@ struct scope *sc;
 struct path *dir;
 char *path;
 {
-	struct macro *m;
+	struct macro *m, *subdirs;
 	struct rule *r = NULL;
 	size_t len, cap;
 	char *s, *t, *u, *help = NULL;
@@ -955,7 +967,10 @@ char *path;
 		sc->dir->files = NULL;
 	} else {
 		warn ("%d: maybe parsing this file again?", ln);
+		return 0;
 	}
+
+	subdirs = NULL;
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {
 		if (s[0] == '#' && s[1] == '#') {
@@ -975,7 +990,7 @@ char *path;
 				free (u);
 			free (t);
 		} else if (starts_with (s, ".include ")) {
-			if (parse_include (sc, dir, s + 9) == -1)
+			if (parse_include (sc, dir, s + 9, &subdirs) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);
 		} else if (starts_with (s, ".export ")) {
 			t = trim (s + 8);

@@ -4,7 +4,7 @@ TOP != pwd
 CC ?= cc
 
 ## Path to Yacc
-YACC ?= ${TOP}/tools/bin/yacc
+YACC ?= $./tools/bin/yacc
 
 ## Default C Compiler Flags
 CFLAGS ?= -O2

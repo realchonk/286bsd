@@ -55,6 +55,21 @@
 -s          silent, do not write commands to stdout
 
 
+# Replace static-storage string handling with something like this:
+```c
+typedef struct string {
+    char *ptr;
+    size_t len, cap;
+} str_t;
+
+str_new (str_t *, size_t cap);
+str_putc (str_t *, char);
+str_puts (str_t *, char *);
+str_free (str_t *);
+char *str_get (str_t *);
+```
+
+
 # Templates
 ## MyMakefile
 ```make
@@ -100,6 +115,7 @@ install-man: ${NAME}.1
 
 # Special macros
 ## `$.`: Position-dependent macro
+`$.` refers to the relative path of the top-most Makefile, from the current Makefile.
 ### MyMakefile
 ```make
 TOP = $.
@@ -139,6 +155,13 @@ clean: ${.SUBDIRS/clean}
 ## `${name/suffix}`
 Append `suffix` to each of the files in `${name}`.
 
+## Recursive expansion
+```make
+ARCH != uname -m
+CFLAGS.amd64 = -fomit-frame-pointer
+CFLAGS.arm = -march=armv7l
+CFLAGS = ${CFLAGS.${ARCH}}
+```
 
 # Special targets
 ## `.TOP:` to stop the upward recursion
@@ -150,6 +173,25 @@ This must be defined at the top of the file.
 Allow specifying additional `PATH` directories.
 
 
+# Reconsider `.include` syntax
+Maybe change to something like this:
+```make
+# In this example sys is a foreign-make project
+
+# Check if target has to be rebuilt in sys
+# If this is omitted, make will always see the target as outdated.
+sys?:
+    gmake -q -C sys $<
+
+# Actually build target for sys
+sys!:
+    gmake -C sys $<
+
+# List of subdirectories
+.SUBDIRS: cc make sys
+```
+
+
 # Provide implementations of non-standard functions (libcompat)
 - `err(3)` and `errx(3)`
 - `reallocarray(3)`
@@ -158,7 +200,22 @@ Allow specifying additional `PATH` directories.
 
 # Future TODOs
 ## Support for artifact directories
-## Check file names for validity
+```make
+# With .OBJ set, make will first search in
+# the obj directory for artifacts, before
+# looking in the current directory.
+# Make will also put generated files into obj,
+# by changing the value of $@.
+.OBJ: obj
+
+all: example
+
+example: example.c
+    ${CC} -o $@ example.c
+```
+## Check names for validity
+Allowed charset for variable names: `[a-zA-Z_.]+`
+Allowed charset for file names: `[a-zA-Z_.-]+`
 ## Write a tutorial on how to correctly use this make
 ## Write a specification
 ## Create a freestanding version, written in Rust, so that other projects can use this make

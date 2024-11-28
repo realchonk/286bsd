@@ -114,27 +114,6 @@ install-man: ${NAME}.1
 
 
 # Special macros
-## `$.`: Position-dependent macro
-`$.` refers to the relative path of the top-most Makefile, from the current Makefile.
-### MyMakefile
-```make
-TOP = $.
-print:
-    @echo TOP: ${TOP}
-```
-### sub/MyMakefile
-```make
-print:
-    @echo TOP: ${TOP}
-```
-### Output
-```
-$ make print
-TOP: .
-$ make sub/print
-TOP: ./..
-```
-
 ## Rename `$*` to something different
 POSIX specifies, that `$*` evaluates to the current target's basename, without the suffix.
 

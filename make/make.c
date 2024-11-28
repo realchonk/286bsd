@@ -491,6 +491,7 @@ struct scope *sc;
 char *s;
 struct expand_ctx *ctx;
 {
+	struct scope *sc2;
 	struct dep *dep;
 	char *t;
 	int ch;
@@ -503,6 +504,10 @@ struct expand_ctx *ctx;
 		ch = *++s;
 		++s;
 		switch (ch) {
+		case '.':
+			for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->next)
+				str_push_str ("../");
+			break;
 		case '$':
 			str_push ('$');
 			break;

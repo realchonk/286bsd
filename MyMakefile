@@ -1,3 +1,7 @@
+.include make
+.include cc
+.include sys
+
 TOP != pwd
 
 ## Path to the C Compiler
@@ -11,7 +15,7 @@ CFLAGS ?= -O2
 CFLAGS += -ansi -Wall -Wno-deprecated-non-prototype -Wno-implicit-int
 
 ## Build everything
-all: make sys cc
+all: ${.SUBDIRS}
 
 ## Clean everything
 clean: make/clean sys/clean cc/clean
@@ -39,6 +43,3 @@ todo:
 .export TOP
 .export YACC
 .export CFLAGS
-.include make
-.include cc
-.include sys

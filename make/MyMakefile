@@ -16,6 +16,5 @@ clean:
 run: make
 	./make
 
-make: make.c str.c make.h str.h
-	${CC} -o $@ make.c str.c ${CFLAGS}
+make: make.h
 

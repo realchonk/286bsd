@@ -17,7 +17,6 @@
 #include <time.h>
 #include <err.h>
 #include "make.h"
-#include "str.h"
 
 #define new(T) ((T *)calloc (1, sizeof (T)))
 #define MAKEFILE "MyMakefile"
@@ -63,13 +62,164 @@ static struct macro m_shell = {
 static struct macro *globals = &m_dmakeflags;
 static int verbose = 0;
 
-/* MISC */
+/* STRING BUFFER */
+
+typedef struct string {
+	char *ptr;
+	size_t len, cap;
+} str_t;
+
+str_new (s)
+str_t *s;
+{
+	s->len = 0;
+	s->cap = 10;
+	s->ptr = malloc (s->cap + 1);
+	return 0;
+}
+
+str_reserve (s, n)
+str_t *s;
+size_t n;
+{
+	if (s->cap == 0) {
+		s->cap = n;
+		s->ptr = malloc (s->cap + 1);
+	} else if ((s->len + n) > s->cap) {
+		for (s->cap *= 2; (s->len + n) > s->cap; s->cap *= 2);
+		s->ptr = realloc (s->ptr, s->cap + 1);
+	}
+	return 0;
+}
+
+str_free (s)
+str_t *s;
+{
+	free (s->ptr);
+	memset (s, 0, sizeof (*s));
+	return 0;
+}
+
+str_putc (s, ch)
+str_t *s;
+{
+	str_reserve (s, 1);
+	s->ptr[s->len++] = ch;
+	return 0;
+}
+
+str_write (s, t, n)
+str_t *s;
+char *t;
+size_t n;
+{
+	str_reserve (s, n);
+	memcpy (s->ptr + s->len, t, n);
+	s->len += n;
+	return 0;
+}
+
+str_puts (s, t)
+str_t *s;
+char *t;
+{
+	return str_write (s, t, strlen (t));
+}
+
+str_last (s)
+str_t *s;
+{
+	return s->len > 0 ? s->ptr[s->len - 1] : EOF;
+}
+
+str_pop (s)
+str_t *s;
+{
+	return s->len > 0 ? s->ptr[--s->len] : EOF;
+}
+
+str_chomp (s)
+str_t *s;
+{
+	while (str_last (s) == '\n')
+		str_pop (s);
+	return 0;
+}
+
+str_trim (s)
+str_t *s;
+{
+	size_t i;
+
+	while (isspace (str_last (s)))
+		str_pop (s);
+
+	for (i = 0; i < s->len && isspace (s->ptr[i]); ++i);
+
+	memmove (s->ptr, s->ptr + i, s->len - i);
+	s->len -= i;
+	return 0;
+}
+
+str_reset (s)
+str_t *s;
+{
+	if (s->cap == 0) {
+		str_new (s);
+	} else {
+		s->len = 0;
+	}
+	return 0;
+}
+
+char *
+str_get (s)
+str_t *s;
+{
+	s->ptr[s->len] = '\0';
+	return s->ptr;
+}
+
+char *
+str_release (s)
+str_t *s;
+{
+	char *t;
+	s->ptr[s->len] = '\0';
+	t = realloc (s->ptr, s->len + 1);
+	memset (s, 0, sizeof (*s));
+	return t;
+}
+
+/* STRING MISC */
+
+char *
+xstrcat (s, t)
+char *s, *t;
+{
+	char *u;
+	size_t len_s, len_t;
+
+	len_s = strlen (s);
+	len_t = strlen (t);
+	u = malloc (len_s + len_t + 1);
+	memcpy (u, s, len_s);
+	memcpy (u + len_s, t, len_t + 1);
+	return u;
+}
+
+skip_ws (s)
+char **s;
+{
+	for (; isspace (**s); ++*s);
+	return 0;
+}
 
 char *
 ltrim (s)
 char *s;
 {
-	for (; isspace (*s); ++s);
+	skip_ws (&s);
 	return s;
 }
 
@@ -106,6 +256,8 @@ char *s, *prefix;
 
 	return memcmp (s, prefix, len_p) == 0;
 }
+
+/* OTHER MISC */
 
 struct timespec
 get_mtime (dir, name)
@@ -150,23 +302,6 @@ struct timespec *a, *b;
 	} else {
 		return 0;
 	}
-}
-
-/* STRING BUFFER */
-
-char *
-xstrcat (s, t)
-char *s, *t;
-{
-	char *u;
-	size_t len_s, len_t;
-
-	len_s = strlen (s);
-	len_t = strlen (t);
-	u = malloc (len_s + len_t + 1);
-	memcpy (u, s, len_s);
-	memcpy (u + len_s, t, len_t + 1);
-	return u;
 }
 
 /* PATH LOGIC */
@@ -323,7 +458,15 @@ char *s;
 	return p;
 }
 
-/* MACORS */
+/* MACORS MISC */
+
+/* is macro name */
+ismname (ch)
+{
+	return isalnum (ch) || ch == '_' || ch == '.';
+}
+
+/* SEARCHING */
 
 struct macro *
 find_emacro (sc, name)
@@ -367,6 +510,45 @@ char *name;
 	return NULL;
 }
 
+struct template *
+find_template (sc, name)
+struct scope *sc;
+char *name;
+{
+	struct template *tm;
+
+	for (tm = sc->dir->templates; tm != NULL; tm = tm->next) {
+		if (strcmp (tm->name, name) == 0)
+			return tm;
+	}
+
+	if (sc->parent == NULL)
+		errx (1, "template not found: %s", name);
+
+	return find_template (sc->parent, name);
+}
+
+struct file *
+find_file (dir, name)
+struct directory *dir;
+char *name;
+{
+	struct file *f;
+
+	for (f = dir->files; f != NULL; f = f->next) {
+		if (strcmp (name, f->name) == 0)
+			return f;
+	}
+
+	return NULL;
+}
+
+/* MACRO EXPANSION */
+
+struct expand_ctx {
+	struct file *f;
+};
+
 replace_into (out, s, old, new)
 str_t *out;
 char *s, *old, *new;
@@ -407,16 +589,6 @@ char *s, *old, *new;
 
 	return 0;
 }
-
-/* is macro name */
-ismname (ch)
-{
-	return isalnum (ch) || ch == '_' || ch == '.';
-}
-
-struct expand_ctx {
-	struct file *f;
-};
 
 /* ${name}
  * ${name:old_string=new_string}
@@ -625,6 +797,8 @@ struct expand_ctx *ctx;
 	return str_release (&out);
 }
 
+/* COMMAND EXECUTION */
+
 char *
 evalcom (sc, dir, cmd)
 struct scope *sc;
@@ -684,22 +858,235 @@ char *cmd;
 	return str_release (&data);
 }
 
-/* PARSER */
-
-struct file *
-find_file (dir, name)
-struct directory *dir;
-char *name;
+runcom (sc, prefix, cmd, ctx)
+struct scope *sc;
+struct path *prefix;
+char *cmd;
+struct expand_ctx *ctx;
 {
-	struct file *f;
+	str_t fcmd;
+	int ec, q = 0;
 
-	for (f = dir->files; f != NULL; f = f->next) {
-		if (strcmp (name, f->name) == 0)
-			return f;
+	if (*cmd == '@') {
+		q = 1;
+		++cmd;
 	}
 
-	return NULL;
+	str_new (&fcmd);
+	str_puts (&fcmd, "cd '");
+	path_write (&fcmd, prefix);
+	str_puts (&fcmd, "' && ");
+	expand_into (&fcmd, sc, cmd, ctx);
+	
+	if (!q)
+		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
+
+	ec = system (str_get (&fcmd));
+	str_free (&fcmd);
+
+	return ec;
 }
+
+rungnu (sc, prefix, rule, q)
+struct scope *sc;
+struct path *prefix;
+char *rule;
+{
+	str_t cmd;
+	int ec;
+
+	str_new (&cmd);
+	str_puts (&cmd, sc->gnu->prog != NULL ? sc->gnu->prog : "make");
+
+	if (q)
+		str_puts (&cmd, " -q");
+
+	if (sc->makefile != NULL) {
+		str_puts (&cmd, " -f ");
+		str_puts (&cmd, sc->makefile);
+	}
+
+	if (rule != NULL) {
+		str_putc (&cmd, ' ');
+		str_puts (&cmd, rule);
+	}
+
+	ec = runcom (sc, prefix, str_get (&cmd), NULL);
+	str_free (&cmd);
+	return ec;
+}
+
+/* EXPRESSION PARSER */
+
+is_truthy (s)
+char *s;
+{
+	char *endp;
+	long x;
+
+	if (*s == '\0')
+		return 0;
+
+	x = strtol (s, &endp, 0);
+
+	return *endp != '\0' || x != 0;
+}
+
+e_atom (sc, s, val)
+struct scope *sc;
+char **s;
+str_t *val;
+{
+	skip_ws (s);
+
+	if (**s != '"')
+		errx (1, "invalid expression: '%s'", *s);
+	++*s;
+
+	while (**s != '"') {
+		if (**s == '$') {
+			++*s;
+			subst (val, sc, s, NULL);
+		} else {
+			str_putc (val, **s);
+			++*s;
+		}
+	}
+	++*s;
+
+	return 0;
+}
+
+e_unary (sc, s, val)
+struct scope *sc;
+char **s;
+str_t *val;
+{
+	skip_ws (s);
+	if (**s != '!')
+		return e_atom (sc, s, val);
+	++*s;
+
+	e_unary (sc, s, val);
+
+	if (is_truthy (str_get (val))) {
+		str_reset (val);
+		str_putc (val, '0');
+	} else {
+		str_reset (val);
+		str_putc (val, '1');
+	}
+
+	return 0;
+}
+
+enum {
+	COMP_EQ,
+	COMP_NE,
+};
+
+e_comp (sc, s)
+struct scope *sc;
+char **s;
+{
+	str_t left, right;
+	char *sl, *sr, *el, *er;
+	long il, ir;
+	int cmp, x, icmp;
+
+	str_new (&left);
+	e_unary (sc, s, &left);
+
+	skip_ws (s);
+
+	if (starts_with (*s, "==")) {
+		cmp = COMP_EQ;
+		*s += 2;
+	} else if (starts_with (*s, "!=")) {
+		cmp = COMP_NE;
+		*s += 2;
+	} else {
+		str_trim (&left);
+		x = is_truthy (str_get (&left));
+		str_free (&left);
+		return x;
+	}
+
+	skip_ws (s);
+	str_new (&right);
+	e_unary (sc, s, &right);
+
+	str_trim (&left);
+	str_trim (&right);
+
+	sl = str_get (&left);
+	sr = str_get (&right);
+	il = strtol (sl, &el, 0);
+	ir = strtol (sr, &er, 0);
+	icmp = *sl != '\0' && *sr != '\0' && *el == '\0' && *er == '\0';
+	switch (cmp) {
+	case COMP_EQ:
+		if (icmp) {
+			x = il == ir;
+		} else {
+			x = strcmp (sl, sr) == 0;
+		}
+		break;
+	case COMP_NE:
+		if (icmp) {
+			x = il != ir;
+		} else {
+			x = strcmp (sl, sr) != 0;
+		}
+		break;
+	default:
+		abort ();
+	}
+	
+	str_free (&left);
+	str_free (&right);
+	return x;
+}
+
+e_and (sc, s)
+struct scope *sc;
+char **s;
+{
+	int x;
+
+	x = e_comp (sc, s);
+	while (skip_ws (s), starts_with (*s, "&&")) {
+		*s += 2;
+		x &= e_comp (sc, s);
+	}
+
+	return x;
+}
+
+e_or (sc, s)
+struct scope *sc;
+char **s;
+{
+	int x;
+
+	x = e_and (sc, s);
+	while (skip_ws (s), starts_with (*s, "||")) {
+		*s += 2;
+		x |= e_and (sc, s);
+	}
+
+	return x;
+}
+
+parse_expr (sc, s)
+struct scope *sc;
+char *s;
+{
+	s = trim (s);
+	return e_or (sc, &s);
+}
+
+/* PARSER */
 
 char *
 readline (file, ln)
@@ -970,180 +1357,6 @@ char *s, *t, *help;
 	return 0;
 }
 
-skip_ws (s)
-char **s;
-{
-	for (; isspace (**s); ++*s);
-	return 0;
-}
-
-e_atom (sc, s, val)
-struct scope *sc;
-char **s;
-str_t *val;
-{
-	skip_ws (s);
-
-	if (**s != '"')
-		errx (1, "invalid expression: '%s'", *s);
-	++*s;
-
-	while (**s != '"') {
-		if (**s == '$') {
-			++*s;
-			subst (val, sc, s, NULL);
-		} else {
-			str_putc (val, **s);
-			++*s;
-		}
-	}
-	++*s;
-
-	return 0;
-}
-
-is_truthy (s)
-char *s;
-{
-	char *endp;
-	long x;
-
-	if (*s == '\0')
-		return 0;
-
-	x = strtol (s, &endp, 0);
-
-	return *endp != '\0' || x != 0;
-}
-
-e_unary (sc, s, val)
-struct scope *sc;
-char **s;
-str_t *val;
-{
-	skip_ws (s);
-	if (**s != '!')
-		return e_atom (sc, s, val);
-	++*s;
-
-	e_unary (sc, s, val);
-
-	if (is_truthy (str_get (val))) {
-		str_reset (val);
-		str_putc (val, '0');
-	} else {
-		str_reset (val);
-		str_putc (val, '1');
-	}
-
-	return 0;
-}
-
-enum {
-	COMP_EQ,
-	COMP_NE,
-};
-
-e_comp (sc, s)
-struct scope *sc;
-char **s;
-{
-	str_t left, right;
-	char *sl, *sr, *el, *er;
-	long il, ir;
-	int cmp, x, icmp;
-
-	str_new (&left);
-	e_unary (sc, s, &left);
-
-	skip_ws (s);
-
-	if (starts_with (*s, "==")) {
-		cmp = COMP_EQ;
-		*s += 2;
-	} else if (starts_with (*s, "!=")) {
-		cmp = COMP_NE;
-		*s += 2;
-	} else {
-		str_trim (&left);
-		x = is_truthy (str_get (&left));
-		str_free (&left);
-		return x;
-	}
-
-	skip_ws (s);
-	str_new (&right);
-	e_unary (sc, s, &right);
-
-	str_trim (&left);
-	str_trim (&right);
-
-	sl = str_get (&left);
-	sr = str_get (&right);
-	il = strtol (sl, &el, 0);
-	ir = strtol (sr, &er, 0);
-	icmp = *sl != '\0' && *sr != '\0' && *el == '\0' && *er == '\0';
-	switch (cmp) {
-	case COMP_EQ:
-		if (icmp) {
-			x = il == ir;
-		} else {
-			x = strcmp (sl, sr) == 0;
-		}
-		break;
-	case COMP_NE:
-		if (icmp) {
-			x = il != ir;
-		} else {
-			x = strcmp (sl, sr) != 0;
-		}
-		break;
-	default:
-		abort ();
-	}
-	
-	str_free (&left);
-	str_free (&right);
-	return x;
-}
-
-e_and (sc, s)
-struct scope *sc;
-char **s;
-{
-	int x;
-
-	x = e_comp (sc, s);
-	while (skip_ws (s), starts_with (*s, "&&")) {
-		*s += 2;
-		x &= e_comp (sc, s);
-	}
-
-	return x;
-}
-
-e_or (sc, s)
-struct scope *sc;
-char **s;
-{
-	int x;
-
-	x = e_and (sc, s);
-	while (skip_ws (s), starts_with (*s, "||")) {
-		*s += 2;
-		x |= e_and (sc, s);
-	}
-
-	return x;
-}
-
-parse_expr (sc, s)
-struct scope *sc;
-char *s;
-{
-	s = trim (s);
-	return e_or (sc, &s);
-}
 
 #define IF_VAL 0x01
 #define IF_HAS 0x02
@@ -1160,24 +1373,6 @@ size_t n;
 			return 0;
 	}
 	return 1;
-}
-
-struct template *
-find_template (sc, name)
-struct scope *sc;
-char *name;
-{
-	struct template *tm;
-
-	for (tm = sc->dir->templates; tm != NULL; tm = tm->next) {
-		if (strcmp (tm->name, name) == 0)
-			return tm;
-	}
-
-	if (sc->parent == NULL)
-		errx (1, "template not found: %s", name);
-
-	return find_template (sc->parent, name);
 }
 
 do_parse (sc, dir, path, file, subdirs)
@@ -1287,8 +1482,8 @@ struct macro **subdirs;
 				free (tm);
 				str_free (&text);
 			}
-		} else if (starts_with (s, ".inst ")) {
-			tm = find_template (sc, trim (s + 6));
+		} else if (starts_with (s, ".expand ")) {
+			tm = find_template (sc, trim (s + 8));
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
 			do_parse (sc, dir, "template", tfile, subdirs);
 			fclose (tfile);
@@ -1434,67 +1629,20 @@ ret:
 	return sc;
 }
 
-/* RUN COMMANDS */
-
-runcom (sc, prefix, cmd, ctx)
-struct scope *sc;
+struct path *	
+parse_subdir (prefix, sub)
 struct path *prefix;
-char *cmd;
-struct expand_ctx *ctx;
+struct scope *sub;
 {
-	str_t fcmd;
-	int ec, q = 0;
+	struct path *np;
 
-	if (*cmd == '@') {
-		q = 1;
-		++cmd;
-	}
-
-	str_new (&fcmd);
-	str_puts (&fcmd, "cd '");
-	path_write (&fcmd, prefix);
-	str_puts (&fcmd, "' && ");
-	expand_into (&fcmd, sc, cmd, ctx);
-	
-	if (!q)
-		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
-
-	ec = system (str_get (&fcmd));
-	str_free (&fcmd);
-
-	return ec;
+	tmppath.name = sub->name;
+	np = path_cat (prefix, &tmppath);
+	parse_dir (sub, np);
+	return np;
 }
 
-rungnu (sc, prefix, rule, q)
-struct scope *sc;
-struct path *prefix;
-char *rule;
-{
-	str_t cmd;
-	int ec;
-
-	str_new (&cmd);
-	str_puts (&cmd, sc->gnu->prog != NULL ? sc->gnu->prog : "make");
-
-	if (q)
-		str_puts (&cmd, " -q");
-
-	if (sc->makefile != NULL) {
-		str_puts (&cmd, " -f ");
-		str_puts (&cmd, sc->makefile);
-	}
-
-	if (rule != NULL) {
-		str_putc (&cmd, ' ');
-		str_puts (&cmd, rule);
-	}
-
-	ec = runcom (sc, prefix, str_get (&cmd), NULL);
-	str_free (&cmd);
-	return ec;
-}
-
-/* BUILD */
+/* INFERENCE RULES */
 
 struct file *
 inst_inf (sc, inf, name)
@@ -1625,6 +1773,8 @@ char *name;
 
 	return f;
 }
+
+/* BUILDING */
 
 struct timespec
 build_file (sc, name, prefix)
@@ -1799,20 +1949,92 @@ struct path *path;
 	return build_dir (sc, path, &path_null);
 }
 
-/* MAIN */
+/* HELP */
 
-struct path *	
-parse_subdir (prefix, sub)
-struct path *prefix;
-struct scope *sub;
+help_macros (sc)
+struct scope *sc;
 {
-	struct path *np;
+	struct macro *m;
 
-	tmppath.name = sub->name;
-	np = path_cat (prefix, &tmppath);
-	parse_dir (sub, np);
-	return np;
+	assert (sc->dir != NULL);
+
+	for (m = sc->dir->macros; m != NULL; m = m->next) {
+		if (m->help == NULL)
+			continue;
+
+		printf ("%-30s- %s\n", m->name, m->help);
+	}
+
+	return 0;
 }
+
+help_files (prefix, sc, v)
+struct path *prefix;
+struct scope *sc;
+{
+	struct path *new_prefix;
+	struct scope *sub;
+	struct file *f;
+	char *p;
+	int n;
+
+	p = path_to_str (prefix);
+	if (strcmp (p, ".") == 0) {
+		p = NULL;
+	} else {
+		p += 2; /* skip ./ */
+	}
+
+	/* TODO: this should be sorted from top to down */
+	for (f = sc->dir->files; f != NULL; f = f->next) {
+		if (f->help == NULL)
+			continue;
+
+		n = 0;
+		if (p != NULL)
+			n += printf ("%s/", p);
+		n += printf ("%s", f->name);
+		printf ("%-*s- %s\n", n < 30 ? 30 - n : 0, "", f->help);
+	}
+
+	if (!v)
+		return 0;
+
+	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+		new_prefix = parse_subdir (prefix, sub);
+		help_files (new_prefix, sub);
+		free (new_prefix);
+	}
+
+	return 0;
+}
+
+help (prefix, sc, v)
+struct path *prefix;
+struct scope *sc;
+{
+	extern usage ();
+	usage (1);
+
+	fputs ("\nOPTIONS:\n", stderr);
+	fputs ("-C dir                        - chdir(dir)\n", stderr);
+	fputs ("-f file                       - read `file` instead of \"" MAKEFILE "\"\n", stderr);
+	fputs ("-h                            - print help page\n", stderr);
+	fputs ("-hv                           - print help page, recursively\n", stderr);
+	fputs ("-p                            - dump tree\n", stderr);
+	fputs ("-pv                           - dump tree, recursively\n", stderr);
+	fputs ("-v                            - verbose output\n", stderr);
+
+	fputs ("\nMACROS:\n", stderr);
+	help_macros (sc);
+
+	fputs ("\nTARGETS:\n", stderr);
+	help_files (prefix, sc, v);
+
+	return 1;
+}
+
+/* DUMP */
 
 print_sc (prefix, sc, verbose)
 struct path *prefix;
@@ -1903,91 +2125,11 @@ struct scope *sc;
 	return 0;
 }
 
+/* MAIN */
+
 usage (uc)
 {
 	fprintf (stderr, "%s: %s [-hpv] [-C dir] [-f makefile] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
-	return 1;
-}
-
-help_macros (sc)
-struct scope *sc;
-{
-	struct macro *m;
-
-	assert (sc->dir != NULL);
-
-	for (m = sc->dir->macros; m != NULL; m = m->next) {
-		if (m->help == NULL)
-			continue;
-
-		printf ("%-30s- %s\n", m->name, m->help);
-	}
-
-	return 0;
-}
-
-help_files (prefix, sc, v)
-struct path *prefix;
-struct scope *sc;
-{
-	struct path *new_prefix;
-	struct scope *sub;
-	struct file *f;
-	char *p;
-	int n;
-
-	p = path_to_str (prefix);
-	if (strcmp (p, ".") == 0) {
-		p = NULL;
-	} else {
-		p += 2; /* skip ./ */
-	}
-
-	/* TODO: this should be sorted from top to down */
-	for (f = sc->dir->files; f != NULL; f = f->next) {
-		if (f->help == NULL)
-			continue;
-
-		n = 0;
-		if (p != NULL)
-			n += printf ("%s/", p);
-		n += printf ("%s", f->name);
-		printf ("%-*s- %s\n", n < 30 ? 30 - n : 0, "", f->help);
-	}
-
-	if (!v)
-		return 0;
-
-	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-		new_prefix = parse_subdir (prefix, sub);
-		help_files (new_prefix, sub);
-		free (new_prefix);
-	}
-
-	return 0;
-}
-
-help (prefix, sc, v)
-struct path *prefix;
-struct scope *sc;
-{
-	usage (1);
-
-	fputs ("\nOPTIONS:\n", stderr);
-	fputs ("-C dir                        - chdir(dir)\n", stderr);
-	fputs ("-f file                       - read `file` instead of \"" MAKEFILE "\"\n", stderr);
-	fputs ("-h                            - print help page\n", stderr);
-	fputs ("-hv                           - print help page, recursively\n", stderr);
-	fputs ("-p                            - dump tree\n", stderr);
-	fputs ("-pv                           - dump tree, recursively\n", stderr);
-	fputs ("-v                            - verbose output\n", stderr);
-
-	fputs ("\nMACROS:\n", stderr);
-	help_macros (sc);
-
-	fputs ("\nTARGETS:\n", stderr);
-	help_files (prefix, sc, v);
-
 	return 1;
 }
 

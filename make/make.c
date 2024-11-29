@@ -367,10 +367,6 @@ char *name;
 	return NULL;
 }
 
-struct expand_ctx {
-	struct file *f;
-};
-
 replace_into (out, s, old, new)
 str_t *out;
 char *s, *old, *new;
@@ -418,25 +414,41 @@ ismname (ch)
 	return isalnum (ch) || ch == '_' || ch == '.';
 }
 
+struct expand_ctx {
+	struct file *f;
+};
+
 /* ${name}
  * ${name:old_string=new_string}
  * TODO:
  * ${name/suffix}	append `suffix` after each word
  */
-subst (out, sc, s)
+subst2 (out, sc, s, ctx)
 str_t *out;
 struct scope *sc;
 char **s;
+struct expand_ctx *ctx;
 {
 	extern char *expand_macro ();
 	extern expand_macro_into ();
+	extern subst ();
 	struct macro *m;
 	char *v, *orig = *s;
 	str_t name, old, new;
 
 	/* parse macro name */
-	for (str_new (&name); ismname (**s); ++*s)
-		str_putc (&name, **s);
+	str_new (&name);
+	while (**s != '\0') {
+		if (ismname (**s)) {
+			str_putc (&name, **s);
+			++*s;
+		} else if (**s == '$') {
+			++*s;
+			subst (&name, sc, s, ctx);
+		} else {
+			break;
+		}
+	}
 
 	m = find_macro (sc, str_get (&name));
 	str_free (&name);
@@ -479,62 +491,74 @@ char **s;
 	return 0;
 }
 
-expand_into (out, sc, s, ctx)
+subst (out, sc, s, ctx)
 str_t *out;
 struct scope *sc;
-char *s;
+char **s;
 struct expand_ctx *ctx;
 {
 	struct scope *sc2;
 	struct dep *dep;
 	int ch;
 
+	ch = **s;
+	++*s;
+	switch (ch) {
+	case '$':
+		str_putc (out, '$');
+		break;
+	case '.':
+		str_putc (out, '.');
+		for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->next)
+			str_puts (out, "/..");
+		break;
+	case '@':
+		if (ctx == NULL)
+			errx (1, "cannot use $@ here");
+		str_puts (out, ctx->f->name);
+		break;
+	case '<':
+		if (ctx == NULL)
+			errx (1, "cannot use $< here");
+
+		if (ctx->f->deps == NULL)
+			break;
+
+		path_write (out, ctx->f->deps->path);
+		break;
+	case '*':
+		if (ctx == NULL)
+			errx (1, "cannot use $< here");
+		for (dep = ctx->f->deps; dep != NULL; dep = dep->next) {
+			str_putc (out, ' ');
+			path_write (out, dep->path);
+		}
+		break;
+	case '{':
+		subst2 (out, sc, s, ctx);
+		break;
+	case '(':
+		errx (1, "syntax error: $(...) syntax is reserved for future use, please use ${...} instead.");
+	default:
+		errx (1, "syntax error: invalid escape sequence: $%c%s", ch, *s);
+	}
+
+	return 0;
+}
+
+expand_into (out, sc, s, ctx)
+str_t *out;
+struct scope *sc;
+char *s;
+struct expand_ctx *ctx;
+{
 	while (*s != '\0') {
 		if (*s != '$') {
 			str_putc (out, *s++);
 			continue;
 		}
-		ch = *++s;
 		++s;
-		switch (ch) {
-		case '.':
-			str_putc (out, '.');
-			for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->next)
-				str_puts (out, "/..");
-			break;
-		case '$':
-			str_putc (out, '$');
-			break;
-		case '@':
-			if (ctx == NULL)
-				errx (1, "cannot use $@ here");
-			str_puts (out, ctx->f->name);
-			break;
-		case '<':
-			if (ctx == NULL)
-				errx (1, "cannot use $< here");
-
-			if (ctx->f->deps == NULL)
-				continue;
-
-			path_write (out, ctx->f->deps->path);
-			break;
-		case '*':
-			if (ctx == NULL)
-				errx (1, "cannot use $< here");
-			for (dep = ctx->f->deps; dep != NULL; dep = dep->next) {
-				str_putc (out, ' ');
-				path_write (out, dep->path);
-			}
-			break;
-		case '{':
-			subst (out, sc, &s);
-			break;
-		case '(':
-			errx (1, "syntax error: $(...) syntax is reserved for future use, please use ${...} instead.");
-		default:
-			errx (1, "syntax error: invalid escape sequence: %s", s - 2);
-		}
+		subst (out, sc, &s, ctx);
 	}
 	return 0;
 }

@@ -73,7 +73,14 @@ str_t *s;
 str_pop (s)
 str_t *s;
 {
-	return s->len > 0 ? s->ptr[--s->len] : EOF;
+	int ch;
+
+	if (s->len == 0)
+		return EOF;
+
+	ch = s->ptr[--s->len];
+	s->ptr[s->len] = '\0';
+	return ch;
 }
 
 str_chomp (s)

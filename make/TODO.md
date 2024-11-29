@@ -105,13 +105,6 @@ POSIX specifies, that `$*` evaluates to the current target's basename, without t
 ## `${name/suffix}`
 Append `suffix` to each of the files in `${name}`.
 
-## Recursive expansion
-```make
-ARCH != uname -m
-CFLAGS.amd64 = -fomit-frame-pointer
-CFLAGS.arm = -march=armv7l
-CFLAGS = ${CFLAGS.${ARCH}}
-```
 
 # Special targets
 ## `.TOP:` to stop the upward recursion

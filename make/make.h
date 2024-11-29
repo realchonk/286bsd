@@ -12,6 +12,12 @@ struct path {
 	char *name;
 };
 
+struct template {
+	struct template *next;
+	char *name;
+	char *text;
+};
+
 enum scope_type {
 	SC_DIR,
 	SC_GNU,
@@ -34,6 +40,7 @@ struct directory {
 	struct macro *macros;
 	struct macro *emacros;	/* exported macros */
 	struct inference *infs;
+	struct template *templates;
 };
 
 struct gnu {

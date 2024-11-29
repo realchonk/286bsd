@@ -55,35 +55,6 @@
 -s          silent, do not write commands to stdout
 
 
-# Templates
-## MyMakefile
-```make
-.template prog
-PREFIX ?= /usr
-SRC ?= ${NAME}.c
-
-all: ${NAME}
-
-clean:
-	rm -f ${NAME} *.o
-
-install: ${NAME}
-	mkdir -p ${DESTDIR}${PREFIX}/bin
-	cp -f ${NAME} ${DESTDIR}${PREFIX}/bin/
-
-${NAME}: ${SRC}
-	${CC} -o $@ ${SRC}
-.endt
-```
-
-## cat/MyMakefile
-```make
-NAME = cat
-
-.inst prog
-```
-
-
 # Conditional Operators
 < <= >= >
 

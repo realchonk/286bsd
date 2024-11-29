@@ -1162,33 +1162,41 @@ size_t n;
 	return 1;
 }
 
-parse (sc, dir, path) 
+struct template *
+find_template (sc, name)
+struct scope *sc;
+char *name;
+{
+	struct template *tm;
+
+	for (tm = sc->dir->templates; tm != NULL; tm = tm->next) {
+		if (strcmp (tm->name, name) == 0)
+			return tm;
+	}
+
+	if (sc->parent == NULL)
+		errx (1, "template not found: %s", name);
+
+	return find_template (sc->parent, name);
+}
+
+do_parse (sc, dir, path, file, subdirs)
 struct scope *sc;
 struct path *dir;
 char *path;
+FILE *file;
+struct macro **subdirs;
 {
-	struct macro *m, *subdirs;
+	extern parse ();
+	struct macro *m;
+	struct template *tm;
 	struct rule *r = NULL;
 	size_t len, cap, iflen = 0;
 	char *s, *t, *u, *help = NULL;
 	char ifstack[MAX_IFSTACK];
-	FILE *file;
 	int x, ln = 0, run;
-
-	file = fopen (path, "r");
-	if (file == NULL)
-		err (1, "open(\"%s\")", path);
-
-	if (sc->dir == NULL) {
-		sc->dir = new (struct directory);
-		sc->dir->subdirs = NULL;
-		sc->dir->files = NULL;
-	} else {
-		warn ("%d: maybe parsing this file again?", ln);
-		return 0;
-	}
-
-	subdirs = NULL;
+	FILE *tfile;
+	str_t text;
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {
 		run = walkifstack (ifstack, iflen);
@@ -1215,7 +1223,7 @@ char *path;
 			if (!run)
 				goto cont;
 
-			if (parse_include (sc, dir, s + 9, &subdirs) == -1)
+			if (parse_include (sc, dir, s + 9, subdirs) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);
 		} else if (starts_with (s, ".export ")) {
 			if (!run)
@@ -1257,6 +1265,33 @@ char *path;
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);
 			--iflen;
+		} else if (starts_with (s, ".template ")) {
+			str_new (&text);
+
+			tm = new (struct template);
+			tm->next = sc->dir->templates;
+			tm->name = strdup (trim (s + 10));
+
+			for (free (s); (s = readline (file, &ln)) != NULL; free (s)) {
+				if (strcmp (s, ".endt") == 0)
+					break;
+
+				str_puts (&text, s);
+				str_putc (&text, '\n');
+			}
+
+			if (run) {
+				tm->text = str_release (&text);
+				sc->dir->templates = tm;
+			} else {
+				free (tm);
+				str_free (&text);
+			}
+		} else if (starts_with (s, ".inst ")) {
+			tm = find_template (sc, trim (s + 6));
+			tfile = fmemopen (tm->text, strlen (tm->text), "r");
+			do_parse (sc, dir, "template", tfile, subdirs);
+			fclose (tfile);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;
@@ -1298,6 +1333,32 @@ char *path;
 		help = NULL;
 	}
 
+	return 0;
+}
+
+parse (sc, dir, path) 
+struct scope *sc;
+struct path *dir;
+char *path;
+{
+	struct macro *subdirs = NULL;
+	FILE *file;
+
+	file = fopen (path, "r");
+	if (file == NULL)
+		err (1, "open(\"%s\")", path);
+
+	if (sc->dir == NULL) {
+		sc->dir = new (struct directory);
+		sc->dir->subdirs = NULL;
+		sc->dir->files = NULL;
+	} else {
+		warn ("%s: maybe parsing this file again?", path);
+	}
+
+	do_parse (sc, dir, path, file, &subdirs);
+
+	fclose (file);
 	return 0;
 }
 

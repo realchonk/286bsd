@@ -156,6 +156,38 @@ sys!:
 .SUBDIRS: cc make sys
 ```
 
+## Example for projects using Autotools
+This is an example, of how an autotools-dependency might look like.
+```make
+.SUBDIRS: libedit
+LIBEDIT = libedit-20240808-3.1
+
+${LIBEDIT}.tgz:
+    ftp -o $@ https://www.thrysoee.dk/editline/${LIBEDIT}.tar.gz
+
+.libedit-extract: ${LIBEDIT}.tgz
+    tar -xzf $<
+    touch $@
+
+.libedit-configured: .libedit-extracted
+    mkdir -p build-libedit
+    (cd build-libedit               \
+        && ../${LIBEDIT}/configure  \
+            --prefix=${PREFIX}      \
+            --enable-static         \
+            --disable-shared)
+    touch $@
+
+# Look if $< needs to be built for libedit
+libedit?: .libedit-configured
+    gmake -C build-libedit $<
+
+# Actually build $< for libedit
+libedit!: .libedit-configured
+    gmake -q -C build-libedit $<
+
+```
+
 
 # Provide implementations of non-standard functions (libcompat)
 - `err(3)` and `errx(3)`

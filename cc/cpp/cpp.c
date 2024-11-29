@@ -258,7 +258,7 @@ dump()
 	 * if it has to do an unaligned copy.  thus we buffer.  this silly loop
 	 * is 15% of the total time, thus even the 'putc' macro is too slow.
 	 */
-	register char *p1,*p2;
+	register char *p1;
 	register FILE *f;
 
 	if ((p1 = outp) == inp || flslvl != 0)

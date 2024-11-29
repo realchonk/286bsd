@@ -17,8 +17,11 @@ CFLAGS += -ansi -Wall -Wno-deprecated-non-prototype -Wno-implicit-int
 ## Build everything
 all: ${.SUBDIRS}
 
+# See bug #1 in make/TODO.md
+CLEAN = ${.SUBDIRS:=/clean}
+
 ## Clean everything
-clean: make/clean sys/clean cc/clean
+clean: ${CLEAN}
 	rm -f *.core
 
 ## Clean even more things

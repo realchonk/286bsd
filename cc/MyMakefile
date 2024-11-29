@@ -1,9 +1,9 @@
-all: cc1 cpp irc yacc
-
-clean: cc1/clean cpp/clean irc/clean yacc/clean
-
-
 .include cc1
 .include cpp
 .include irc
 .include yacc
+
+all: ${.SUBDIRS}
+
+CLEAN = ${.SUBDIRS:=/clean}
+clean: ${CLEAN}

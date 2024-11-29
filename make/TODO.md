@@ -102,9 +102,6 @@ install-man: ${NAME}.1
 ## Rename `$*` to something different
 POSIX specifies, that `$*` evaluates to the current target's basename, without the suffix.
 
-## `${name/suffix}`
-Append `suffix` to each of the files in `${name}`.
-
 
 # Special targets
 ## `.TOP:` to stop the upward recursion
@@ -194,3 +191,16 @@ Allowed charset for file names: `[a-zA-Z_.-]+`
 ## Write a tutorial on how to correctly use this make
 ## Write a specification
 ## Create a freestanding version, written in Rust, so that other projects can use this make
+
+# Known Bugs
+
+## Unnamed bug #1
+### Problem
+`clean: ${.SUBDIRS:=/clean}`
+is interpreted as macro definition:
+`clean: ${.SUBDIRS:` = `/clean}`
+### Workaround
+```make
+CLEAN = ${.SUBDIRS:=/clean}
+`clean: ${CLEAN}`
+```

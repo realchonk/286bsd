@@ -201,3 +201,4 @@ Allowed charset for file names: `[a-zA-Z_.-]+`
 ## Write a tutorial on how to correctly use this make
 ## Write a specification
 ## Create a freestanding version, written in Rust, so that other projects can use this make
+## Rename `str2_*` to `str_*`

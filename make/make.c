@@ -392,6 +392,12 @@ char *s, *old, *new;
 	return 0;
 }
 
+/* is macro name */
+ismname (ch)
+{
+	return isalnum (ch) || ch == '_' || ch == '.';
+}
+
 /* ${name}
  * ${name:old_string=new_string}
  * TODO:
@@ -400,42 +406,54 @@ char *s, *old, *new;
 subst (out, sc, s)
 str_t *out;
 struct scope *sc;
-char *s;
+char **s;
 {
 	extern char *expand_macro ();
 	extern expand_macro_into ();
 	struct macro *m;
-	char *t, *v;
+	char *v, *orig = *s;
+	str_t name, old, new;
 
-	t = strchr (s, ':');
+	/* parse macro name */
+	for (str2_new (&name); ismname (**s); ++*s)
+		str2_putc (&name, **s);
 
-	if (t != NULL)
-		*t = '\0';
-
-	m = find_macro (sc, s);
-
-	/* s = "name" */
-	if (t == NULL)
+	m = find_macro (sc, str2_get (&name));
+	str2_free (&name);
+	if (**s == '}') {
+		++*s;
 		return expand_macro_into (out, sc, m);
-
-	/* s = "name:..." */
-	*t = ':';
+	}
 
 	v = expand_macro (sc, m);
 
-	/* skip "name:", s = "..." */
-	s = t + 1;
+	if (**s != ':') {
+	invalid:
+		errx (1, "invalid macro expansion: ${%s", orig);
+	}
+	++*s;
 
-	t = strchr (s, '=');
+	/* TODO: modifiers */
 
-	/* s = "..." */
-	if (t == NULL)
-		errx (1, "subst(): TODO");
+	str2_new (&old);
+	str2_new (&new);
 
-	/* s = "...=..." */
-	*t = '\0';
-	replace_into (out, v, s, t + 1);
+	for (; **s != '\0' && **s != '}' && **s != '='; ++*s)
+		str2_putc (&old, **s);
 
+	if (**s != '=')
+		goto invalid;
+
+	for (++*s; **s != '\0' && **s != '}'; ++*s)
+		str2_putc (&new, **s);
+
+	if (**s != '}')
+		goto invalid;
+
+	replace_into (out, v, str2_get (&old), str2_get (&new));
+
+	str2_free (&old);
+	str2_free (&new);
 	free (v);
 	return 0;
 }
@@ -448,7 +466,6 @@ struct expand_ctx *ctx;
 {
 	struct scope *sc2;
 	struct dep *dep;
-	char *t;
 	int ch;
 
 	while (*s != '\0') {
@@ -490,14 +507,7 @@ struct expand_ctx *ctx;
 			}
 			break;
 		case '{':
-			/* ${name} */
-			t = strchr (s, '}');
-			if (t == NULL)
-				errx (1, "syntax error: invalid macro: %s", s - 2);
-			*t = '\0';
-			subst (out, sc, s);
-			*t = '}';
-			s = t + 1;
+			subst (out, sc, &s);
 			break;
 		case '(':
 			errx (1, "syntax error: $(...) syntax is reserved for future use, please use ${...} instead.");

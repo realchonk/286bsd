@@ -77,6 +77,8 @@ Allow specifying additional `PATH` directories.
 # Reconsider `.include` syntax
 Maybe change to something like this:
 ```make
+# List of subdirectories
+.SUBDIRS: cc make sys
 # In this example sys is a foreign-make project
 
 # Check if target has to be rebuilt in sys
@@ -87,9 +89,6 @@ sys?:
 # Actually build target for sys
 sys!:
     gmake -C sys $<
-
-# List of subdirectories
-.SUBDIRS: cc make sys
 ```
 
 ## Example for projects using Autotools

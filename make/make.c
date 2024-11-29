@@ -970,18 +970,179 @@ char *s, *t, *help;
 	return 0;
 }
 
+skip_ws (s)
+char **s;
+{
+	for (; isspace (**s); ++*s);
+	return 0;
+}
+
+e_atom (sc, s, val)
+struct scope *sc;
+char **s;
+str_t *val;
+{
+	skip_ws (s);
+
+	if (**s != '"')
+		errx (1, "invalid expression: '%s'", *s);
+	++*s;
+
+	while (**s != '"') {
+		if (**s == '$') {
+			++*s;
+			subst (val, sc, s, NULL);
+		} else {
+			str_putc (val, **s);
+			++*s;
+		}
+	}
+	++*s;
+
+	return 0;
+}
+
+is_truthy (s)
+char *s;
+{
+	char *endp;
+	long x;
+
+	if (*s == '\0')
+		return 0;
+
+	x = strtol (s, &endp, 0);
+
+	return *endp != '\0' || x != 0;
+}
+
+e_unary (sc, s, val)
+struct scope *sc;
+char **s;
+str_t *val;
+{
+	skip_ws (s);
+	if (**s != '!')
+		return e_atom (sc, s, val);
+	++*s;
+
+	e_unary (sc, s, val);
+
+	if (is_truthy (str_get (val))) {
+		str_reset (val);
+		str_putc (val, '0');
+	} else {
+		str_reset (val);
+		str_putc (val, '1');
+	}
+
+	return 0;
+}
+
+enum {
+	COMP_EQ,
+	COMP_NE,
+};
+
+e_comp (sc, s)
+struct scope *sc;
+char **s;
+{
+	str_t left, right;
+	char *sl, *sr, *el, *er;
+	long il, ir;
+	int cmp, x, icmp;
+
+	str_new (&left);
+	e_unary (sc, s, &left);
+
+	skip_ws (s);
+
+	if (starts_with (*s, "==")) {
+		cmp = COMP_EQ;
+		*s += 2;
+	} else if (starts_with (*s, "!=")) {
+		cmp = COMP_NE;
+		*s += 2;
+	} else {
+		str_trim (&left);
+		x = is_truthy (str_get (&left));
+		str_free (&left);
+		return x;
+	}
+
+	skip_ws (s);
+	str_new (&right);
+	e_unary (sc, s, &right);
+
+	str_trim (&left);
+	str_trim (&right);
+
+	sl = str_get (&left);
+	sr = str_get (&right);
+	il = strtol (sl, &el, 0);
+	ir = strtol (sr, &er, 0);
+	icmp = *sl != '\0' && *sr != '\0' && *el == '\0' && *er == '\0';
+	switch (cmp) {
+	case COMP_EQ:
+		if (icmp) {
+			x = il == ir;
+		} else {
+			x = strcmp (sl, sr) == 0;
+		}
+		break;
+	case COMP_NE:
+		if (icmp) {
+			x = il != ir;
+		} else {
+			x = strcmp (sl, sr) != 0;
+		}
+		break;
+	default:
+		abort ();
+	}
+	
+	str_free (&left);
+	str_free (&right);
+	return x;
+}
+
+e_and (sc, s)
+struct scope *sc;
+char **s;
+{
+	int x;
+
+	x = e_comp (sc, s);
+	while (skip_ws (s), starts_with (*s, "&&")) {
+		*s += 2;
+		x &= e_comp (sc, s);
+	}
+
+	return x;
+}
+
+e_or (sc, s)
+struct scope *sc;
+char **s;
+{
+	int x;
+
+	x = e_and (sc, s);
+	while (skip_ws (s), starts_with (*s, "||")) {
+		*s += 2;
+		x |= e_and (sc, s);
+	}
+
+	return x;
+}
+
 parse_expr (sc, s)
 struct scope *sc;
 char *s;
 {
 	s = trim (s);
-	if (strcmp (s, "1") == 0) {
-		return 1;
-	} else if (strcmp (s, "0") == 0) {
-		return 0;
-	} else {
-		errx (1, "unsupported expression: '%s'", s);
-	}
+	return e_or (sc, &s);
 }
 
 #define IF_VAL 0x01

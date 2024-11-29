@@ -84,18 +84,8 @@ NAME = cat
 ```
 
 
-# Conditionals
-```make
-NOMAN = 1
-
-.if ${NOMAN} == 1
-install-man:
-.else
-install-man: ${NAME}.1
-	mkdir -p ${DESTDIR}${MANPREFIX}/man1
-	cp -f ${NAME}.1 ${DESTDIR}${MANPREFIX}/man1/
-.endif
-```
+# Conditional Operators
+< <= >= >
 
 
 # Special macros

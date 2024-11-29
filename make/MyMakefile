@@ -1,20 +1,6 @@
-## Installation prefix
-PREFIX ?= /usr
-
-all: make
-
-## Install make into ${DESTDIR}${PREFIX}/bin.
-install: make
-	mkdir -p ${DESTDIR}${PREFIX}/bin
-	cp -f make ${DESTDIR}${PREFIX}/bin/
-
-## Remove any build artifacts.
-clean:
-	rm -f make *.core
-
-## Run make.
-run: make
-	./make
+NAME = make
+NOMAN = 1
 
 make: make.h
 
+.expand prog

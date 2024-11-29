@@ -1585,11 +1585,13 @@ char *path;
 		sc->dir = new (struct directory);
 		sc->dir->subdirs = NULL;
 		sc->dir->files = NULL;
-	} else {
-		warn ("%s: maybe parsing this file again?", path);
+		sc->dir->done = 0;
+	} else if (sc->dir->done) {
+		errx (1, "%s: parsing this file again?", path);
 	}
 
 	do_parse (sc, dir, path, file, &subdirs);
+	sc->dir->done = 1;
 
 	fclose (file);
 	return 0;

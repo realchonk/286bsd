@@ -42,6 +42,7 @@ struct directory {
 	struct inference *infs;
 	struct template *templates;
 	char *default_file;
+	int done;
 };
 
 struct gnu {

@@ -1,11 +1,10 @@
+NAME = irc
+NOMAN = 1
 CFLAGS += -Wno-comment
 
-all: irc
-
-clean:
-	rm -f irc *.core test.asm
-
-run: all
+run: irc
 	./irc < test.ir > test.asm
 	nasm -fobj -o /dev/null test.asm
 	less test.asm
+
+.expand prog

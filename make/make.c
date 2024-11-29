@@ -1085,12 +1085,13 @@ char *path;
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);
 			t = &ifstack[iflen - 1];
-			*t = (*t & IF_HAS) | (!(*t & IF_HAS) * IF_VAL);
+			*t = (!(*t & IF_HAS) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
 		} else if (starts_with (s, ".elif ")) {
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);
 			x = parse_expr (sc, trim (s + 6));
-			*t = ((!(*t & IF_HAS) && x) * IF_VAL) | (*t & IF_HAS);
+			t = &ifstack[iflen - 1];
+			*t = ((!(*t & IF_HAS) && x) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
 		} else if (starts_with (s, ".endif")) {
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);

@@ -14,6 +14,9 @@ YACC ?= $./tools/bin/yacc
 CFLAGS ?= -O2
 CFLAGS += -ansi -Wall -Wno-deprecated-non-prototype -Wno-implicit-int
 
+## Default C Preprocssor Flags
+CPPFLAGS ?=
+
 ## Build everything
 all: ${.SUBDIRS}
 
@@ -60,37 +63,43 @@ BINPREFIX ?= ${PREFIX}/bin
 .if !target(all)
 ## Build ${NAME}
 all: ${NAME}
-.endif
 
-.if !target(run)
-## Run ${NAME}
-run: ${NAME}
-	./${NAME}
+.if target(all-extra)
+all: all-extra
+.endif
 .endif
 
 .if !target(clean)
 ## Clean build artifacts for ${NAME}
 clean:
 	rm -f ${NAME} *.core *.o
+
+.if target(clean-extra)
+clean: clean-extra
+.endif
 .endif
 
 .if !target(install)
 ## Install ${NAME} into ${DESTDIR}${PREFIX}
-install: install-bin install-man
+install: install-bin
 
 ## Install ${NAME}'s binary into ${DESTDIR}${BINPREFIX}
 install-bin: ${NAME}
 	mkdir -p ${DESTDIR}${BINPREFIX}/
 	cp -f ${NAME} ${DESTDIR}${BINPREFIX}/
 
-.if "${NOMAN}"
-install-man:
+.if !"${NOMAN}"
+install: install-man
 
-.else
 ## Install ${NAME}'s manual into ${DESTDIR}${MANPREFIX}
 install-man: ${NAME}.${MANSECTION}
 	mkdir -p ${DESTDIR}${MANPREFIX}
 	cp -f ${NAME}.${MANSECTION} ${DESTDIR}${MANPREFIX}/
+
+.endif
+
+.if target(install-extra)
+install: install-extra
 .endif
 .endif
 .endt

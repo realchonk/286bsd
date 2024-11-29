@@ -1487,6 +1487,8 @@ struct macro **subdirs;
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
 			do_parse (sc, dir, "template", tfile, subdirs);
 			fclose (tfile);
+		} else if (starts_with (s, ".DEFAULT:")) {
+			sc->dir->default_file = strdup (trim (s + 9));
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;
@@ -1804,6 +1806,9 @@ struct path *prefix;
 	case SC_DIR:
 		if (sc->dir == NULL)
 			parse_dir (sc, prefix);
+
+		if (name == NULL && sc->dir->default_file != NULL)
+			name = sc->dir->default_file;
 
 		if (name != NULL) {
 			f = find_file (sc->dir, name);

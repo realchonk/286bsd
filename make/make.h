@@ -41,6 +41,7 @@ struct directory {
 	struct macro *emacros;	/* exported macros */
 	struct inference *infs;
 	struct template *templates;
+	char *default_file;
 };
 
 struct gnu {

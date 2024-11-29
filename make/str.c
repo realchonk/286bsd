@@ -7,8 +7,8 @@
 str_new (s)
 str_t *s;
 {
-	s->cap = 10;
 	s->len = 0;
+	s->cap = 10;
 	s->ptr = malloc (s->cap + 1);
 	s->ptr[0] = '\0';
 	return 0;

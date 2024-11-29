@@ -188,12 +188,12 @@ example: example.c
 ## Check names for validity
 Allowed charset for variable names: `[a-zA-Z_.]+`
 Allowed charset for file names: `[a-zA-Z_.-]+`
+## Include file and position in every error message
 ## Write a tutorial on how to correctly use this make
 ## Write a specification
 ## Create a freestanding version, written in Rust, so that other projects can use this make
 
 # Known Bugs
-
 ## Unnamed bug #1
 ### Problem
 `clean: ${.SUBDIRS:=/clean}`

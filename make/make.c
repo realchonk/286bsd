@@ -970,6 +970,37 @@ char *s, *t, *help;
 	return 0;
 }
 
+parse_expr (sc, s)
+struct scope *sc;
+char *s;
+{
+	s = trim (s);
+	if (strcmp (s, "1") == 0) {
+		return 1;
+	} else if (strcmp (s, "0") == 0) {
+		return 0;
+	} else {
+		errx (1, "unsupported expression: '%s'", s);
+	}
+}
+
+#define IF_VAL 0x01
+#define IF_HAS 0x02
+#define MAX_IFSTACK 16
+
+walkifstack (s, n)
+char *s;
+size_t n;
+{
+	size_t i;
+
+	for (i = 0; i < n; ++i) {
+		if (!(s[i] & IF_VAL))
+			return 0;
+	}
+	return 1;
+}
+
 parse (sc, dir, path) 
 struct scope *sc;
 struct path *dir;
@@ -977,10 +1008,11 @@ char *path;
 {
 	struct macro *m, *subdirs;
 	struct rule *r = NULL;
-	size_t len, cap;
+	size_t len, cap, iflen = 0;
 	char *s, *t, *u, *help = NULL;
+	char ifstack[MAX_IFSTACK];
 	FILE *file;
-	int ln = 0;
+	int x, ln = 0, run;
 
 	file = fopen (path, "r");
 	if (file == NULL)
@@ -998,12 +1030,16 @@ char *path;
 	subdirs = NULL;
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {
+		run = walkifstack (ifstack, iflen);
 		if (s[0] == '#' && s[1] == '#') {
 			help = expand (sc, trim (s + 2), NULL);
 			continue;
 		} else if (s[0] == '#' || *trim (s) == '\0') {
 			continue;
 		} else if (starts_with (s, "include ")) {
+			if (!run)
+				goto cont;
+
 			t = expand (sc, s + 8, NULL);
 			if (*t == '/') {
 				u = t;
@@ -1015,9 +1051,15 @@ char *path;
 				free (u);
 			free (t);
 		} else if (starts_with (s, ".include ")) {
+			if (!run)
+				goto cont;
+
 			if (parse_include (sc, dir, s + 9, &subdirs) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);
 		} else if (starts_with (s, ".export ")) {
+			if (!run)
+				goto cont;
+
 			t = trim (s + 8);
 
 			for (m = sc->dir->emacros; m != NULL; m = m->enext) {
@@ -1034,7 +1076,29 @@ char *path;
 			}
 
 			errx (1, "%s:%d: no such macro: %s", path, ln, t);
+		} else if (starts_with (s, ".if ")) {
+			if (iflen == MAX_IFSTACK)
+				errx (1, "%s:%d: maximum .if depth of %d reached", path, ln, MAX_IFSTACK);
+			x = parse_expr (sc, trim (s + 4)) & 0x01;
+			ifstack[iflen++] = x * (IF_VAL | IF_HAS);
+		} else if (starts_with (s, ".else")) {
+			if (iflen == 0)
+				errx (1, "%s:%d: not in .if", path, ln);
+			t = &ifstack[iflen - 1];
+			*t = (*t & IF_HAS) | (!(*t & IF_HAS) * IF_VAL);
+		} else if (starts_with (s, ".elif ")) {
+			if (iflen == 0)
+				errx (1, "%s:%d: not in .if", path, ln);
+			x = parse_expr (sc, trim (s + 6));
+			*t = ((!(*t & IF_HAS) && x) * IF_VAL) | (*t & IF_HAS);
+		} else if (starts_with (s, ".endif")) {
+			if (iflen == 0)
+				errx (1, "%s:%d: not in .if", path, ln);
+			--iflen;
 		} else if (s[0] == '\t') {
+			if (!run)
+				goto cont;
+
 			if (r == NULL)
 				errx (1, "%s:%d: syntax error", path, ln);
 
@@ -1046,10 +1110,16 @@ char *path;
 			r->code[len++] = strdup (s + 1);
 			r->code[len] = NULL;
 		} else if ((t = strchr (s, '=')) != NULL) {
+			if (!run)
+				goto cont;
+
 			/* TODO: check name */
 			*t = '\0';
 			parse_assign (sc, dir, s, t, help);
 		} else if ((t = strchr (s, ':')) != NULL) {
+			if (!run)
+				goto cont;
+
 			r = parse_rule (sc, dir, s, t, help);
 			if (r == NULL)
 				goto cont;

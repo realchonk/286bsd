@@ -1,10 +1,10 @@
-YFLAGS = -d -v
+NAME = cc1
+NOMAN = 1
 CFLAGS += -Wno-comment
+YFLAGS = -d -v
 
-all: cc1
-
-clean:
-	rm -f cc1 *.core *.o y.tab.h y.output
+clean-extra:
+	rm -f cc1 y.tab.h y.output
 
 run: cc1 ../irc/irc
 	./cc1 < test.c > test.ir
@@ -24,3 +24,5 @@ lex.o: cc1.h y.tab.h
 gen.o: cc1.h
 main.o: cc1.h y.tab.h
 dt.o: cc1.h
+
+.expand prog

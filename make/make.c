@@ -449,6 +449,7 @@ char **s;
 
 	if (**s != '}')
 		goto invalid;
+	++*s;
 
 	replace_into (out, v, str2_get (&old), str2_get (&new));
 

@@ -17,6 +17,7 @@
 #include <time.h>
 #include <err.h>
 #include "make.h"
+#include "str.h"
 
 #define new(T) ((T *)calloc (1, sizeof (T)))
 #define MAKEFILE "MyMakefile"
@@ -153,58 +154,6 @@ struct timespec *a, *b;
 
 /* STRING BUFFER */
 
-static char *strbuf = NULL;
-static size_t strbuf_len = 0, strbuf_cap = 0;
-
-str_reset ()
-{
-	strbuf_len = 0;
-	return 0;
-}
-
-str_push (ch)
-{
-	if (strbuf_len == strbuf_cap) {
-		strbuf_cap = strbuf_cap > 0 ? strbuf_cap * 2 : 10;
-		strbuf = realloc (strbuf, strbuf_cap + 1);
-	}
-	strbuf[strbuf_len++] = ch;
-	return 0;
-}
-
-str_push_str (s)
-char *s;
-{
-	while (*s != '\0')
-		str_push (*s++);
-	return 0;
-}
-
-str_chomp ()
-{
-	while (strbuf_len > 0 && strbuf[strbuf_len - 1] == '\n')
-		--strbuf_len;
-	return 0;
-}
-
-char *
-str_get ()
-{
-	if (strbuf == NULL) {
-		strbuf_len = 0;
-		strbuf_cap = 10;
-		strbuf = malloc (strbuf_cap + 1);
-	}
-	strbuf[strbuf_len] = '\0';
-	return strbuf;
-}
-
-char *
-str_copy ()
-{
-	return strdup (str_get ());
-}
-
 char *
 str_cat (s, t)
 char *s, *t;
@@ -281,23 +230,24 @@ struct path *old, *comp;
 	return p;
 }
 
-path_write (p)
+path_write (s, p)
+str_t *s;
 struct path *p;
 {
 	size_t i;
 
-	str_push ('.');
+	str2_putc (s, '.');
 
 	for (i = 0; p[i].type != PATH_NULL; ++i) {
 		switch (p[i].type) {
 		case PATH_NULL:
 			abort ();
 		case PATH_SUPER:
-			str_push_str ("/..");
+			str2_puts (s, "/..");
 			break;
 		case PATH_NAME:
-			str_push ('/');
-			str_push_str (p[i].name);
+			str2_putc (s, '/');
+			str2_puts (s, p[i].name);
 			break;
 		}
 	}
@@ -305,13 +255,15 @@ struct path *p;
 	return 0;
 }
 
+static str_t tmpstr;
+
 char *
 path_to_str (p)
 struct path *p;
 {
-	str_reset ();
-	path_write (p);
-	return str_get ();
+	str2_reset (&tmpstr);
+	path_write (&tmpstr, p);
+	return str2_get (&tmpstr);
 }
 
 char *
@@ -332,11 +284,11 @@ path_cat_str (dir, file)
 struct path *dir;
 char *file;
 {
-	str_reset ();
-	path_write (dir);
-	str_push ('/');
-	str_push_str (file);
-	return str_get ();
+	str2_reset (&tmpstr);
+	path_write (&tmpstr, dir);
+	str2_putc (&tmpstr, '/');
+	str2_puts (&tmpstr, file);
+	return str2_get (&tmpstr);
 }
 
 struct path *
@@ -420,7 +372,8 @@ struct expand_ctx {
 };
 
 /* TODO: this is probably slower, than it needs to be */
-replace_into (s, old, new)
+replace_into (out, s, old, new)
+str_t *out;
 char *s, *old, *new;
 {
 	size_t len_old;
@@ -429,10 +382,10 @@ char *s, *old, *new;
 
 	while (*s != '\0') {
 		if (strncmp (s, old, len_old) == 0) {
-			str_push_str (new);
+			str2_puts (out, new);
 			s += len_old;
 		} else {
-			str_push (*s++);
+			str2_putc (out, *s++);
 		}
 	}
 	
@@ -444,7 +397,8 @@ char *s, *old, *new;
  * TODO:
  * ${name/suffix}	append `suffix` after each word
  */
-subst (sc, s)
+subst (out, sc, s)
+str_t *out;
 struct scope *sc;
 char *s;
 {
@@ -462,7 +416,7 @@ char *s;
 
 	/* s = "name" */
 	if (t == NULL)
-		return expand_macro_into (sc, m);
+		return expand_macro_into (out, sc, m);
 
 	/* s = "name:..." */
 	*t = ':';
@@ -480,13 +434,14 @@ char *s;
 
 	/* s = "...=..." */
 	*t = '\0';
-	replace_into (v, s, t + 1);
+	replace_into (out, v, s, t + 1);
 
 	free (v);
 	return 0;
 }
 
-expand_into (sc, s, ctx)
+expand_into (out, sc, s, ctx)
+str_t *out;
 struct scope *sc;
 char *s;
 struct expand_ctx *ctx;
@@ -498,24 +453,24 @@ struct expand_ctx *ctx;
 
 	while (*s != '\0') {
 		if (*s != '$') {
-			str_push (*s++);
+			str2_putc (out, *s++);
 			continue;
 		}
 		ch = *++s;
 		++s;
 		switch (ch) {
 		case '.':
-			str_push ('.');
+			str2_putc (out, '.');
 			for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->next)
-				str_push_str ("/..");
+				str2_puts (out, "/..");
 			break;
 		case '$':
-			str_push ('$');
+			str2_putc (out, '$');
 			break;
 		case '@':
 			if (ctx == NULL)
 				errx (1, "cannot use $@ here");
-			str_push_str (ctx->f->name);
+			str2_puts (out, ctx->f->name);
 			break;
 		case '<':
 			if (ctx == NULL)
@@ -524,14 +479,14 @@ struct expand_ctx *ctx;
 			if (ctx->f->deps == NULL)
 				continue;
 
-			path_write (ctx->f->deps->path);
+			path_write (out, ctx->f->deps->path);
 			break;
 		case '*':
 			if (ctx == NULL)
 				errx (1, "cannot use $< here");
 			for (dep = ctx->f->deps; dep != NULL; dep = dep->next) {
-				str_push (' ');
-				path_write (dep->path);
+				str2_putc (out, ' ');
+				path_write (out, dep->path);
 			}
 			break;
 		case '{':
@@ -540,7 +495,7 @@ struct expand_ctx *ctx;
 			if (t == NULL)
 				errx (1, "syntax error: invalid macro: %s", s - 2);
 			*t = '\0';
-			subst (sc, s);
+			subst (out, sc, s);
 			*t = '}';
 			s = t + 1;
 			break;
@@ -553,7 +508,8 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-expand_macro_into (sc, m)
+expand_macro_into (out, sc, m)
+str_t *out;
 struct scope *sc;
 struct macro *m;
 {
@@ -561,14 +517,14 @@ struct macro *m;
 		return -1;
 
 	if (m->prepend != NULL) {
-		expand_macro_into (sc, m->prepend);
-		str_push (' ');
+		expand_macro_into (out, sc, m->prepend);
+		str2_putc (out, ' ');
 	}
 
 	if (m->lazy) {
-		expand_into (sc, m->value, NULL);
+		expand_into (out, sc, m->value, NULL);
 	} else {
-		str_push_str (m->value);
+		str2_puts (out, m->value);
 	}
 	return 0;
 }
@@ -578,17 +534,11 @@ expand_macro (sc, m)
 struct scope *sc;
 struct macro *m;
 {
-	char *old, *s;
+	str_t tmp;
 
-	old = str_copy ();
-	str_reset ();
-	expand_macro_into (sc, m);
-	s = str_copy ();
-	str_reset ();
-	str_push_str (old);
-	free (old);
-	
-	return s;
+	str2_new (&tmp);
+	expand_macro_into (&tmp, sc, m);
+	return str2_release (&tmp);
 }
 
 char *
@@ -597,9 +547,12 @@ struct scope *sc;
 char *s;
 struct expand_ctx *ctx;
 {
-	str_reset ();
-	expand_into (sc, s, ctx);
-	return str_get ();
+	str_t out;
+
+	str2_new (&out);
+	expand_into (&out, sc, s, ctx);
+	str2_trim (&out);
+	return str2_release (&out);
 }
 
 char *
@@ -611,10 +564,11 @@ char *cmd;
 	char *args[] = {
 		m_shell.value,
 		"-c",
-		strdup (expand (sc, cmd, NULL)),
+		expand (sc, cmd, NULL),
 		NULL,
 	};
 	ssize_t i, n;
+	str_t data;
 	pid_t pid;
 	int pipefd[2];
 	char buf[64 + 1];
@@ -644,20 +598,20 @@ char *cmd;
 	} else {
 		close (pipefd[1]);
 
-		str_reset ();
+		str2_new (&data);
 
 		while ((n = read (pipefd[0], buf, sizeof (buf) - 1)) > 0) {
 			for (i = 0; i < n; ++i)
-				str_push (buf[i]);
+				str2_putc (&data, buf[i]);
 		}
 		close (pipefd[0]);
 		wait (NULL);
 	}
 
 	free (args[2]);
-	str_chomp ();
+	str2_chomp (&data);
 
-	return str_copy ();
+	return str2_release (&data);
 }
 
 /* PARSER */
@@ -682,9 +636,10 @@ readline (file, ln)
 FILE *file;
 int *ln;
 {
+	str_t line;
 	int ch, eof = 1;
 
-	str_reset ();
+	str2_new (&line);
 
 	while (1) {
 		ch = fgetc (file);
@@ -700,20 +655,20 @@ int *ln;
 			if (ch == '\n') {
 				++*ln;
 			} else {
-				str_push ('\\');
-				str_push (ch);
+				str2_putc (&line, '\\');
+				str2_putc (&line, ch);
 			}
 			eof = 0;
 			break;
 		default:
-			str_push (ch);
+			str2_putc (&line, ch);
 			eof = 0;
 			break;
 		}
 	}
 
 ret:
-	return eof ? NULL : str_copy ();
+	return eof ? NULL : str2_release (&line);
 }
 
 /*
@@ -819,7 +774,7 @@ char *s, *t, *help;
 	*t = '\0';
 
 	/* parse deps */
-	v = u = strdup (trim (expand (sc, t + 1, NULL)));
+	v = u = expand (sc, t + 1, NULL);
 	while ((p = strsep (&v, " \t")) != NULL) {
 		if (*p == '\0')
 			continue;
@@ -838,7 +793,7 @@ char *s, *t, *help;
 	free (u);
 
 	/* parse targets */
-	u = strdup (trim (expand (sc, s, NULL)));
+	u = expand (sc, s, NULL);
 	flag = 1;
 	if (u[0] == '.') {
 		p = strchr (u + 1, '.');
@@ -930,7 +885,7 @@ char *s, *t, *help;
 		/* handle both `:=` and `::=` */
 		t[t[-2] == ':' ? -2 : -1] = '\0';
 		m->lazy = 0;
-		m->value = strdup (trim (expand (sc, trim (t + 1), NULL)));
+		m->value = expand (sc, trim (t + 1), NULL);
 	} else if (t[-1] == '+') {
 		t[-1] = '\0';
 		m->value = strdup (trim (t + 1));
@@ -974,12 +929,12 @@ char *path;
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {
 		if (s[0] == '#' && s[1] == '#') {
-			help = strdup (expand (sc, trim (s + 2), NULL));
+			help = expand (sc, trim (s + 2), NULL);
 			continue;
 		} else if (s[0] == '#' || *trim (s) == '\0') {
 			continue;
 		} else if (starts_with (s, "include ")) {
-			t = strdup (trim (expand (sc, s + 8, NULL)));
+			t = expand (sc, s + 8, NULL);
 			if (*t == '/') {
 				u = t;
 			} else {
@@ -1124,6 +1079,7 @@ struct path *prefix;
 char *cmd;
 struct expand_ctx *ctx;
 {
+	str_t fcmd;
 	int ec, q = 0;
 
 	if (*cmd == '@') {
@@ -1131,18 +1087,17 @@ struct expand_ctx *ctx;
 		++cmd;
 	}
 
-	cmd = strdup (expand (sc, cmd, ctx));
+	str2_new (&fcmd);
+	str2_puts (&fcmd, "cd '");
+	path_write (&fcmd, prefix);
+	str2_puts (&fcmd, "' && ");
+	expand_into (&fcmd, sc, cmd, ctx);
 	
 	if (!q)
 		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
 
-	str_reset ();
-	str_push_str ("cd '");
-	path_write (prefix);
-	str_push_str ("' && ");
-	str_push_str (cmd);
-	ec = system (str_get ());
-	free (cmd);
+	ec = system (str2_get (&fcmd));
+	str2_free (&fcmd);
 
 	return ec;
 }
@@ -1152,28 +1107,27 @@ struct scope *sc;
 struct path *prefix;
 char *rule;
 {
-	char *cmd;
+	str_t cmd;
 	int ec;
 
-	str_reset ();
-	str_push_str (sc->gnu->prog != NULL ? sc->gnu->prog : "make");
+	str2_new (&cmd);
+	str2_puts (&cmd, sc->gnu->prog != NULL ? sc->gnu->prog : "make");
 
 	if (q)
-		str_push_str (" -q");
+		str2_puts (&cmd, " -q");
 
 	if (sc->makefile != NULL) {
-		str_push_str (" -f ");
-		str_push_str (sc->makefile);
+		str2_puts (&cmd, " -f ");
+		str2_puts (&cmd, sc->makefile);
 	}
 
 	if (rule != NULL) {
-		str_push (' ');
-		str_push_str (rule);
+		str2_putc (&cmd, ' ');
+		str2_puts (&cmd, rule);
 	}
 
-	cmd = str_copy ();
-	ec = runcom (sc, prefix, cmd, NULL);
-	free (cmd);
+	ec = runcom (sc, prefix, str2_get (&cmd), NULL);
+	str2_free (&cmd);
 	return ec;
 }
 
@@ -1677,6 +1631,7 @@ struct scope *sc;
 main (argc, argv)
 char **argv;
 {
+	str_t cmdline;
 	struct scope *sc;
 	struct path *path;
 	struct macro *m;
@@ -1685,18 +1640,18 @@ char **argv;
 
 	m_dmake.value = m_make.value = argv[0];
 
-	str_reset ();
+	str2_new (&cmdline);
 	while ((option = getopt (argc, argv, "hpvC:f:")) != -1) {
 		switch (option) {
 		case 'h':
 			dohelp = 1;
 			break;
 		case 'p':
-			str_push_str (" -p");
+			str2_puts (&cmdline, " -p");
 			pr = 1;
 			break;
 		case 'v':
-			str_push_str (" -v");
+			str2_puts (&cmdline, " -v");
 			verbose = 1;
 			break;
 		case 'C':
@@ -1723,8 +1678,8 @@ char **argv;
 		if (s == NULL)
 			continue;
 
-		str_push (' ');
-		str_push_str (argv[i]);
+		str2_putc (&cmdline, ' ');
+		str2_puts (&cmdline, argv[i]);
 
 		*s = '\0';
 		m = new (struct macro);
@@ -1736,7 +1691,8 @@ char **argv;
 		argv[i] = NULL;
 	}
 
-	m_dmakeflags.value = m_makeflags.value = strdup (trim (str_get ()));
+	str2_trim (&cmdline);
+	m_dmakeflags.value = m_makeflags.value = str2_release (&cmdline);
 
 	path = parse_path (".");
 	sc = parse_recursive (path, makefile);

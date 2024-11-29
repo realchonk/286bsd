@@ -55,21 +55,6 @@
 -s          silent, do not write commands to stdout
 
 
-# Replace static-storage string handling with something like this:
-```c
-typedef struct string {
-    char *ptr;
-    size_t len, cap;
-} str_t;
-
-str_new (str_t *, size_t cap);
-str_putc (str_t *, char);
-str_puts (str_t *, char *);
-str_free (str_t *);
-char *str_get (str_t *);
-```
-
-
 # Templates
 ## MyMakefile
 ```make

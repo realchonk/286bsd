@@ -42,6 +42,45 @@ todo:
 .c.o:
 	${CC} -c -o $@ $< ${CFLAGS} ${CPPFLAGS}
 
+.template prog
+PREFIX ?= /usr
+MANPREFIX ?= ${PREFIX}/man/man${MANSECTION}
+BINPREFIX ?= ${PREFIX}/bin
+MANSECTION ?= 1
+RUNARGS ?=
+
+.DEFAULT: all
+
+## Build ${NAME}
+all: ${NAME}
+
+## Run ${NAME}
+run: ${NAME}
+	./${NAME} ${RUNARGS}
+
+## Clean build artifacts for ${NAME}
+clean:
+	rm -f ${NAME} *.core *.o
+
+## Install ${NAME} into ${DESTDIR}${PREFIX}
+install: install-bin install-man
+
+## Install ${NAME}'s binary into ${DESTDIR}${BINPREFIX}
+install-bin: ${NAME}
+	mkdir -p ${DESTDIR}${BINPREFIX}/
+	cp -f ${NAME} ${DESTDIR}${BINPREFIX}/
+
+.if "${NOMAN}"
+install-man:
+
+.else
+## Install ${NAME}'s manual into ${DESTDIR}${MANPREFIX}
+install-man: ${NAME}.${MANSECTION}
+	mkdir -p ${DESTDIR}${MANPREFIX}
+	cp -f ${NAME}.${MANSECTION} ${DESTDIR}${MANPREFIX}/
+.endif
+.endt
+
 .export CC
 .export TOP
 .export YACC

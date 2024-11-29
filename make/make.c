@@ -1468,7 +1468,7 @@ struct macro **subdirs;
 			tm->name = strdup (trim (s + 10));
 
 			for (free (s); (s = readline (file, &ln)) != NULL; free (s)) {
-				if (strcmp (s, ".endt") == 0)
+				if (strcmp (s, ".endt") == 0 || strcmp (s, ".endtemplate") == 0)
 					break;
 
 				str_puts (&text, s);

@@ -5,6 +5,9 @@ IMG = sys.img
 
 all: ${IMG}
 
+install:
+	@echo "'install' rule not suppported for sys"
+
 xxd: ${IMG}
 	xxd ${IMG} | less
 

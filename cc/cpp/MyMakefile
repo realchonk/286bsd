@@ -1,17 +1,20 @@
-CFLAGS = -g -O0 -ansi -Wno-deprecated-non-prototype -Wno-comment -DFLEXNAMES -DBSD2_86 -Di286=1 -Dunix
-
-all: cpp
-
-clean:
-	rm -f cpp y.tab.c *.o *.core
+NAME = cpp
+NOMAN = 1
+CFLAGS += -g -O0 -Wno-implicit-function-declaration -Wno-comment -Wno-char-subscripts
+CPPFLAGS += -DFLEXNAMES -DBSD2_86 -Di286=1 -Dunix
 
 test: cpp
 	./cpp -P < cpp.c | grep -v '^$$'
 
 cpp: cpp.o cpy.o
-	${CC} -o $@ $* ${CFLAGS}
+	${CC} -o $@ $* ${CFLAGS} ${CPPFLAGS}
 
 cpy.o: cpy.y yylex.c
 	${YACC} cpy.y
 	${CC} -c -o $@ y.tab.c ${CFLAGS}
 	rm -f y.tab.c
+
+clean-extra:
+	rm -f y.tab.c
+
+.expand prog

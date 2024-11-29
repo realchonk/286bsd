@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include "str.h"
 
-str2_new (s)
+str_new (s)
 str_t *s;
 {
 	s->cap = 10;
@@ -14,7 +14,7 @@ str_t *s;
 	return 0;
 }
 
-str2_reserve (s, n)
+str_reserve (s, n)
 str_t *s;
 size_t n;
 {
@@ -28,7 +28,7 @@ size_t n;
 	return 0;
 }
 
-str2_free (s)
+str_free (s)
 str_t *s;
 {
 	free (s->ptr);
@@ -36,61 +36,61 @@ str_t *s;
 	return 0;
 }
 
-str2_putc (s, ch)
+str_putc (s, ch)
 str_t *s;
 {
-	str2_reserve (s, 1);
+	str_reserve (s, 1);
 	s->ptr[s->len++] = ch;
 	s->ptr[s->len] = '\0';
 	return 0;
 }
 
-str2_write (s, t, n)
+str_write (s, t, n)
 str_t *s;
 char *t;
 size_t n;
 {
-	str2_reserve (s, n);
+	str_reserve (s, n);
 	memcpy (s->ptr + s->len, t, n);
 	s->len += n;
 	s->ptr[s->len] = '\0';
 	return 0;
 }
 
-str2_puts (s, t)
+str_puts (s, t)
 str_t *s;
 char *t;
 {
-	return str2_write (s, t, strlen (t));
+	return str_write (s, t, strlen (t));
 }
 
-str2_last (s)
+str_last (s)
 str_t *s;
 {
 	return s->len > 0 ? s->ptr[s->len - 1] : EOF;
 }
 
-str2_pop (s)
+str_pop (s)
 str_t *s;
 {
 	return s->len > 0 ? s->ptr[--s->len] : EOF;
 }
 
-str2_chomp (s)
+str_chomp (s)
 str_t *s;
 {
-	while (str2_last (s) == '\n')
-		str2_pop (s);
+	while (str_last (s) == '\n')
+		str_pop (s);
 	return 0;
 }
 
-str2_trim (s)
+str_trim (s)
 str_t *s;
 {
 	size_t i;
 
-	while (isspace (str2_last (s)))
-		str2_pop (s);
+	while (isspace (str_last (s)))
+		str_pop (s);
 
 	for (i = 0; i < s->len && isspace (s->ptr[i]); ++i);
 
@@ -101,7 +101,7 @@ str_t *s;
 }
 
 char *
-str2_release (s)
+str_release (s)
 str_t *s;
 {
 	char *t;
@@ -110,11 +110,11 @@ str_t *s;
 	return t;
 }
 
-str2_reset (s)
+str_reset (s)
 str_t *s;
 {
 	if (s->cap == 0) {
-		str2_new (s);
+		str_new (s);
 	} else {
 		s->len = 0;
 		s->ptr[0] = '\0';

@@ -10,6 +10,7 @@ extern str2_new (/* str_t * */);
 extern str2_free (/* str_t * */);
 extern str2_putc (/* str_t *, int */);
 extern str2_puts (/* str_t *, char * */);
+extern str2_write (/* str_t *, char *, size_t */);
 extern str2_last (/* str_t * */);
 extern str2_pop (/* str_t * */);
 extern str2_chomp (/* str_t * */);

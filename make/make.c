@@ -371,24 +371,44 @@ struct expand_ctx {
 	struct file *f;
 };
 
-/* TODO: this is probably slower, than it needs to be */
 replace_into (out, s, old, new)
 str_t *out;
 char *s, *old, *new;
 {
-	size_t len_old;
+	size_t len_s, len_old;
 
+	len_s = strlen (s);
 	len_old = strlen (old);
 
-	while (*s != '\0') {
-		if (strncmp (s, old, len_old) == 0) {
-			str2_puts (out, new);
-			s += len_old;
-		} else {
-			str2_putc (out, *s++);
-		}
+	if (len_s < len_old || memcmp (s + len_s - len_old, old, len_old) != 0) {
+		str2_puts (out, s);
+		return 0;
 	}
-	
+
+	str2_write (out, s, len_s - len_old);
+	str2_puts (out, new);
+	return 0;
+}
+
+replace_all_into (out, s, old, new)
+str_t *out;
+char *s, *old, *new;
+{
+	char *t;
+	int x = 0;
+
+	while ((t = strsep (&s, " \t")) != NULL) {
+		if (*t == '\0')
+			continue;
+
+		replace_into (out, t, old, new);
+		str2_putc (out, ' ');
+		x = 1;
+	}
+
+	if (x)
+		str2_pop (out);
+
 	return 0;
 }
 
@@ -451,7 +471,7 @@ char **s;
 		goto invalid;
 	++*s;
 
-	replace_into (out, v, str2_get (&old), str2_get (&new));
+	replace_all_into (out, v, str2_get (&old), str2_get (&new));
 
 	str2_free (&old);
 	str2_free (&new);

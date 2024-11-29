@@ -45,17 +45,23 @@ str_t *s;
 	return 0;
 }
 
+str2_write (s, t, n)
+str_t *s;
+char *t;
+size_t n;
+{
+	str2_reserve (s, n);
+	memcpy (s->ptr + s->len, t, n);
+	s->len += n;
+	s->ptr[s->len] = '\0';
+	return 0;
+}
+
 str2_puts (s, t)
 str_t *s;
 char *t;
 {
-	size_t len = strlen (t);
-
-	str2_reserve (s, len);
-	memcpy (s->ptr + s->len, t, len);
-	s->len += len;
-	s->ptr[s->len] = '\0';
-	return 0;
+	return str2_write (s, t, strlen (t));
 }
 
 str2_last (s)

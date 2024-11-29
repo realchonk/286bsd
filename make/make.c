@@ -470,14 +470,29 @@ struct expand_ctx *ctx;
 	str_new (&old);
 	str_new (&new);
 
-	for (; **s != '\0' && **s != '}' && **s != '='; ++*s)
-		str_putc (&old, **s);
+	while (**s != '\0' && **s != '}' && **s != '=') {
+		if (**s == '$') {
+			++*s;
+			subst (&old, sc, s, ctx);
+		} else {
+			str_putc (&old, **s);
+			++*s;
+		}
+	}
 
 	if (**s != '=')
 		goto invalid;
+	++*s;
 
-	for (++*s; **s != '\0' && **s != '}'; ++*s)
-		str_putc (&new, **s);
+	while (**s != '\0' && **s != '}') {
+		if (**s == '$') {
+			++*s;
+			subst (&new, sc, s, ctx);
+		} else {
+			str_putc (&new, **s);
+			++*s;
+		}
+	}
 
 	if (**s != '}')
 		goto invalid;

@@ -2,4 +2,5 @@ yacc
 calc
 calc.c
 y.tab.*
+yacc.acts
 *.core

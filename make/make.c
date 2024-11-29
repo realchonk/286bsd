@@ -932,27 +932,63 @@ char *s;
 	return *endp != '\0' || x != 0;
 }
 
+e_command (sc, s, cmd, arg)
+struct scope *sc;
+char **s, *cmd;
+str_t *arg;
+{
+	char *orig = *s;
+
+	*s += strlen (cmd);
+	skip_ws (s);
+	if (**s != '(')
+		errx (1, "expected '(' after 'defined': %s", orig);
+
+	str_new (arg);
+	for (++*s; **s != ')'; ++*s)
+		str_putc (arg, **s);
+	++*s;
+
+	str_trim (arg);
+	return 0;
+}
+
 e_atom (sc, s, val)
 struct scope *sc;
 char **s;
 str_t *val;
 {
+	str_t arg;
+	int x;
+
 	skip_ws (s);
 
-	if (**s != '"')
-		errx (1, "invalid expression: '%s'", *s);
-	++*s;
+	if (**s == '"') {
+		++*s;
 
-	while (**s != '"') {
-		if (**s == '$') {
-			++*s;
-			subst (val, sc, s, NULL);
-		} else {
-			str_putc (val, **s);
-			++*s;
+		while (**s != '"') {
+			if (**s == '$') {
+				++*s;
+				subst (val, sc, s, NULL);
+			} else {
+				str_putc (val, **s);
+				++*s;
+			}
 		}
+		++*s;
+	} else if (starts_with (*s, "defined")) {
+		e_command (sc, s, "defined", &arg);
+		x = find_macro (sc, str_get (&arg)) != NULL;
+	comm:
+		str_putc (val, x ? '1' : '0');
+		str_free (&arg);
+	} else if (starts_with (*s, "target")) {
+		e_command (sc, s, "target", &arg);
+		x = find_file (sc->dir, str_get (&arg)) != NULL;
+		goto comm;
+	} else {
+		errx (1, "invalid expression: '%s'", *s);
 	}
-	++*s;
 
 	return 0;
 }

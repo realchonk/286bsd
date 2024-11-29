@@ -43,25 +43,38 @@ todo:
 	${CC} -c -o $@ $< ${CFLAGS} ${CPPFLAGS}
 
 .template prog
+## Installation prefix for ${NAME}
 PREFIX ?= /usr
+
+.if !"${NOMAN}"
+## Installation prefix for ${NAME}'s manual
 MANPREFIX ?= ${PREFIX}/man/man${MANSECTION}
-BINPREFIX ?= ${PREFIX}/bin
 MANSECTION ?= 1
-RUNARGS ?=
+.endif
+
+## Installation prefix for ${NAME}'s binary
+BINPREFIX ?= ${PREFIX}/bin
 
 .DEFAULT: all
 
+.if !target(all)
 ## Build ${NAME}
 all: ${NAME}
+.endif
 
+.if !target(run)
 ## Run ${NAME}
 run: ${NAME}
-	./${NAME} ${RUNARGS}
+	./${NAME}
+.endif
 
+.if !target(clean)
 ## Clean build artifacts for ${NAME}
 clean:
 	rm -f ${NAME} *.core *.o
+.endif
 
+.if !target(install)
 ## Install ${NAME} into ${DESTDIR}${PREFIX}
 install: install-bin install-man
 
@@ -78,6 +91,7 @@ install-man:
 install-man: ${NAME}.${MANSECTION}
 	mkdir -p ${DESTDIR}${MANPREFIX}
 	cp -f ${NAME}.${MANSECTION} ${DESTDIR}${MANPREFIX}/
+.endif
 .endif
 .endt
 

@@ -3,7 +3,4 @@
 .include irc
 .include yacc
 
-all: ${.SUBDIRS}
-
-CLEAN = ${.SUBDIRS:=/clean}
-clean: ${CLEAN}
+.expand dir

@@ -1019,6 +1019,10 @@ str_t *val;
 enum {
 	COMP_EQ,
 	COMP_NE,
+	COMP_LT,
+	COMP_LE,
+	COMP_GT,
+	COMP_GE,
 };
 
 e_comp (sc, s)
@@ -1041,6 +1045,24 @@ char **s;
 	} else if (starts_with (*s, "!=")) {
 		cmp = COMP_NE;
 		*s += 2;
+	} else if (**s == '<') {
+		++*s;
+		if (**s == '=') {
+			cmp = COMP_LE;
+			++*s;
+		} else {
+			cmp = COMP_LT;
+			++*s;
+		}
+	} else if (**s == '>') {
+		++*s;
+		if (**s == '=') {
+			cmp = COMP_GE;
+			++*s;
+		} else {
+			cmp = COMP_GT;
+			++*s;
+		}
 	} else {
 		str_trim (&left);
 		x = is_truthy (str_get (&left));
@@ -1060,20 +1082,25 @@ char **s;
 	il = strtol (sl, &el, 0);
 	ir = strtol (sr, &er, 0);
 	icmp = *sl != '\0' && *sr != '\0' && *el == '\0' && *er == '\0';
+	x = icmp ? il - ir : strcmp (sl, sr);
 	switch (cmp) {
 	case COMP_EQ:
-		if (icmp) {
-			x = il == ir;
-		} else {
-			x = strcmp (sl, sr) == 0;
-		}
+		x = x == 0;
 		break;
 	case COMP_NE:
-		if (icmp) {
-			x = il != ir;
-		} else {
-			x = strcmp (sl, sr) != 0;
-		}
+		x = x != 0;
+		break;
+	case COMP_LT:
+		x = x < 0;
+		break;
+	case COMP_LE:
+		x = x <= 0;
+		break;
+	case COMP_GT:
+		x = x > 0;
+		break;
+	case COMP_GE:
+		x = x >= 0;
 		break;
 	default:
 		abort ();

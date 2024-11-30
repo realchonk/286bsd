@@ -164,3 +164,10 @@ is interpreted as macro definition:
 CLEAN = ${.SUBDIRS:=/clean}
 `clean: ${CLEAN}`
 ```
+
+## Whitespace after `.`
+### Problem
+`. if ...` is not recgnized as `.if ...`.
+This applies to all `.` directives.
+### Workaround
+Omit the whitespace between `.` and directive.

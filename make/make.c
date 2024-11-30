@@ -696,7 +696,7 @@ struct expand_ctx *ctx;
 		break;
 	case '.':
 		str_putc (out, '.');
-		for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->next)
+		for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->parent)
 			str_puts (out, "/..");
 		break;
 	case '@':

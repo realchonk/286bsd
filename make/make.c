@@ -1454,14 +1454,32 @@ char **out, *s, *name;
 
 	s += len;
 
-	if (*s != '\0') {
-		if (!isspace (*s))
-			return 0;
+	if (*s != '\0' && !isspace (*s))
+		return 0;
 
-		skip_ws (&s);
-	}
 	if (out != NULL)
-		*out = s;
+		*out = trim (s);
+	return 1;
+}
+
+is_target (out, s, name)
+char **out, *s, *name;
+{
+	size_t len;
+
+	len = strlen (name);
+	if (strncmp (s, name, len) != 0)
+		return 0;
+
+	s += len;
+	skip_ws (&s);
+	if (*s != ':')
+		return 0;
+	++s;
+
+	if (out != NULL)
+		*out = trim (s);
+
 	return 1;
 }
 
@@ -1575,8 +1593,8 @@ struct macro **subdirs;
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
 			do_parse (sc, dir, "template", tfile, subdirs);
 			fclose (tfile);
-		} else if (starts_with (s, ".DEFAULT:")) {
-			sc->dir->default_file = strdup (trim (s + 9));
+		} else if (is_target (&t, s, ".DEFAULT")) {
+			sc->dir->default_file = strdup (t);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;

@@ -7,7 +7,7 @@ test: cpp
 	./cpp -P < cpp.c | grep -v '^$$'
 
 cpp: cpp.o cpy.o
-	${CC} -o $@ $* ${CFLAGS} ${CPPFLAGS}
+	${CC} -o $@ $^ ${CFLAGS} ${CPPFLAGS}
 
 cpy.o: cpy.y yylex.c
 	${YACC} cpy.y

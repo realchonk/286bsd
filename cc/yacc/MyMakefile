@@ -11,6 +11,6 @@ install-extra:
 	cp -f yaccpar ${DESTDIR}${PREFIX}/lib
 
 yacc: y1.c y2.c y3.c y4.c
-	${CC} -o $@ $* ${CFLAGS} ${CPPFLAGS}
+	${CC} -o $@ $^ ${CFLAGS} ${CPPFLAGS}
 
 .expand prog

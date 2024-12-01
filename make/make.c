@@ -713,9 +713,9 @@ struct expand_ctx *ctx;
 
 		path_write (out, ctx->f->deps->path);
 		break;
-	case '*':
+	case '^':
 		if (ctx == NULL)
-			errx (1, "cannot use $< here");
+			errx (1, "cannot use $^ here");
 		for (dep = ctx->f->deps; dep != NULL; dep = dep->next) {
 			str_putc (out, ' ');
 			path_write (out, dep->path);

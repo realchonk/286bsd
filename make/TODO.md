@@ -56,9 +56,8 @@
 
 
 # Special macros
-## Rename `$*` to something different
-POSIX specifies, that `$*` evaluates to the current target's basename, without the suffix.
-
+## `$*`
+Basename
 
 # Special targets
 ## `.TOP:` to stop the upward recursion

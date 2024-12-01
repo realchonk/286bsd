@@ -1595,6 +1595,10 @@ struct macro **subdirs;
 			fclose (tfile);
 		} else if (is_target (&t, s, ".DEFAULT")) {
 			sc->dir->default_file = strdup (t);
+		} else if (is_target (NULL, s, ".POSIX")) {
+			warnx ("%s:%d: this is not a POSIX-compatible make", path, ln);
+		} else if (is_target (NULL, s, ".SUFFIXES")) {
+			warnx ("%s:%d: this make doesn't require .SUFFIXES", path, ln);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;

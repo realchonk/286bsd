@@ -66,8 +66,6 @@ Filename or Directory portions of the variables.
 ## `.TOP:` to stop the upward recursion
 This must be defined at the top of the file.
 
-## `.POSIX:` and `.SUFFIXES:` should give a warnings about this make not being POSIX
-
 ## `.PATH:`
 Allow specifying additional `PATH` directories.
 

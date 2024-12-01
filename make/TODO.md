@@ -59,6 +59,9 @@
 ## `$*`
 Basename
 
+## Optional: `${@F}`, `${@D}`, `${<F}`, `${<F}`, `${*F}`, `${*D}`, `${^F}`, `${^D}`
+Filename or Directory portions of the variables.
+
 # Special targets
 ## `.TOP:` to stop the upward recursion
 This must be defined at the top of the file.

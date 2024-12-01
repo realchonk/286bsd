@@ -1438,6 +1438,33 @@ size_t n;
 	return 1;
 }
 
+is_directive (out, s, name)
+char **out, *s, *name;
+{
+	size_t len;
+
+	if (*s != '.')
+		return 0;
+	++s;
+
+	skip_ws (&s);
+	len = strlen (name);
+	if (strncmp (s, name, len) != 0)
+		return 0;
+
+	s += len;
+
+	if (*s != '\0') {
+		if (!isspace (*s))
+			return 0;
+
+		skip_ws (&s);
+	}
+	if (out != NULL)
+		*out = s;
+	return 1;
+}
+
 do_parse (sc, dir, path, file, subdirs)
 struct scope *sc;
 struct path *dir;
@@ -1477,17 +1504,15 @@ struct macro **subdirs;
 			if (u != t)
 				free (u);
 			free (t);
-		} else if (starts_with (s, ".include ")) {
+		} else if (is_directive (&t, s, "include")) {
 			if (!run)
 				goto cont;
 
-			if (parse_include (sc, dir, s + 9, subdirs) == -1)
+			if (parse_include (sc, dir, t, subdirs) == -1)
 				errx (1, "%s:%d: syntax error", path, ln);
-		} else if (starts_with (s, ".export ")) {
+		} else if (is_directive (&t, s, "export")) {
 			if (!run)
 				goto cont;
-
-			t = trim (s + 8);
 
 			for (m = sc->dir->emacros; m != NULL; m = m->enext) {
 				if (strcmp (m->name, t) == 0)
@@ -1503,35 +1528,35 @@ struct macro **subdirs;
 			}
 
 			errx (1, "%s:%d: no such macro: %s", path, ln, t);
-		} else if (starts_with (s, ".if ")) {
+		} else if (is_directive (&t, s, "if")) {
 			if (iflen == MAX_IFSTACK)
 				errx (1, "%s:%d: maximum .if depth of %d reached", path, ln, MAX_IFSTACK);
-			x = parse_expr (sc, trim (s + 4)) & 0x01;
+			x = parse_expr (sc, t) & 0x01;
 			ifstack[iflen++] = x * (IF_VAL | IF_HAS);
-		} else if (starts_with (s, ".else")) {
+		} else if (is_directive (NULL, s, "else")) {
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);
 			t = &ifstack[iflen - 1];
 			*t = (!(*t & IF_HAS) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
-		} else if (starts_with (s, ".elif ")) {
+		} else if (is_directive (&t, s, "elif")) {
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);
-			x = parse_expr (sc, trim (s + 6));
+			x = parse_expr (sc, t);
 			t = &ifstack[iflen - 1];
 			*t = ((!(*t & IF_HAS) && x) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
-		} else if (starts_with (s, ".endif")) {
+		} else if (is_directive (NULL, s, "endif")) {
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, ln);
 			--iflen;
-		} else if (starts_with (s, ".template ")) {
+		} else if (is_directive (&t, s, "template")) {
 			str_new (&text);
 
 			tm = new (struct template);
 			tm->next = sc->dir->templates;
-			tm->name = strdup (trim (s + 10));
+			tm->name = strdup (t);
 
 			for (free (s); (s = readline (file, &ln)) != NULL; free (s)) {
-				if (strcmp (s, ".endt") == 0 || strcmp (s, ".endtemplate") == 0)
+				if (is_directive (NULL, s, "endt") || is_directive (NULL, s, "endtemplate"))
 					break;
 
 				str_puts (&text, s);
@@ -1545,8 +1570,8 @@ struct macro **subdirs;
 				free (tm);
 				str_free (&text);
 			}
-		} else if (starts_with (s, ".expand ")) {
-			tm = find_template (sc, trim (s + 8));
+		} else if (is_directive (&t, s, "expand")) {
+			tm = find_template (sc, t);
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
 			do_parse (sc, dir, "template", tfile, subdirs);
 			fclose (tfile);
@@ -1586,7 +1611,7 @@ struct macro **subdirs;
 			r->code = calloc (cap + 1, sizeof (char *));
 			r->code[0] = NULL;
 		} else {
-			warnx ("%s:%d: syntax error", path, ln);
+			warnx ("%s:%d: invalid line: %s", path, ln, s);
 		}
 
 	cont:

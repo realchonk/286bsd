@@ -2168,6 +2168,9 @@ struct scope *sc;
 	if (sc->type != SC_DIR || sc->dir == NULL)
 		errx (1, "print_sc(): must be of type SC_DIR");
 
+	if (sc->dir->default_file != NULL)
+		printf (".DEFAULT: %s\n", sc->dir->default_file);
+
 	for (m = sc->dir->macros; m != NULL; m = m->next) {
 		if (m->help != NULL)
 			printf ("\n## %s\n", m->help);

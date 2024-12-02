@@ -1,6 +1,3 @@
-.include cc1
-.include cpp
-.include irc
-.include yacc
+.SUBDIRS: cc1 cpp irc yacc
 
 .expand dir

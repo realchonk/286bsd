@@ -1191,6 +1191,36 @@ ret:
 	return eof ? NULL : str_release (&line);
 }
 
+struct scope *
+new_subdir (parent, name, subdirs)
+struct scope *parent;
+char *name;
+struct macro **subdirs;
+{
+	struct scope *sub;
+	struct macro *m;
+
+	sub = new (struct scope);
+	sub->next = parent->dir->subdirs;
+	sub->type = SC_DIR;
+	sub->name = name;
+	sub->parent = parent;
+	sub->makefile = NULL;
+	parent->dir->subdirs = sub;
+
+	m = new (struct macro);
+	m->next = parent->dir->macros;
+	m->enext = NULL;
+	m->prepend = *subdirs;
+	m->name = ".SUBDIRS";
+	m->value = sub->name;
+	m->lazy = 0;
+	parent->dir->macros = m;
+	*subdirs = m;
+
+	return sub;
+}
+
 /*
  * .include yacc
  * .include yacc, DIR
@@ -1203,30 +1233,13 @@ struct macro **subdirs;
 char *s;
 {
 	struct scope *sub;
-	struct macro *m;
 	char *p, *path;
-
-	sub = new (struct scope);
-	sub->next = sc->dir->subdirs;
-	sub->parent = sc;
-	sub->makefile = NULL;
-	sc->dir->subdirs = sub;
 
 	p = strsep (&s, ",");
 	if (p == NULL)
 		return -1;
 
-	sub->name = strdup (trim (p));
-
-	m = new (struct macro);
-	m->next = sc->dir->macros;
-	m->enext = NULL;
-	m->prepend = *subdirs;
-	m->name = ".SUBDIRS";
-	m->value = sub->name;
-	m->lazy = 0;
-	sc->dir->macros = m;
-	*subdirs = m;
+	sub = new_subdir (sc, strdup (trim (p)), subdirs);
 
 	path = path_cat_str (dir, sub->name);
 	if (access (path, F_OK) != 0)
@@ -1272,6 +1285,29 @@ char *s;
 	} else {
 		return -1;
 	}
+}
+
+/* .SUBDIRS: cc make sys */
+parse_subdirs (sc, dir, s, subdirs)
+struct scope *sc;
+struct path *dir;
+char *s;
+struct macro **subdirs;
+{
+	struct scope *sub;
+	char *subdir, *name;
+
+	while ((subdir = strsep (&s, " \t")) != NULL) {
+		if (*subdir == '\0')
+			continue;
+
+		name = strdup (trim (subdir));
+		sub = new_subdir (sc, name, subdirs);
+		sub->type = SC_DIR;
+		sub->makefile = MAKEFILE;
+	}
+
+	return 0;
 }
 
 struct rule *
@@ -1604,6 +1640,9 @@ struct macro **subdirs;
 		} else if (is_target (NULL, s, ".SUFFIXES")) {
 			if (run)
 				warnx ("%s:%d: this make doesn't require .SUFFIXES", path, ln);
+		} else if (is_target (&t, s, ".SUBDIRS")) {
+			if (run)
+				parse_subdirs (sc, dir, t, subdirs);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;

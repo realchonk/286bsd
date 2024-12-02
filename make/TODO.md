@@ -87,6 +87,8 @@ sys!:
     gmake -C sys $<
 ```
 
+# Change `.export macro` to `.EXPORT: macro1 macro2 ...`
+
 ## Example for projects using Autotools
 This is an example, of how an autotools-dependency might look like.
 ```make

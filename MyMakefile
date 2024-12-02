@@ -1,6 +1,4 @@
-.include make
-.include cc
-.include sys
+.SUBDIRS: make cc sys
 
 TOP != pwd
 

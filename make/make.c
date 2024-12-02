@@ -543,6 +543,20 @@ char *name;
 	return NULL;
 }
 
+struct scope *
+find_subdir (sc, name)
+struct scope *sc;
+char *name;
+{
+	struct scope *sub;
+
+	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+		if (strcmp (sub->name, name) == 0)
+			return sub;
+	}
+	return NULL;
+}
+
 /* MACRO EXPANSION */
 
 struct expand_ctx {
@@ -1973,14 +1987,13 @@ struct path *prefix;
 			f = find_file (sc->dir, name);
 
 			if (f == NULL) {
-				/* try finding a subdirectory */
-				for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-					if (strcmp (sub->name, name) == 0) {
-						tmppath.name = name;
-						new_prefix = path_cat (prefix, &tmppath);
-						t = build_file (sub, NULL, new_prefix);
-						goto ret;
-					}
+				/* try finding and building a subdirectory */
+				sub = find_subdir (sc, name);
+				if (sub != NULL) {
+					tmppath.name = name;
+					new_prefix = path_cat (prefix, &tmppath);
+					t = build_file (sub, NULL, new_prefix);
+					goto ret;
 				}
 
 				/* try finding an inference rule */
@@ -1999,8 +2012,11 @@ struct path *prefix;
 
 		/* if this file has no rule, try to find an inference rule */
 		if (f->rule == NULL || *f->rule->code == NULL) {
+			/* try finding an inference rule */
 			inf = name != NULL ? find_inf (sc, prefix, name) : NULL;
+
 			if (inf != NULL) {
+				/* instantiate inference rule */
 				inf_inst_file (f, inf);
 			} else if (f->rule == NULL) {
 				if (f->mtime.tv_sec > 0) {
@@ -2095,14 +2111,12 @@ struct path *path, *prefix;
 
 			new_prefix = path_cat (prefix, &path[0]);
 
-			for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
-				if (strcmp (sub->name, path[0].name) == 0) {
-					t = build_dir (sub, path + 1, new_prefix);
-					goto ret;
-				}
-			}
-			
-			errx (1, "%s: invalid subdir: %s", path_to_str (prefix), path[0].name);
+			sub = find_subdir (sc, path[0].name);
+			if (sub == NULL)
+				errx (1, "%s: invalid subdir: %s", path_to_str (prefix), path[0].name);
+
+			t = build_dir (sub, path + 1, new_prefix);
+			goto ret;
 		}
 	}
 

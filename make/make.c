@@ -560,8 +560,18 @@ char *name;
 /* MACRO EXPANSION */
 
 struct expand_ctx {
-	struct file *f;
+	char *target;
+	struct dep *deps;
 };
+
+ectx_file (ctx, f)
+struct expand_ctx *ctx;
+struct file *f;
+{
+	ctx->target = f->name;
+	ctx->deps = f->deps;
+	return 0;
+}
 
 replace_into (out, s, old, new)
 str_t *out;
@@ -716,21 +726,22 @@ struct expand_ctx *ctx;
 	case '@':
 		if (ctx == NULL)
 			errx (1, "cannot use $@ here");
-		str_puts (out, ctx->f->name);
+		str_puts (out, ctx->target);
 		break;
 	case '<':
 		if (ctx == NULL)
 			errx (1, "cannot use $< here");
 
-		if (ctx->f->deps == NULL)
+		if (ctx->deps == NULL)
 			break;
 
-		path_write (out, ctx->f->deps->path);
+		path_write (out, ctx->deps->path);
 		break;
 	case '^':
 		if (ctx == NULL)
 			errx (1, "cannot use $^ here");
-		for (dep = ctx->f->deps; dep != NULL; dep = dep->next) {
+
+		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
 			str_putc (out, ' ');
 			path_write (out, dep->path);
 		}
@@ -2055,7 +2066,7 @@ struct path *prefix;
 		}
 
 		/* run commands */
-		ctx.f = f;
+		ectx_file (&ctx, f);
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx) != 0)
 				errx (1, "command failed: %s", *s);

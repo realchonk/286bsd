@@ -1957,7 +1957,7 @@ struct path *prefix;
 	extern struct timespec build_dir ();
 	int needs_update;
 	struct scope *sub;
-	struct path *new_prefix = NULL;
+	struct path *new_prefix;
 	struct file *f;
 	struct timespec t, maxt;
 	struct inference *inf;
@@ -1993,7 +1993,8 @@ struct path *prefix;
 					tmppath.name = name;
 					new_prefix = path_cat (prefix, &tmppath);
 					t = build_file (sub, NULL, new_prefix);
-					goto ret;
+					free (new_prefix);
+					break;
 				}
 
 				/* try finding an inference rule */
@@ -2021,7 +2022,7 @@ struct path *prefix;
 			} else if (f->rule == NULL) {
 				if (f->mtime.tv_sec > 0) {
 					t = f->mtime;
-					goto ret;
+					break;
 				} else {
 					errx (1, "%s: no rule to build: %s", path_to_str (prefix), name);
 				}
@@ -2042,7 +2043,7 @@ struct path *prefix;
 
 		if (!needs_update) {
 			t = f->mtime;
-			goto ret;
+			break;
 		}
 
 		s = f->rule->code;
@@ -2050,7 +2051,7 @@ struct path *prefix;
 		/* rule is a "sum" rule, so doesn't need to be built */
 		if (s == NULL || *s == NULL) {
 			t = maxt;
-			goto ret;
+			break;
 		}
 
 		/* run commands */
@@ -2062,24 +2063,21 @@ struct path *prefix;
 
 		/* update timestamp */
 		t = f->mtime = now ();
-		goto ret;
+		break;
 	case SC_GNU:
 		/* first check if the target is already built */
 		if (rungnu (sc, prefix, name, 1) == 0) {
 			t.tv_sec = 0;
-			goto ret;
+			break;
 		}
 
 		if (rungnu (sc, prefix, name, 0) != 0)
 			errx (1, "building foreign directory failed");
 
 		t = now ();
-		goto ret;
+		break;
 	}
 	
-ret:
-	if (new_prefix != NULL)
-		free (new_prefix);
 	return t;
 }
 
@@ -2088,7 +2086,7 @@ build_dir (sc, path, prefix)
 struct scope *sc;
 struct path *path, *prefix;
 {
-	struct path *new_prefix = NULL;
+	struct path *new_prefix;
 	struct scope *sub;
 	struct timespec t;
 

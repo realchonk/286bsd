@@ -1959,6 +1959,7 @@ char *name;
 
 /* BUILDING */
 
+/* TODO: refactor this function, to be less complicated */
 struct timespec
 build_file (sc, name, prefix)
 struct scope *sc;

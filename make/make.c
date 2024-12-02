@@ -562,6 +562,7 @@ char *name;
 struct expand_ctx {
 	char *target;
 	struct dep *deps;
+	struct path *dep0;
 };
 
 ectx_file (ctx, f)
@@ -570,6 +571,7 @@ struct file *f;
 {
 	ctx->target = f->name;
 	ctx->deps = f->deps;
+	ctx->dep0 = f->deps != NULL ? f->deps->path : NULL;
 	return 0;
 }
 
@@ -732,10 +734,10 @@ struct expand_ctx *ctx;
 		if (ctx == NULL)
 			errx (1, "cannot use $< here");
 
-		if (ctx->deps == NULL)
+		if (ctx->dep0 == NULL)
 			break;
 
-		path_write (out, ctx->deps->path);
+		path_write (out, ctx->dep0);
 		break;
 	case '^':
 		if (ctx == NULL)

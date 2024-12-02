@@ -1589,16 +1589,21 @@ struct macro **subdirs;
 				str_free (&text);
 			}
 		} else if (is_directive (&t, s, "expand")) {
+			if (!run)
+				goto cont;
 			tm = find_template (sc, t);
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
 			do_parse (sc, dir, "template", tfile, subdirs);
 			fclose (tfile);
 		} else if (is_target (&t, s, ".DEFAULT")) {
-			sc->dir->default_file = strdup (t);
+			if (run)
+				sc->dir->default_file = strdup (t);
 		} else if (is_target (NULL, s, ".POSIX")) {
-			warnx ("%s:%d: this is not a POSIX-compatible make", path, ln);
+			if (run)
+				warnx ("%s:%d: this is not a POSIX-compatible make", path, ln);
 		} else if (is_target (NULL, s, ".SUFFIXES")) {
-			warnx ("%s:%d: this make doesn't require .SUFFIXES", path, ln);
+			if (run)
+				warnx ("%s:%d: this make doesn't require .SUFFIXES", path, ln);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;

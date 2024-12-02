@@ -1960,15 +1960,20 @@ struct path *prefix;
 
 	switch (sc->type) {
 	case SC_DIR:
+		/* lazily parse subdirectories */
 		if (sc->dir == NULL)
 			parse_dir (sc, prefix);
 
+		/* if no rule specified to build, use the default rule */
 		if (name == NULL && sc->dir->default_file != NULL)
 			name = sc->dir->default_file;
 
 		if (name != NULL) {
+			/* try finding an explicitly defined file */
 			f = find_file (sc->dir, name);
+
 			if (f == NULL) {
+				/* try finding a subdirectory */
 				for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
 					if (strcmp (sub->name, name) == 0) {
 						tmppath.name = name;
@@ -1977,6 +1982,8 @@ struct path *prefix;
 						goto ret;
 					}
 				}
+
+				/* try finding an inference rule */
 				f = try_find (sc, prefix, name);
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
@@ -1990,6 +1997,7 @@ struct path *prefix;
 			for (; f->next != NULL; f = f->next);
 		}
 
+		/* if this file has no rule, try to find an inference rule */
 		if (f->rule == NULL || *f->rule->code == NULL) {
 			inf = name != NULL ? find_inf (sc, prefix, name) : NULL;
 			if (inf != NULL) {
@@ -2007,6 +2015,7 @@ struct path *prefix;
 		needs_update = (f->mtime.tv_sec == 0);
 		maxt = f->mtime;
 
+		/* build dependencies and record timestamps */
 		for (dep = f->deps; dep != NULL; dep = dep->next) {
 			t = build_dir (sc, dep->path, prefix);
 			if (tv_cmp (&t, &f->mtime) >= 0)
@@ -2022,19 +2031,20 @@ struct path *prefix;
 
 		s = f->rule->code;
 
-		/* rule is a "sum" rule */
+		/* rule is a "sum" rule, so doesn't need to be built */
 		if (s == NULL || *s == NULL) {
 			t = maxt;
 			goto ret;
 		}
 
+		/* run commands */
 		ctx.f = f;
-
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 
+		/* update timestamp */
 		t = f->mtime = now ();
 		goto ret;
 	case SC_GNU:

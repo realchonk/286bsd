@@ -1309,6 +1309,13 @@ char *s;
 		sub->makefile = strdup (trim (p));
 
 		return 0;
+	} else if (strcmp (p, "CUSTOM") == 0) {
+		sub->type = SC_CUSTOM;
+		sub->custom = new (struct custom);
+		sub->custom->test = NULL;
+		sub->custom->exec = NULL;
+		sub->makefile = NULL;
+		return 0;
 	} else {
 		return -1;
 	}
@@ -1335,6 +1342,39 @@ struct macro **subdirs;
 	}
 
 	return 0;
+}
+
+try_add_custom (sc, f)
+struct scope *sc;
+struct file *f;
+{
+	struct scope *sub;
+	char *name;
+	size_t len;
+	int ch;
+
+	len = strlen (f->name);
+	ch = f->name[len - 1];
+	if (ch != '?' && ch != '!')
+		return 0;
+
+	name = strdup (f->name);
+	name[len - 1] = '\0';
+	sub = find_subdir (sc, name);
+	if (sub == NULL)
+		errx (1, "not a subdir: %s", name);
+
+	if (sub->type != SC_CUSTOM)
+		errx (1, "not a custom subdir: %s", name);
+
+	if (ch == '?') {
+		sub->custom->test = f;
+	} else {
+		sub->custom->exec = f;
+	}
+
+	free (name);
+	return 1;
 }
 
 struct rule *
@@ -1415,6 +1455,8 @@ char *s, *t, *help;
 				f->mtime = get_mtime (dir, f->name);
 				f->help = help;
 				sc->dir->files = f;
+
+				try_add_custom (sc, f);
 				continue;
 			}
 
@@ -1971,7 +2013,7 @@ struct path *prefix;
 	extern struct timespec build_dir ();
 	int needs_update;
 	struct scope *sub;
-	struct path *new_prefix;
+	struct path *new_prefix, xpath[2];
 	struct file *f;
 	struct timespec t, maxt;
 	struct inference *inf;
@@ -2089,6 +2131,67 @@ struct path *prefix;
 			errx (1, "building foreign directory failed");
 
 		t = now ();
+		break;
+	case SC_CUSTOM:
+		/* run the "subdir?" rule, to test if the target needs to be updated */
+		new_prefix = path_cat (prefix, &path_super);
+		ctx.target = name;
+		f = sc->custom->test;
+		if (f != NULL) {
+			for (dep = f->deps; dep != NULL; dep = dep->next)
+				build_dir (sc->parent, dep->path, new_prefix);
+			
+			if (name != NULL) {
+				xpath[0].type = PATH_NAME;
+				xpath[0].name = name;
+				xpath[1].type = PATH_NULL;
+				ctx.dep0 = xpath;
+			} else {
+				ctx.dep0 = NULL;
+			}
+
+			ctx.deps = f->deps;
+			needs_update = 0;
+			for (s = f->rule->code; *s != NULL; ++s) {
+				if (runcom (sc, prefix, *s, &ctx) != 0) {
+					needs_update = 1;
+					break;
+				}
+			}
+		} else {
+			needs_update = 1;
+		}
+
+		if (!needs_update) {
+			t = now ();
+			break;
+		}
+
+		/* run the "subdir!" rule */
+		f = sc->custom->exec;
+		if (f == NULL)
+			errx (1, "missing '%s!' rule", sc->name);
+
+		for (dep = f->deps; dep != NULL; dep = dep->next)
+			build_dir (sc->parent, dep->path, new_prefix);
+
+		ctx.target = name;
+		ctx.deps = f->deps;
+		if (name != NULL) {
+			xpath[0].type = PATH_NAME;
+			xpath[0].name = name;
+			xpath[1].type = PATH_NULL;
+			ctx.dep0 = xpath;
+		} else {
+			ctx.dep0 = NULL;
+		}
+
+		for (s = f->rule->code; *s != NULL; ++s) {
+			if (runcom (sc, prefix, *s, &ctx) != 0)
+				errx (1, "command failed: %s", *s);
+		}
+		t = now ();
+		free (new_prefix);
 		break;
 	}
 	
@@ -2305,6 +2408,9 @@ struct scope *sc;
 			if (sc->makefile != NULL)
 				printf (", %s", sc->makefile);
 			printf ("\n");
+			break;
+		case SC_CUSTOM:
+			printf (".include %s, CUSTOM\n", sub->name);
 			break;
 		}
 	}

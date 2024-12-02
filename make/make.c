@@ -2096,12 +2096,14 @@ struct path *path, *prefix;
 	case PATH_SUPER:
 		new_prefix = path_cat (prefix, &path[0]);
 		t = build_dir (sc->parent, path + 1, new_prefix);
-		goto ret;
+		free (new_prefix);
+		break;
 	case PATH_NULL:
-		return build_file (sc, NULL, prefix);
+		t =  build_file (sc, NULL, prefix);
+		break;
 	case PATH_NAME:
 		if (path[1].type == PATH_NULL) {
-			return build_file (sc, path[0].name, prefix);
+			t = build_file (sc, path[0].name, prefix);
 		} else {
 			if (sc->type != SC_DIR)
 				errx (1, "%s: invalid path", path_to_str (prefix));
@@ -2116,13 +2118,11 @@ struct path *path, *prefix;
 				errx (1, "%s: invalid subdir: %s", path_to_str (prefix), path[0].name);
 
 			t = build_dir (sub, path + 1, new_prefix);
-			goto ret;
+			free (new_prefix);
 		}
+		break;
 	}
 
-ret:
-	if (new_prefix)
-		free (new_prefix);
 	return t;
 }
 

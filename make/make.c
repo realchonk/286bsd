@@ -22,6 +22,8 @@
 #define MAKEFILE "MyMakefile"
 #define SHELL "sh"
 
+static int verbose = 0;
+
 static struct macro m_shell = {
 	.next = NULL,
 	.enext = NULL,
@@ -60,7 +62,6 @@ static struct macro m_shell = {
 };
 
 static struct macro *globals = &m_dmakeflags;
-static int verbose = 0;
 
 /* STRING BUFFER */
 
@@ -905,8 +906,14 @@ struct expand_ctx *ctx;
 	str_puts (&fcmd, "' && ");
 	expand_into (&fcmd, sc, cmd, ctx);
 	
-	if (!q)
-		printf ("[%s%s%s] $ %s\n", path_to_str (prefix), rule != NULL ? "/" : "", rule != NULL ? rule : "", cmd);
+	if (!q) {
+		printf ("[%s%s%s] $ %s\n",
+			path_to_str (prefix),
+			rule != NULL ? "/" : "",
+			rule != NULL ? rule : "",
+			verbose ? str_get (&fcmd) : cmd
+		);
+	}
 
 	ec = system (str_get (&fcmd));
 	str_free (&fcmd);
@@ -2021,7 +2028,7 @@ struct path *prefix;
 	struct dep *dep;
 	char **s;
 
-	if (verbose) {
+	if (verbose >= 2) {
 		printf ("dir %s", path_to_str (prefix));
 		if (name)
 			printf (" (%s)", name);
@@ -2268,7 +2275,7 @@ struct scope *sc;
 	return 0;
 }
 
-help_files (prefix, sc, v)
+help_files (prefix, sc)
 struct path *prefix;
 struct scope *sc;
 {
@@ -2297,19 +2304,19 @@ struct scope *sc;
 		printf ("%-*s- %s\n", n < 30 ? 30 - n : 0, "", f->help);
 	}
 
-	if (!v)
+	if (!verbose)
 		return 0;
 
 	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
 		new_prefix = parse_subdir (prefix, sub);
-		help_files (new_prefix, sub, v);
+		help_files (new_prefix, sub);
 		free (new_prefix);
 	}
 
 	return 0;
 }
 
-help (prefix, sc, v)
+help (prefix, sc)
 struct path *prefix;
 struct scope *sc;
 {
@@ -2329,14 +2336,14 @@ struct scope *sc;
 	help_macros (sc);
 
 	fputs ("\nTARGETS:\n", stderr);
-	help_files (prefix, sc, v);
+	help_files (prefix, sc);
 
 	return 1;
 }
 
 /* DUMP */
 
-print_sc (prefix, sc, verbose)
+print_sc (prefix, sc)
 struct path *prefix;
 struct scope *sc;
 {
@@ -2423,7 +2430,7 @@ struct scope *sc;
 			printf ("\n");
 
 			new_prefix = parse_subdir (prefix, sub);
-			print_sc (new_prefix, sub, verbose);
+			print_sc (new_prefix, sub);
 			free (new_prefix);
 		}
 	}
@@ -2463,7 +2470,7 @@ char **argv;
 			break;
 		case 'v':
 			str_puts (&cmdline, " -v");
-			verbose = 1;
+			++verbose;
 			break;
 		case 'C':
 			cd = optarg;
@@ -2511,10 +2518,10 @@ char **argv;
 		errx (1, "failed to find or parse makefile");
 
 	if (dohelp)
-		return help (path, sc, verbose);
+		return help (path, sc);
 
 	if (pr) {
-		print_sc (path, sc, verbose);
+		print_sc (path, sc);
 		return 0;
 	}
 

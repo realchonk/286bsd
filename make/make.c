@@ -885,10 +885,10 @@ char *cmd;
 	return str_release (&data);
 }
 
-runcom (sc, prefix, cmd, ctx)
+runcom (sc, prefix, cmd, ctx, rule)
 struct scope *sc;
 struct path *prefix;
-char *cmd;
+char *cmd, *rule;
 struct expand_ctx *ctx;
 {
 	str_t fcmd;
@@ -906,7 +906,7 @@ struct expand_ctx *ctx;
 	expand_into (&fcmd, sc, cmd, ctx);
 	
 	if (!q)
-		printf ("[%s] $ %s\n", path_to_str (prefix), cmd);
+		printf ("[%s%s%s] $ %s\n", path_to_str (prefix), rule != NULL ? "/" : "", rule != NULL ? rule : "", cmd);
 
 	ec = system (str_get (&fcmd));
 	str_free (&fcmd);
@@ -938,7 +938,7 @@ char *rule;
 		str_puts (&cmd, rule);
 	}
 
-	ec = runcom (sc, prefix, str_get (&cmd), NULL);
+	ec = runcom (sc, prefix, str_get (&cmd), NULL, rule);
 	str_free (&cmd);
 	return ec;
 }
@@ -2113,7 +2113,7 @@ struct path *prefix;
 		/* run commands */
 		ectx_file (&ctx, f);
 		for (; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, &ctx) != 0)
+			if (runcom (sc, prefix, *s, &ctx, name) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 
@@ -2153,7 +2153,7 @@ struct path *prefix;
 			ctx.deps = f->deps;
 			needs_update = 0;
 			for (s = f->rule->code; *s != NULL; ++s) {
-				if (runcom (sc, prefix, *s, &ctx) != 0) {
+				if (runcom (sc, prefix, *s, &ctx, name) != 0) {
 					needs_update = 1;
 					break;
 				}
@@ -2187,7 +2187,7 @@ struct path *prefix;
 		}
 
 		for (s = f->rule->code; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, &ctx) != 0)
+			if (runcom (sc, prefix, *s, &ctx, name) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 		t = now ();

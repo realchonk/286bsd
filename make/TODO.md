@@ -55,6 +55,9 @@
 -s          silent, do not write commands to stdout
 
 
+# Expand command string printed to stdout, when `-v`
+
+
 # Special macros
 ## `$*`
 Basename

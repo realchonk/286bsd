@@ -898,6 +898,8 @@ struct expand_ctx *ctx;
 	if (*cmd == '@') {
 		q = 1;
 		++cmd;
+	} else if (verbose < 0) {
+		q = 1;
 	}
 
 	str_new (&fcmd);
@@ -2386,7 +2388,7 @@ struct scope *sc;
 
 usage (uc)
 {
-	fprintf (stderr, "%s: %s [-hpv] [-C dir] [-f makefile] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
+	fprintf (stderr, "%s: %s [-hpsv] [-C dir] [-f makefile] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
 	return 1;
 }
 
@@ -2403,7 +2405,7 @@ char **argv;
 	m_dmake.value = m_make.value = argv[0];
 
 	str_new (&cmdline);
-	while ((option = getopt (argc, argv, "hpvC:f:")) != -1) {
+	while ((option = getopt (argc, argv, "hpsvC:f:")) != -1) {
 		switch (option) {
 		case 'h':
 			dohelp = 1;
@@ -2411,6 +2413,10 @@ char **argv;
 		case 'p':
 			str_puts (&cmdline, " -p");
 			pr = 1;
+			break;
+		case 's':
+			str_puts (&cmdline, " -s");
+			verbose = -1;
 			break;
 		case 'v':
 			str_puts (&cmdline, " -v");

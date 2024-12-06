@@ -51,8 +51,6 @@
 -q	        check if anythings needs to be built
 -k	        keep going, even after an error happened
 -S          opposite of `-k`
--h	        print a generated help page
--s          silent, do not write commands to stdout
 
 
 # Special macros
@@ -86,8 +84,6 @@ sys?:
 sys!:
     gmake -C sys $<
 ```
-
-# Change `.export macro` to `.EXPORT: macro1 macro2 ...`
 
 ## Example for projects using Autotools
 This is an example, of how an autotools-dependency might look like.

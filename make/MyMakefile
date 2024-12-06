@@ -1,3 +1,6 @@
+.SUBDIRS: test
+CFLAGS += -g -O0
+
 NAME = make
 NOMAN = 1
 

@@ -900,10 +900,13 @@ struct expand_ctx *ctx;
 {
 	char *ecmd;
 	pid_t pid;
-	int q = 0, ws;
+	int q = 0, ws, ign = 0;
 
 	if (*cmd == '@') {
 		q = 1;
+		++cmd;
+	} else if (*cmd == '-') {
+		ign = 1;
 		++cmd;
 	} else if (verbose < 0) {
 		q = 1;
@@ -935,7 +938,7 @@ struct expand_ctx *ctx;
 		execlp (
 			m_shell.value,
 			m_shell.value, 
-			"-c",
+			ign ? "-c" : "-ec",
 			ecmd,
 			NULL
 		);
@@ -952,7 +955,7 @@ struct expand_ctx *ctx;
 			return 255;
 		}
 
-		return WEXITSTATUS (ws);
+		return ign ? 0 : WEXITSTATUS (ws);
 	}
 }
 

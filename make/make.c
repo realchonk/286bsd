@@ -2142,7 +2142,7 @@ struct path *prefix;
 	case SC_CUSTOM:
 		/* run the "subdir?" rule, to test if the target needs to be updated */
 		new_prefix = path_cat (prefix, &path_super);
-		ctx.target = name;
+		ctx.target = prefix[path_len (prefix) - 1].name;
 		f = sc->custom->test;
 		if (f != NULL) {
 			for (dep = f->deps; dep != NULL; dep = dep->next)
@@ -2160,7 +2160,7 @@ struct path *prefix;
 			ctx.deps = f->deps;
 			needs_update = 0;
 			for (s = f->rule->code; *s != NULL; ++s) {
-				if (runcom (sc, prefix, *s, &ctx, name) != 0) {
+				if (runcom (sc, new_prefix, *s, &ctx, name) != 0) {
 					needs_update = 1;
 					break;
 				}
@@ -2182,7 +2182,6 @@ struct path *prefix;
 		for (dep = f->deps; dep != NULL; dep = dep->next)
 			build_dir (sc->parent, dep->path, new_prefix);
 
-		ctx.target = name;
 		ctx.deps = f->deps;
 		if (name != NULL) {
 			xpath[0].type = PATH_NAME;
@@ -2194,7 +2193,7 @@ struct path *prefix;
 		}
 
 		for (s = f->rule->code; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, &ctx, name) != 0)
+			if (runcom (sc, new_prefix, *s, &ctx, name) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 		t = now ();

@@ -1288,6 +1288,7 @@ struct macro **exports;
 {
 	struct macro *m, *m2;
 	char *name;
+	size_t len;
 
 	while ((name = strsep (&s, " \t")) != NULL) {
 		if (*name == '\0')
@@ -1311,9 +1312,11 @@ struct macro **exports;
 		m2->enext = NULL;
 		m2->prepend = *exports;
 		m2->name = ".EXPORTS";
-		m2->value = strdup (name);
+		len = strlen (m->name) + strlen (m->value) + 2;
+		m2->value = malloc (len);
+		snprintf (m2->value, len, "%s=%s", m->name, m->value);
 		m2->help = NULL;
-		m2->lazy = 0;
+		m2->lazy = m->lazy;
 		sc->dir->macros = m2;
 		*exports = m2;
 

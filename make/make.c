@@ -1336,7 +1336,7 @@ char *s;
 struct macro **subdirs;
 {
 	struct scope *sub;
-	char *subdir, *name;
+	char *subdir, *name, *path;
 
 	while ((subdir = strsep (&s, " \t")) != NULL) {
 		if (*subdir == '\0')
@@ -1346,6 +1346,10 @@ struct macro **subdirs;
 		sub = new_subdir (sc, name, subdirs);
 		sub->type = SC_DIR;
 		sub->makefile = MAKEFILE;
+
+		path = path_cat_str (dir, sub->name);
+		if (access (path, F_OK) != 0)
+			errx (1, "%s: directory not found: %s", path_to_str (dir), sub->name);
 	}
 
 	return 0;

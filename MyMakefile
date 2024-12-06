@@ -15,6 +15,8 @@ CFLAGS += -ansi -Wall -Wno-deprecated-non-prototype -Wno-implicit-int
 ## Default C Preprocssor Flags
 CPPFLAGS ?=
 
+.EXPORTS: CC YACC CFLAGS CPPFLAGS
+
 ## Clean even more things
 distclean: clean
 	rm -rf tools
@@ -35,8 +37,4 @@ todo:
 
 include templates.mk
 
-.export CC
-.export TOP
-.export YACC
-.export CFLAGS
 .expand dir

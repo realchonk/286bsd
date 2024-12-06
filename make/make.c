@@ -1279,6 +1279,50 @@ struct macro **subdirs;
 	return 0;
 }
 
+/* .EXPORTS: CC CFLAGS */
+parse_exports (sc, dir, s, exports)
+struct scope *sc;
+struct path *dir;
+char *s;
+struct macro **exports;
+{
+	struct macro *m, *m2;
+	char *name;
+
+	while ((name = strsep (&s, " \t")) != NULL) {
+		if (*name == '\0')
+			continue;
+
+		/* check if the macro is already exported */
+		for (m = sc->dir->emacros; m != NULL; m = m->enext) {
+			if (strcmp (m->name, name) == 0)
+				goto cont; /* already exported */
+		}
+
+		m = find_macro (sc, name);
+		if (m == NULL)
+			errx (1, "no such macro: '%s'", name);
+
+		m->enext = sc->dir->emacros;
+		sc->dir->emacros = m;
+
+		m2 = new (struct macro);
+		m2->next = sc->dir->macros;
+		m2->enext = NULL;
+		m2->prepend = *exports;
+		m2->name = ".EXPORTS";
+		m2->value = strdup (name);
+		m2->help = NULL;
+		m2->lazy = 0;
+		sc->dir->macros = m2;
+		*exports = m2;
+
+	cont:;
+	}
+
+	return 0;
+}
+
 try_add_custom (sc, f)
 struct scope *sc;
 struct file *f;
@@ -1523,15 +1567,14 @@ char **out, *s, *name;
 	return 1;
 }
 
-do_parse (sc, dir, path, file, subdirs)
+do_parse (sc, dir, path, file, subdirs, exports)
 struct scope *sc;
 struct path *dir;
 char *path;
 FILE *file;
-struct macro **subdirs;
+struct macro **subdirs, **exports;
 {
 	extern parse ();
-	struct macro *m;
 	struct template *tm;
 	struct rule *r = NULL;
 	size_t len, cap, iflen = 0;
@@ -1540,6 +1583,10 @@ struct macro **subdirs;
 	int x, ln = 0, run;
 	FILE *tfile;
 	str_t text;
+
+	if (verbose >= 3) {
+		printf ("Parsing dir '%s' ...\n", path_to_str (dir));
+	}
 
 	for (; (s = readline (file, &ln)) != NULL; free (s)) {
 		run = walkifstack (ifstack, iflen);
@@ -1567,24 +1614,6 @@ struct macro **subdirs;
 				goto cont;
 
 			errx (1, "%s:%d: please use .SUBDIRS: or .FOREIGN: now", path, ln);
-		} else if (is_directive (&t, s, "export")) {
-			if (!run)
-				goto cont;
-
-			for (m = sc->dir->emacros; m != NULL; m = m->enext) {
-				if (strcmp (m->name, t) == 0)
-					goto cont; /* already exported */
-			}
-
-			for (m = sc->dir->macros; m != NULL; m = m->next) {
-				if (strcmp (m->name, t) == 0) {
-					m->enext = sc->dir->emacros;
-					sc->dir->emacros = m;
-					goto cont;
-				}
-			}
-
-			errx (1, "%s:%d: no such macro: %s", path, ln, t);
 		} else if (is_directive (&t, s, "if")) {
 			if (iflen == MAX_IFSTACK)
 				errx (1, "%s:%d: maximum .if depth of %d reached", path, ln, MAX_IFSTACK);
@@ -1632,7 +1661,7 @@ struct macro **subdirs;
 				goto cont;
 			tm = find_template (sc, t);
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
-			do_parse (sc, dir, "template", tfile, subdirs);
+			do_parse (sc, dir, "template", tfile, subdirs, exports);
 			fclose (tfile);
 		} else if (is_target (&t, s, ".DEFAULT")) {
 			if (run)
@@ -1649,6 +1678,9 @@ struct macro **subdirs;
 		} else if (is_target (&t, s, ".FOREIGN")) {
 			if (run)
 				parse_foreign (sc, dir, t, subdirs);
+		} else if (is_target (&t, s, ".EXPORTS")) {
+			if (run)
+				parse_exports (sc, dir, t, exports);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;
@@ -1698,7 +1730,7 @@ struct scope *sc;
 struct path *dir;
 char *path;
 {
-	struct macro *subdirs = NULL;
+	struct macro *subdirs = NULL, *exports = NULL;
 	FILE *file;
 
 	file = fopen (path, "r");
@@ -1714,7 +1746,7 @@ char *path;
 		errx (1, "%s: parsing this file again?", path);
 	}
 
-	do_parse (sc, dir, path, file, &subdirs);
+	do_parse (sc, dir, path, file, &subdirs, &exports);
 	sc->dir->done = 1;
 
 	fclose (file);

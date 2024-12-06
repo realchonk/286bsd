@@ -22,7 +22,8 @@
 #define MAKEFILE "MyMakefile"
 #define SHELL "sh"
 
-static int verbose = 0;
+static char *cpath;
+static int verbose = 0, cline = 0;
 
 static struct macro m_shell = {
 	.next = NULL,
@@ -523,10 +524,7 @@ char *name;
 			return tm;
 	}
 
-	if (sc->parent == NULL)
-		errx (1, "template not found: %s", name);
-
-	return find_template (sc->parent, name);
+	return sc->parent != NULL ? find_template (sc->parent, name) : NULL;
 }
 
 struct file *
@@ -949,7 +947,7 @@ str_t *arg;
 	*s += strlen (cmd);
 	skip_ws (s);
 	if (**s != '(')
-		errx (1, "expected '(' after 'defined': %s", orig);
+		errx (1, "%s:%d: expected '(' after 'defined': %s", cpath, cline, orig);
 
 	str_new (arg);
 	for (++*s; **s != ')'; ++*s)
@@ -994,7 +992,7 @@ str_t *val;
 		x = find_file (sc->dir, str_get (&arg)) != NULL;
 		goto comm;
 	} else {
-		errx (1, "invalid expression: '%s'", *s);
+		errx (1, "%s:%d: invalid expression: '%s'", cpath, cline, *s);
 	}
 
 	return 0;
@@ -1249,7 +1247,7 @@ struct macro **subdirs;
 
 		path = path_cat_str (dir, sub->name);
 		if (access (path, F_OK) != 0)
-			errx (1, "%s: directory not found: %s", path_to_str (dir), sub->name);
+			errx (1, "%s:%d: directory not found: %s", cpath, cline, sub->name);
 	}
 
 	return 0;
@@ -1304,7 +1302,7 @@ struct macro **exports;
 
 		m = find_macro (sc, name);
 		if (m == NULL)
-			errx (1, "no such macro: '%s'", name);
+			errx (1, "%s:%d: no such macro: '%s'", cpath, cline, name);
 
 		m->enext = sc->dir->emacros;
 		sc->dir->emacros = m;
@@ -1585,15 +1583,17 @@ struct macro **subdirs, **exports;
 	size_t len, cap, iflen = 0;
 	char *s, *t, *u, *help = NULL;
 	char ifstack[MAX_IFSTACK];
-	int x, ln = 0, run;
+	int x, run;
 	FILE *tfile;
 	str_t text;
+
+	cpath = path;
 
 	if (verbose >= 3) {
 		printf ("Parsing dir '%s' ...\n", path_to_str (dir));
 	}
 
-	for (; (s = readline (file, &ln)) != NULL; free (s)) {
+	for (; (s = readline (file, &cline)) != NULL; free (s)) {
 		run = walkifstack (ifstack, iflen);
 		if (s[0] == '#' && s[1] == '#') {
 			help = expand (sc, trim (s + 2), NULL);
@@ -1618,26 +1618,26 @@ struct macro **subdirs, **exports;
 			if (!run)
 				goto cont;
 
-			errx (1, "%s:%d: please use .SUBDIRS: or .FOREIGN: now", path, ln);
+			errx (1, "%s:%d: please use .SUBDIRS: or .FOREIGN: now", path, cline);
 		} else if (is_directive (&t, s, "if")) {
 			if (iflen == MAX_IFSTACK)
-				errx (1, "%s:%d: maximum .if depth of %d reached", path, ln, MAX_IFSTACK);
+				errx (1, "%s:%d: maximum .if depth of %d reached", path, cline, MAX_IFSTACK);
 			x = parse_expr (sc, t) & 0x01;
 			ifstack[iflen++] = x * (IF_VAL | IF_HAS);
 		} else if (is_directive (NULL, s, "else")) {
 			if (iflen == 0)
-				errx (1, "%s:%d: not in .if", path, ln);
+				errx (1, "%s:%d: not in .if", path, cline);
 			t = &ifstack[iflen - 1];
 			*t = (!(*t & IF_HAS) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
 		} else if (is_directive (&t, s, "elif")) {
 			if (iflen == 0)
-				errx (1, "%s:%d: not in .if", path, ln);
+				errx (1, "%s:%d: not in .if", path, cline);
 			x = parse_expr (sc, t);
 			t = &ifstack[iflen - 1];
 			*t = ((!(*t & IF_HAS) && x) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
 		} else if (is_directive (NULL, s, "endif")) {
 			if (iflen == 0)
-				errx (1, "%s:%d: not in .if", path, ln);
+				errx (1, "%s:%d: not in .if", path, cline);
 			--iflen;
 		} else if (is_directive (&t, s, "template")) {
 			str_new (&text);
@@ -1646,7 +1646,7 @@ struct macro **subdirs, **exports;
 			tm->next = sc->dir->templates;
 			tm->name = strdup (t);
 
-			for (free (s); (s = readline (file, &ln)) != NULL; free (s)) {
+			for (free (s); (s = readline (file, &cline)) != NULL; free (s)) {
 				if (is_directive (NULL, s, "endt") || is_directive (NULL, s, "endtemplate"))
 					break;
 
@@ -1665,6 +1665,8 @@ struct macro **subdirs, **exports;
 			if (!run)
 				goto cont;
 			tm = find_template (sc, t);
+			if (tm == NULL)
+				errx (1, "%s:%d: no such template: %s", cpath, cline, t);
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
 			do_parse (sc, dir, "template", tfile, subdirs, exports);
 			fclose (tfile);
@@ -1673,10 +1675,10 @@ struct macro **subdirs, **exports;
 				sc->dir->default_file = strdup (t);
 		} else if (is_target (NULL, s, ".POSIX")) {
 			if (run)
-				warnx ("%s:%d: this is not a POSIX-compatible make", path, ln);
+				warnx ("%s:%d: this is not a POSIX-compatible make", path, cline);
 		} else if (is_target (NULL, s, ".SUFFIXES")) {
 			if (run)
-				warnx ("%s:%d: this make doesn't require .SUFFIXES", path, ln);
+				warnx ("%s:%d: this make doesn't require .SUFFIXES", path, cline);
 		} else if (is_target (&t, s, ".SUBDIRS")) {
 			if (run)
 				parse_subdirs (sc, dir, t, subdirs);
@@ -1691,7 +1693,7 @@ struct macro **subdirs, **exports;
 				goto cont;
 
 			if (r == NULL)
-				errx (1, "%s:%d: syntax error", path, ln);
+				errx (1, "%s:%d: syntax error", path, cline);
 
 			if (len == cap) {
 				cap *= 2;
@@ -1720,7 +1722,7 @@ struct macro **subdirs, **exports;
 			r->code = calloc (cap + 1, sizeof (char *));
 			r->code[0] = NULL;
 		} else {
-			warnx ("%s:%d: invalid line: %s", path, ln, s);
+			warnx ("%s:%d: invalid line: %s", path, cline, s);
 		}
 
 	cont:
@@ -1799,7 +1801,6 @@ char *makefile;
 	if (parent != NULL) {
 		if (parent->type != SC_DIR)
 			errx (1, "%s: invalid parent type", path_to_str (mfpath));
-
 
 		for (sc = parent->dir->subdirs; sc != NULL; sc = sc->next) {
 			if (strcmp (sc->name, name) == 0) {
@@ -2088,7 +2089,7 @@ struct path *prefix;
 		ectx_file (&ctx, f);
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx, name) != 0)
-				errx (1, "command failed: %s", *s);
+				errx (1, "%s: command failed: %s", path_to_str (prefix), *s);
 		}
 
 		/* update timestamp */
@@ -2132,7 +2133,7 @@ struct path *prefix;
 		/* run the "subdir!" rule */
 		f = sc->custom->exec;
 		if (f == NULL)
-			errx (1, "missing '%s!' rule", sc->name);
+			errx (1, "%s: missing '%s!' rule", path_to_str (new_prefix), sc->name);
 
 		for (dep = f->deps; dep != NULL; dep = dep->next)
 			build_dir (sc->parent, dep->path, new_prefix);
@@ -2149,7 +2150,7 @@ struct path *prefix;
 
 		for (s = f->rule->code; *s != NULL; ++s) {
 			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
-				errx (1, "command failed: %s", *s);
+				errx (1, "%s: command failed: %s", path_to_str (new_prefix), *s);
 		}
 		t = now ();
 		free (new_prefix);

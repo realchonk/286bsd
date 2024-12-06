@@ -2113,7 +2113,7 @@ struct path *prefix;
 			ctx.deps = f->deps;
 			needs_update = 0;
 			for (s = f->rule->code; *s != NULL; ++s) {
-				if (runcom (sc, new_prefix, *s, &ctx, name) != 0) {
+				if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0) {
 					needs_update = 1;
 					break;
 				}
@@ -2146,7 +2146,7 @@ struct path *prefix;
 		}
 
 		for (s = f->rule->code; *s != NULL; ++s) {
-			if (runcom (sc, new_prefix, *s, &ctx, name) != 0)
+			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
 				errx (1, "command failed: %s", *s);
 		}
 		t = now ();

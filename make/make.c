@@ -273,7 +273,7 @@ char *name;
 
 	path = path_cat_str (dir, name);
 
-	if (stat (path, &st) == 0) {
+	if (lstat (path, &st) == 0) {
 		t = st.st_mtim;
 	} else {
 		memset (&t, 0, sizeof (t));

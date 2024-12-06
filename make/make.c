@@ -884,14 +884,23 @@ char *cmd;
 	return str_release (&data);
 }
 
+redirnull (fd)
+{
+	close (fd);
+	if (open ("/dev/null", O_RDONLY) != fd)
+		warn ("%d: open('/dev/null')", fd);
+	return 0;
+}
+
 runcom (sc, prefix, cmd, ctx, rule)
 struct scope *sc;
 struct path *prefix;
 char *cmd, *rule;
 struct expand_ctx *ctx;
 {
-	str_t fcmd;
-	int ec, q = 0;
+	char *ecmd;
+	pid_t pid;
+	int q = 0, ws;
 
 	if (*cmd == '@') {
 		q = 1;
@@ -900,25 +909,51 @@ struct expand_ctx *ctx;
 		q = 1;
 	}
 
-	str_new (&fcmd);
-	str_puts (&fcmd, "cd '");
-	path_write (&fcmd, prefix);
-	str_puts (&fcmd, "' && ");
-	expand_into (&fcmd, sc, cmd, ctx);
-	
+	ecmd = expand (sc, cmd, ctx);
+
 	if (!q) {
 		printf ("[%s%s%s] $ %s\n",
 			path_to_str (prefix),
 			rule != NULL ? "/" : "",
 			rule != NULL ? rule : "",
-			verbose ? str_get (&fcmd) : cmd
+			verbose ? ecmd : cmd
 		);
 	}
 
-	ec = system (str_get (&fcmd));
-	str_free (&fcmd);
+	pid = fork ();
+	if (pid == 0) {
+		redirnull (STDIN_FILENO);
 
-	return ec;
+		if (q) {
+			redirnull (STDOUT_FILENO);
+			redirnull (STDERR_FILENO);
+		}
+
+		if (chdir (path_to_str (prefix)) != 0)
+			err (1, "chdir()");
+
+		execlp (
+			m_shell.value,
+			m_shell.value, 
+			"-c",
+			ecmd,
+			NULL
+		);
+		err (1, "exec('%s')", ecmd);
+	} else {
+		free (ecmd);
+		if (waitpid (pid, &ws, 0) != pid) {
+			warn ("waitpid(%d)", (int)pid);
+			return 255;
+		}
+
+		if (!WIFEXITED (ws)) {
+			warnx ("%d: process didn't exit", (int)pid);
+			return 255;
+		}
+
+		return WEXITSTATUS (ws);
+	}
 }
 
 /* EXPRESSION PARSER */

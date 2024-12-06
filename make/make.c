@@ -1351,6 +1351,32 @@ struct macro **subdirs;
 	return 0;
 }
 
+/* .FOREIGN: libfoo libbar */
+parse_foreign (sc, dir, s, subdirs)
+struct scope *sc;
+struct path *dir;
+char *s;
+struct macro **subdirs;
+{
+	struct scope *sub;
+	char *subdir, *name;
+
+	while ((subdir = strsep (&s, " \t")) != NULL) {
+		if (*subdir == '\0')
+			continue;
+
+		name = strdup (trim (subdir));
+		sub = new_subdir (sc, name, subdirs);
+		sub->type = SC_CUSTOM;
+		sub->makefile = NULL;
+		sub->custom = new (struct custom);
+		sub->custom->test = NULL;
+		sub->custom->exec = NULL;
+	}
+
+	return 0;
+}
+
 try_add_custom (sc, f)
 struct scope *sc;
 struct file *f;
@@ -1719,6 +1745,9 @@ struct macro **subdirs;
 		} else if (is_target (&t, s, ".SUBDIRS")) {
 			if (run)
 				parse_subdirs (sc, dir, t, subdirs);
+		} else if (is_target (&t, s, ".FOREIGN")) {
+			if (run)
+				parse_foreign (sc, dir, t, subdirs);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;

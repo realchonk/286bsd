@@ -1,10 +1,3 @@
-# Choose a name for this make
-- hmake (hireachical make)
-- rmake (recursive make)
-- bmake (already used by BSD Make)
-- dmake/dirmk/dmk (directory make)
-
-
 # Write a useful README about how this make differs from all the other makes
 - Motivation for writing this make
     - Make is great, but not really suitable for large projects
@@ -51,6 +44,23 @@
 -q	        check if anythings needs to be built
 -k	        keep going, even after an error happened
 -S          opposite of `-k`
+-o obj      specify artifact directory
+
+# Support for artifact directories (IMPORTANT)
+This syntax is not final yet.
+```make
+# With .OBJ set, make will first search in
+# the obj directory for artifacts, before
+# looking in the current directory.
+# Make will also put generated files into obj,
+# by changing the value of $@.
+.OBJ: obj
+
+all: example
+
+example: example.c
+    ${CC} -o $@ example.c
+```
 
 
 # Special macros
@@ -68,77 +78,15 @@ This must be defined at the top of the file.
 Allow specifying additional `PATH` directories.
 
 
-# Reconsider `.include` syntax
-Maybe change to something like this:
-```make
-# List of subdirectories
-.SUBDIRS: cc make sys
-# In this example sys is a foreign-make project
-
-# Check if target has to be rebuilt in sys
-# If this is omitted, make will always see the target as outdated.
-sys?:
-    gmake -q -C sys $<
-
-# Actually build target for sys
-sys!:
-    gmake -C sys $<
-```
-
-## Example for projects using Autotools
-This is an example, of how an autotools-dependency might look like.
-```make
-.SUBDIRS: libedit
-LIBEDIT = libedit-20240808-3.1
-
-${LIBEDIT}.tgz:
-    ftp -o $@ https://www.thrysoee.dk/editline/${LIBEDIT}.tar.gz
-
-.libedit-extract: ${LIBEDIT}.tgz
-    tar -xzf $<
-    touch $@
-
-.libedit-configured: .libedit-extracted
-    mkdir -p build-libedit
-    (cd build-libedit               \
-        && ../${LIBEDIT}/configure  \
-            --prefix=${PREFIX}      \
-            --enable-static         \
-            --disable-shared)
-    touch $@
-
-# Look if $< needs to be built for libedit
-libedit?: .libedit-configured
-    gmake -C build-libedit $<
-
-# Actually build $< for libedit
-libedit!: .libedit-configured
-    gmake -q -C build-libedit $<
-
-```
-
-
-# Provide implementations of non-standard functions (libcompat)
-- `err(3)` and `errx(3)`
-- `reallocarray(3)`
-- `strsep(3)`
+# Move this project into a separate repo
+- Use `oconfigure` for portability (https://github.com/kristapsdz/oconfigure)
+  - `err(3)` and `errx(3)`
+  - `reallocarray(3)`
+  - `strsep(3)`
+- Rename to `mk` (or `bmk`)
 
 
 # Future TODOs
-## Support for artifact directories
-```make
-# With .OBJ set, make will first search in
-# the obj directory for artifacts, before
-# looking in the current directory.
-# Make will also put generated files into obj,
-# by changing the value of $@.
-.OBJ: obj
-
-all: example
-
-example: example.c
-    ${CC} -o $@ example.c
-```
 ## Check names for validity
 Allowed charset for variable names: `[a-zA-Z_.]+`
 Allowed charset for file names: `[a-zA-Z_.-]+`

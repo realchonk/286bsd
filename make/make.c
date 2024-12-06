@@ -921,35 +921,6 @@ struct expand_ctx *ctx;
 	return ec;
 }
 
-rungnu (sc, prefix, rule, q)
-struct scope *sc;
-struct path *prefix;
-char *rule;
-{
-	str_t cmd;
-	int ec;
-
-	str_new (&cmd);
-	str_puts (&cmd, sc->gnu->prog != NULL ? sc->gnu->prog : "make");
-
-	if (q)
-		str_puts (&cmd, " -q");
-
-	if (sc->makefile != NULL) {
-		str_puts (&cmd, " -f ");
-		str_puts (&cmd, sc->makefile);
-	}
-
-	if (rule != NULL) {
-		str_putc (&cmd, ' ');
-		str_puts (&cmd, rule);
-	}
-
-	ec = runcom (sc, prefix, str_get (&cmd), NULL, rule);
-	str_free (&cmd);
-	return ec;
-}
-
 /* EXPRESSION PARSER */
 
 is_truthy (s)
@@ -2086,18 +2057,6 @@ struct path *prefix;
 		/* update timestamp */
 		t = f->mtime = now ();
 		break;
-	case SC_GNU:
-		/* first check if the target is already built */
-		if (rungnu (sc, prefix, name, 1) == 0) {
-			t.tv_sec = 0;
-			break;
-		}
-
-		if (rungnu (sc, prefix, name, 0) != 0)
-			errx (1, "building foreign directory failed");
-
-		t = now ();
-		break;
 	case SC_CUSTOM:
 		/* run the "subdir?" rule, to test if the target needs to be updated */
 		new_prefix = path_cat (prefix, &path_super);
@@ -2362,14 +2321,6 @@ struct scope *sc;
 		switch (sub->type) {
 		case SC_DIR:
 			printf (".include %s, DIR", sub->name);
-			if (sc->makefile != NULL)
-				printf (", %s", sc->makefile);
-			printf ("\n");
-			break;
-		case SC_GNU:
-			printf (".include %s, GNU", sub->name);
-			if (sub->gnu->prog != NULL)
-				printf (", %s", sub->gnu->prog);
 			if (sc->makefile != NULL)
 				printf (", %s", sc->makefile);
 			printf ("\n");

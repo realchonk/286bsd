@@ -20,7 +20,6 @@ struct template {
 
 enum scope_type {
 	SC_DIR,
-	SC_GNU,
 	SC_CUSTOM,
 };
 struct scope {
@@ -31,7 +30,6 @@ struct scope {
 	char *makefile; /* required */
 	union {
 		struct directory *dir; /* optional */
-		struct gnu *gnu; /* required */
 		struct custom *custom; /* required */
 	};
 };
@@ -45,10 +43,6 @@ struct directory {
 	struct template *templates;
 	char *default_file;
 	int done;
-};
-
-struct gnu {
-	char *prog;	/* optional (default: "make") */
 };
 
 struct custom {

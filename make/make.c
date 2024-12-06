@@ -1255,79 +1255,6 @@ struct macro **subdirs;
 	return sub;
 }
 
-/*
- * .include yacc
- * .include yacc, DIR
- * .include libx, GNU
- */
-parse_include (sc, dir, s, subdirs)
-struct scope *sc;
-struct path *dir;
-struct macro **subdirs;
-char *s;
-{
-	struct scope *sub;
-	char *p, *path;
-
-	p = strsep (&s, ",");
-	if (p == NULL)
-		return -1;
-
-	sub = new_subdir (sc, strdup (trim (p)), subdirs);
-
-	path = path_cat_str (dir, sub->name);
-	if (access (path, F_OK) != 0)
-		errx (1, "%s: directory not found: %s", path_to_str (dir), sub->name);
-	
-	p = strsep (&s, ",");
-	if (p == NULL) {
-		sub->type = SC_DIR;
-		sub->dir = NULL;
-		sub->makefile = MAKEFILE;
-		return 0;
-	}
-
-	/* TODO: handle empty fields */
-	p = trim (p);
-	if (strcmp (p, "DIR") == 0) {
-		sub->type = SC_DIR;
-		sub->dir = NULL;
-		sub->makefile = MAKEFILE;
-
-		p = strsep (&s, ",");
-		if (p == NULL)
-			return 0;
-
-		sub->makefile = strdup (trim (p));
-		return 0;
-	} else if (strcmp (p, "GNU") == 0) {
-		sub->type = SC_GNU;
-		sub->gnu = new (struct gnu);
-		sub->gnu->prog = NULL;
-
-		p = strsep (&s, ",");
-		if (p == NULL)
-			return 0;
-		sub->gnu->prog = strdup (trim (p));
-
-		p = strsep (&s, ",");
-		if (p == NULL)
-			return 0;
-		sub->makefile = strdup (trim (p));
-
-		return 0;
-	} else if (strcmp (p, "CUSTOM") == 0) {
-		sub->type = SC_CUSTOM;
-		sub->custom = new (struct custom);
-		sub->custom->test = NULL;
-		sub->custom->exec = NULL;
-		sub->makefile = NULL;
-		return 0;
-	} else {
-		return -1;
-	}
-}
-
 /* .SUBDIRS: cc make sys */
 parse_subdirs (sc, dir, s, subdirs)
 struct scope *sc;
@@ -1668,8 +1595,7 @@ struct macro **subdirs;
 			if (!run)
 				goto cont;
 
-			if (parse_include (sc, dir, t, subdirs) == -1)
-				errx (1, "%s:%d: syntax error", path, ln);
+			errx (1, "%s:%d: please use .SUBDIRS: or .FOREIGN: now", path, ln);
 		} else if (is_directive (&t, s, "export")) {
 			if (!run)
 				goto cont;

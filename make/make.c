@@ -1397,6 +1397,28 @@ struct file *f;
 	return 1;
 }
 
+/* TODO: impl .SUFFIXES: */
+is_inf (s)
+char *s;
+{
+	char *d;
+	int x;
+
+	if (*s != '.')
+		return 0;
+	++s;
+	d = strchr (s, '.');
+
+	if (d == NULL) {
+		return strlen (s) <= 3;
+	}
+
+	*d = '\0';
+	x = strlen (s) <= 3 && strlen (d + 1) <= 3;
+	*d = '.';
+	return x;
+}
+
 struct rule *
 parse_rule (sc, dir, s, t, help)
 struct scope *sc;
@@ -1438,7 +1460,7 @@ char *s, *t, *help;
 	/* parse targets */
 	u = expand (sc, s, NULL);
 	flag = 1;
-	if (u[0] == '.') {
+	if (is_inf (u)) {
 		p = strchr (u + 1, '.');
 		inf = new (struct inference);
 		inf->next = sc->dir->infs;

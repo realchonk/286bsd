@@ -63,6 +63,11 @@ example: example.c
 ```
 
 
+# `-include` or `sinclude`
+Just like `include`, but doesn't error if the file doesn't exist.
+Maybe consider something like this too: `.SUBDIRS: maybe-exists?`
+
+
 # Special macros
 ## `$*`
 Basename

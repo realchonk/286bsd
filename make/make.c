@@ -2170,7 +2170,7 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			t = now ();
+			t.tv_sec = 0;
 			break;
 		}
 

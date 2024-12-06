@@ -2284,7 +2284,7 @@ struct scope *sc;
 	fputs ("-hv                           - print help page, recursively\n", stderr);
 	fputs ("-p                            - dump tree\n", stderr);
 	fputs ("-pv                           - dump tree, recursively\n", stderr);
-	fputs ("-s                            - do not echo commands\n", stderr)'
+	fputs ("-s                            - do not echo commands\n", stderr);
 	fputs ("-v                            - verbose output\n", stderr);
 
 	fputs ("\nMACROS:\n", stderr);

@@ -100,7 +100,7 @@ char *ptrtab;
 #define eob(a) ((a)>=pend)
 #define bob(a) (pbeg>=(a))
 
-# define cputc(a,b)	if(!flslvl) putc(a,b)
+# define cputc(a,b)	if(walkifstack ()) putc(a,b)
 
 char buffer[NCPS+BUFSIZ+BUFSIZ+NCPS];
 
@@ -170,11 +170,16 @@ struct symtab {
 #define symsiz 2000		/* std = 500, wnj aug 1979 */
 STATIC	struct symtab stab[symsiz];
 
+#define MAX_IFSTACK 32
+#define IF_VAL 0x01
+#define IF_HAS 0x02
+
 STATIC	struct symtab *defloc;
 STATIC	struct symtab *udfloc;
 STATIC	struct symtab *incloc;
 STATIC	struct symtab *ifloc;
 STATIC	struct symtab *elsloc;
+STATIC	struct symtab *elifloc;
 STATIC	struct symtab *eifloc;
 STATIC	struct symtab *ifdloc;
 STATIC	struct symtab *ifnloc;
@@ -183,8 +188,8 @@ STATIC	struct symtab *varloc;
 STATIC	struct symtab *lneloc;
 STATIC	struct symtab *ulnloc;
 STATIC	struct symtab *uflloc;
-STATIC	int	trulvl;
-STATIC	int	flslvl;
+STATIC	char	ifstack[MAX_IFSTACK];
+STATIC	int	iflen;
 
 sayline(where)
 int where;
@@ -196,6 +201,55 @@ int where;
 		fprintf (fout,"# %d \"%s\"\n", lineno[ifno], fnames[ifno]);
 
 	return 0;
+}
+
+walkifstack ()
+{
+	int i;
+
+	for (i = 0; i < iflen; ++i) {
+		if (!(ifstack[i] & IF_VAL))
+			return 0;
+	}
+
+	return 1;
+}
+
+pushif (x)
+{
+	if (iflen >= MAX_IFSTACK) 
+		pperror ("too many nested #if's");
+
+	ifstack[iflen++] = x ? (IF_VAL | IF_HAS) : 0;
+	return 0;
+}
+
+setif (x)
+{
+	char *s;
+	int had;
+
+	if (iflen <= 0)
+		pperror ("not in #if");
+
+	s = &ifstack[iflen - 1];
+	had = *s & IF_HAS;
+
+	if (x) {
+		*s = IF_VAL | IF_HAS;
+	} else {
+		*s &= ~IF_VAL;
+	}
+
+	return (*s & IF_VAL) && !had;
+}
+
+popif ()
+{
+	if (iflen <= 0)
+		pperror ("not in #if");
+
+	return ifstack[--iflen];
 }
 
 /* data structure guide
@@ -261,7 +315,7 @@ dump()
 	register char *p1;
 	register FILE *f;
 
-	if ((p1 = outp) == inp || flslvl != 0)
+	if ((p1 = outp) == inp || !walkifstack ())
 		return 0;
 	f = fout;
 	while (p1 < inp)
@@ -341,7 +395,7 @@ register char *p;
 						plvl = 0;
 					return p;
 				}
-				if (trulvl || flslvl)
+				if (iflen > 0)
 					pperror ("missing endif", 0, 0);
 				inp = p;
 				dump ();
@@ -441,7 +495,7 @@ again:
 					if (!passcom) {
 						inp = p - 2;
 						dump ();
-						++flslvl;
+						pushif (0);
 					}
 					
 					for (;;) {
@@ -498,7 +552,7 @@ again:
 endcom:
 					if (!passcom) {
 						outp = inp = p;
-						--flslvl;
+						popif ();
 						goto again;
 					}
 					break;
@@ -652,7 +706,7 @@ prevlf:
 #define xmac2(c0,c1,cpos,op)
 #endif
 
-			if (flslvl)
+			if (!walkifstack ())
 				goto nomac;
 
 			for (;;) {
@@ -799,7 +853,7 @@ register char *p;
 
 	if (*inp++ == '<') { /* special <> syntax */
 		inctype = 1;
-		++flslvl;	/* prevent macro expansion */
+		pushif (0);	/* prevent macro expansion */
 
 		for (;;) {
 			outp = inp = p;
@@ -818,7 +872,7 @@ register char *p;
 			while (inp < p)
 				*cp++ = *inp++;
 		}
-		--flslvl;	/* reenable macro expansion */
+		popif ();	/* reenable macro expansion */
 	} else if (inp[-1] == '"') { /* regular "" syntax */
 		inctype = 0;
 		while (inp < p)
@@ -831,14 +885,14 @@ register char *p;
 	}
 
 	/* flush current file to \n , then write \n */
-	++flslvl;
+	pushif (0);
 
 	do {
 		outp = inp = p;
 		p = cotoken (p);
 	} while (*inp != '\n');
 
-	--flslvl;
+	popif ();
 	inp = p;
 	dump ();
 
@@ -924,7 +978,7 @@ char *p;
 	}
 
 	oldsavch = savch; /* to reclaim space if redefinition */
-	++flslvl; /* prevent macro expansion during 'define' */
+	pushif (0); /* prevent macro expansion during 'define' */
 	p = skipbl(p);
 	pin = inp;
 	if ((toktyp + COFF)[*pin] != IDENT) {
@@ -1075,7 +1129,7 @@ char *p;
 	} else {
 		np->value = psav - 1;
 	}
-	--flslvl;
+	popif ();
 	inp = pin;
 	savch = psav;
 	passcom = spasscom;
@@ -1100,81 +1154,58 @@ register char *p;
 		p = skipbl (p);
 		*--inp = SALT;
 		outp = inp;
-		++flslvl;
+		pushif (0);
 		np = slookup (inp, p, 0);
-		--flslvl;
+		popif ();
 		if (np == defloc) { /* define */
-			if (flslvl == 0) {
+			if (walkifstack ()) {
 				p = dodef (p);
 				continue;
 			}
 		} else if (np == incloc) { /* include */
-			if (flslvl == 0) {
+			if (walkifstack ()) {
 				p = doincl (p);
 				continue;
 			}
 		} else if (np == ifnloc) { /* ifndef */
-			++flslvl;
+			pushif (0);
 			p = skipbl (p);
 			np = slookup (inp, p, 0);
-			--flslvl;
+			popif ();
 
-			if (flslvl == 0 && np->value == 0) {
-				++trulvl;
-			} else {
-				++flslvl;
-			}
+			pushif (np->value == 0);
 		} else if (np == ifdloc) { /* ifdef */
-			++flslvl;
+			pushif (0);
 			p = skipbl (p);
 			np = slookup (inp, p, 0);
-			--flslvl;
+			popif ();
 
-			if (flslvl == 0 && np->value != 0) {
-				++trulvl;
-			} else {
-				++flslvl;
-			}
+			pushif (np->value != 0);
 		} else if (np == eifloc) { /* endif */
-			if (flslvl) {
-				if (--flslvl == 0)
-					sayline (CONT);
-			} else if (trulvl) {
-				--trulvl;
-			} else {
-				pperror ("If-less endif", 0, 0);
-			}
+			popif ();
+			if (walkifstack ())
+				sayline (CONT);
 		} else if (np == elsloc) { /* else */
-			if (flslvl) {
-				if (--flslvl != 0) {
-					++flslvl;
-				} else {
-					++trulvl;
-					sayline (CONT);
-				}
-			} else if (trulvl) {
-				++flslvl;
-				--trulvl;
-			} else {
-				pperror ("If-less else", 0, 0);
-			}
+			setif (!(ifstack[iflen - 1] & IF_HAS));
+			if (walkifstack ())
+				sayline (CONT);
+		} else if (np == elifloc) { /* elif */
+			newp = p;
+			setif (!(ifstack[iflen - 1] & IF_HAS) && (yyparse () != 0));
+			p = newp;
 		} else if (np == udfloc) { /* undefine */
-			if (flslvl == 0) {
-				++flslvl;
+			if (walkifstack ()) {
+				pushif (0);
 				p = skipbl (p);
 				slookup (inp, p, DROP);
-				--flslvl;
+				popif ();
 			}
 		} else if (np == ifloc) { /* if */
 			newp = p;
-			if (flslvl == 0 && yyparse ()) {
-				++trulvl;
-			} else {
-				++flslvl;
-			}
+			pushif (yyparse () != 0);
 			p = newp;
 		} else if (np == lneloc) { /* line */
-			if (flslvl == 0 && pflag == 0) {
+			if (walkifstack () && pflag == 0) {
 				char *cp, *cp2, *savestring ();
 
 				outp = inp = p;
@@ -1206,12 +1237,12 @@ register char *p;
 			pperror ("undefined control", 0, 0);
 		}
 		/* flush to lf */
-		++flslvl;
+		pushif (0);
 		while (*inp != '\n') {
 			outp = inp = p;
 			p = cotoken (p);
 		}
-		--flslvl;
+		popif ();
 	}
 }
 
@@ -1381,7 +1412,7 @@ int enterf;
 	*p3 = c3;
 	*p2 = c2;
 
-	if (np->value != 0 && flslvl == 0) {
+	if (np->value != 0 && walkifstack ()) {
 		newp = subst (p2, np);
 	} else {
 		newp = 0;
@@ -1439,7 +1470,7 @@ struct symtab *sp;
 			params = 1;	/* #define foo() ... */
 
 		sloscan ();
-		++flslvl; /* no expansion during search for actuals */
+		pushif (0); /* no expansion during search for actuals */
 		plvl = -1;
 
 		do {
@@ -1492,7 +1523,7 @@ struct symtab *sp;
 
 		while (--params >= 0)
 			*pa++ = &""[1];	/* null string for missing actuals */
-		--flslvl;
+		popif ();
 		fasscan ();
 	}
 	for (;;) { /* push definition onto front of input stack */
@@ -1758,6 +1789,7 @@ char *argv[];
 	incloc = ppsym ("include");
 	elsloc = ppsym ("else");
 	eifloc = ppsym ("endif");
+	elifloc = ppsym ("elif");
 	ifdloc = ppsym ("ifdef");
 	ifnloc = ppsym ("ifndef");
 	ifloc  = ppsym ("if");
@@ -1794,8 +1826,7 @@ char *argv[];
 	pbuf = pbeg + BUFSIZ;
 	pend = pbuf + BUFSIZ;
 
-	trulvl = 0;
-	flslvl = 0;
+	iflen = 0;
 	lineno[0] = 1;
 	sayline(START);
 	outp = inp = pend;

@@ -10,7 +10,8 @@ yylex() {
 	static int  val2[]={OROR, ANDAND,  RS,   LS,   GE,   LE,   NE,   EQ};
 	static char *opc="b\bt\tn\nf\fr\r\\\\";
 	extern char fastab[];
-	extern char *outp,*inp,*newp; extern int flslvl;
+	extern char *outp,*inp,*newp;
+	extern walkifstack (), pushif (), popif ();
 	register char savc, *s; char *skipbl(); int val;
 	register char **p2;
 	struct symtab {
@@ -57,13 +58,13 @@ yylex() {
 		} else if (isid (*inp)) {/* identifier */
 			if (strcmp (inp, "defined") == 0) {
 				ifdef = 1;
-				++flslvl;
+				pushif (0);
 				val = DEFINED;
 			} else {
 				sp=lookup(inp, -1);
 				if (ifdef != 0) {
 					ifdef=0;
-					--flslvl;
+					popif ();
 				}
 				yylval = (sp->value == 0) ? 0 : 1;
 				val = number;

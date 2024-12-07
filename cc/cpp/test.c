@@ -6,3 +6,18 @@
 3
 #endif
 
+#if 0
+a
+#elif 1
+b
+#else
+c
+#endif
+
+#if 1
+x
+#elif 1
+y
+#else
+z
+#endif

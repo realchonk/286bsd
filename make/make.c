@@ -825,13 +825,62 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
+pr_export (out, sc, m, ctx)
+str_t *out;
+struct scope *sc;
+struct macro *m;
+struct expand_ctx *ctx;
+{
+	extern expand_macro_into ();
+
+	str_puts (out, m->name);
+	str_puts (out, "='");
+	expand_macro_into (out, sc, m, m->name, ctx);
+	str_putc (out, '\'');
+	return 0;
+}
+
 expand_special_into (out, sc, name, ctx)
 str_t *out;
 struct scope *sc;
 char *name;
 struct expand_ctx *ctx;
 {
+	struct scope *sub;
+	struct macro *m;
+
 	/* TODO: .SUBDIRS, .EXPORTS */
+
+	if (strcmp (name, ".SUBDIRS") == 0) {
+		if (sc->type != SC_DIR) {
+		invsc:
+			errx (1, "%s: invalid scope type", sc_path_str (sc));
+		}
+
+		sub = sc->dir->subdirs;
+		if (sub == NULL)
+			return 0;
+
+		str_puts (out, sub->name);
+		for (sub = sub->next; sub != NULL; sub = sub->next) {
+			str_putc (out, ' ');
+			str_puts (out, sub->name);
+		}
+	} else if (strcmp (name, ".EXPORTS") == 0) {
+		if (sc->type != SC_DIR)
+			goto invsc;
+
+		m = sc->dir->emacros;
+		if (m == NULL)
+			return 0;
+
+		pr_export (out, sc, m, ctx);
+		for (m = m->enext; m != NULL; m = m->enext) {
+			str_putc (out, ' ');
+			pr_export (out, sc, m, ctx);
+		}
+
+	}
 	return 0;
 }
 
@@ -1293,13 +1342,11 @@ ret:
 }
 
 struct scope *
-new_subdir (parent, name, subdirs)
+new_subdir (parent, name)
 struct scope *parent;
 char *name;
-struct macro **subdirs;
 {
 	struct scope *sub;
-	struct macro *m;
 
 	sub = new (struct scope);
 	sub->next = parent->dir->subdirs;
@@ -1309,25 +1356,14 @@ struct macro **subdirs;
 	sub->makefile = NULL;
 	parent->dir->subdirs = sub;
 
-	m = new (struct macro);
-	m->next = parent->dir->macros;
-	m->enext = NULL;
-	m->prepend = *subdirs;
-	m->name = ".SUBDIRS";
-	m->value = sub->name;
-	m->lazy = 0;
-	parent->dir->macros = m;
-	*subdirs = m;
-
 	return sub;
 }
 
 /* .SUBDIRS: cc make sys */
-parse_subdirs (sc, dir, s, subdirs)
+parse_subdirs (sc, dir, s)
 struct scope *sc;
 struct path *dir;
 char *s;
-struct macro **subdirs;
 {
 	struct scope *sub;
 	char *subdir, *name, *path;
@@ -1337,7 +1373,7 @@ struct macro **subdirs;
 			continue;
 
 		name = strdup (trim (subdir));
-		sub = new_subdir (sc, name, subdirs);
+		sub = new_subdir (sc, name);
 		sub->type = SC_DIR;
 		sub->makefile = MAKEFILE;
 
@@ -1350,11 +1386,10 @@ struct macro **subdirs;
 }
 
 /* .FOREIGN: libfoo libbar */
-parse_foreign (sc, dir, s, subdirs)
+parse_foreign (sc, dir, s)
 struct scope *sc;
 struct path *dir;
 char *s;
-struct macro **subdirs;
 {
 	struct scope *sub;
 	char *subdir, *name;
@@ -1364,7 +1399,7 @@ struct macro **subdirs;
 			continue;
 
 		name = strdup (trim (subdir));
-		sub = new_subdir (sc, name, subdirs);
+		sub = new_subdir (sc, name);
 		sub->type = SC_CUSTOM;
 		sub->makefile = NULL;
 		sub->custom = new (struct custom);
@@ -1376,15 +1411,13 @@ struct macro **subdirs;
 }
 
 /* .EXPORTS: CC CFLAGS */
-parse_exports (sc, dir, s, exports)
+parse_exports (sc, dir, s)
 struct scope *sc;
 struct path *dir;
 char *s;
-struct macro **exports;
 {
-	struct macro *m, *m2;
+	struct macro *m;
 	char *name;
-	size_t len;
 
 	while ((name = strsep (&s, " \t")) != NULL) {
 		if (*name == '\0')
@@ -1402,19 +1435,6 @@ struct macro **exports;
 
 		m->enext = sc->dir->emacros;
 		sc->dir->emacros = m;
-
-		m2 = new (struct macro);
-		m2->next = sc->dir->macros;
-		m2->enext = NULL;
-		m2->prepend = *exports;
-		m2->name = ".EXPORTS";
-		len = strlen (m->name) + strlen (m->value) + 2;
-		m2->value = malloc (len);
-		snprintf (m2->value, len, "%s=%s", m->name, m->value);
-		m2->help = NULL;
-		m2->lazy = m->lazy;
-		sc->dir->macros = m2;
-		*exports = m2;
 
 	cont:;
 	}
@@ -1688,12 +1708,11 @@ char **out, *s, *name;
 	return 1;
 }
 
-do_parse (sc, dir, path, file, subdirs, exports)
+do_parse (sc, dir, path, file)
 struct scope *sc;
 struct path *dir;
 char *path;
 FILE *file;
-struct macro **subdirs, **exports;
 {
 	extern parse ();
 	struct template *tm;
@@ -1786,7 +1805,7 @@ struct macro **subdirs, **exports;
 			if (tm == NULL)
 				errx (1, "%s:%d: no such template: %s", cpath, cline, t);
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
-			do_parse (sc, dir, "template", tfile, subdirs, exports);
+			do_parse (sc, dir, "template", tfile);
 			fclose (tfile);
 		} else if (is_target (&t, s, ".DEFAULT")) {
 			if (run)
@@ -1799,13 +1818,13 @@ struct macro **subdirs, **exports;
 				warnx ("%s:%d: this make doesn't require .SUFFIXES", path, cline);
 		} else if (is_target (&t, s, ".SUBDIRS")) {
 			if (run)
-				parse_subdirs (sc, dir, t, subdirs);
+				parse_subdirs (sc, dir, t);
 		} else if (is_target (&t, s, ".FOREIGN")) {
 			if (run)
-				parse_foreign (sc, dir, t, subdirs);
+				parse_foreign (sc, dir, t);
 		} else if (is_target (&t, s, ".EXPORTS")) {
 			if (run)
-				parse_exports (sc, dir, t, exports);
+				parse_exports (sc, dir, t);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;
@@ -1855,7 +1874,6 @@ struct scope *sc;
 struct path *dir;
 char *path;
 {
-	struct macro *subdirs = NULL, *exports = NULL;
 	FILE *file;
 
 	file = fopen (path, "r");
@@ -1871,7 +1889,7 @@ char *path;
 		errx (1, "%s: parsing this file again?", path);
 	}
 
-	do_parse (sc, dir, path, file, &subdirs, &exports);
+	do_parse (sc, dir, path, file);
 	sc->dir->done = 1;
 
 	fclose (file);

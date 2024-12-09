@@ -695,13 +695,15 @@ struct expand_ctx *ctx;
 	}
 
 	m = find_macro (sc, str_get (&name));
-	str_free (&name);
 	if (**s == '}') {
 		++*s;
-		return expand_macro_into (out, sc, m);
+		expand_macro_into (out, sc, m, str_get (&name), ctx);
+		str_free (&name);
+		return 0;
 	}
 
-	v = expand_macro (sc, m);
+	v = expand_macro (sc, m, str_get (&name), ctx);
+	str_free (&name);
 
 	if (**s != ':') {
 	invalid:
@@ -823,21 +825,33 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-expand_macro_into (out, sc, m)
+expand_special_into (out, sc, name, ctx)
+str_t *out;
+struct scope *sc;
+char *name;
+struct expand_ctx *ctx;
+{
+	/* TODO: .SUBDIRS, .EXPORTS */
+	return 0;
+}
+
+expand_macro_into (out, sc, m, name, ctx)
 str_t *out;
 struct scope *sc;
 struct macro *m;
+char *name;
+struct expand_ctx *ctx;
 {
 	if (m == NULL)
-		return -1;
+		return expand_special_into (out, sc, name, ctx);
 
 	if (m->prepend != NULL) {
-		expand_macro_into (out, sc, m->prepend);
+		expand_macro_into (out, sc, m->prepend, m->prepend->name, ctx);
 		str_putc (out, ' ');
 	}
 
 	if (m->lazy) {
-		expand_into (out, sc, m->value, NULL);
+		expand_into (out, sc, m->value, ctx);
 	} else {
 		str_puts (out, m->value);
 	}
@@ -845,14 +859,16 @@ struct macro *m;
 }
 
 char *
-expand_macro (sc, m)
+expand_macro (sc, m, name, ctx)
 struct scope *sc;
 struct macro *m;
+char *name;
+struct expand_ctx *ctx;
 {
 	str_t tmp;
 
 	str_new (&tmp);
-	expand_macro_into (&tmp, sc, m);
+	expand_macro_into (&tmp, sc, m, name, ctx);
 	return str_release (&tmp);
 }
 

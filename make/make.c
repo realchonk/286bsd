@@ -2520,7 +2520,7 @@ struct scope *sc;
 
 usage (uc)
 {
-	fprintf (stderr, "%s: %s [-hpsv] [-C dir] [-f makefile] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
+	fprintf (stderr, "%s: %s [-hpsv] [-C dir] [-f makefile] [-V var] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
 	return 1;
 }
 
@@ -2531,13 +2531,13 @@ char **argv;
 	struct scope *sc;
 	struct path *path;
 	struct macro *m;
-	char *s, *cd = NULL, *makefile = MAKEFILE;
+	char *s, *cd = NULL, *makefile = MAKEFILE, *V = NULL;
 	int i, option, pr = 0, n = 0, dohelp = 0;
 
 	m_dmake.value = m_make.value = argv[0];
 
 	str_new (&cmdline);
-	while ((option = getopt (argc, argv, "hpsvC:f:")) != -1) {
+	while ((option = getopt (argc, argv, "hpsvC:f:V:")) != -1) {
 		switch (option) {
 		case 'h':
 			dohelp = 1;
@@ -2559,6 +2559,9 @@ char **argv;
 			break;
 		case 'f':
 			makefile = optarg;
+			break;
+		case 'V':
+			V = optarg;
 			break;
 		case '?':
 			return usage (0);
@@ -2604,6 +2607,12 @@ char **argv;
 
 	if (pr) {
 		print_sc (path, sc);
+		return 0;
+	}
+
+	if (V != NULL) {
+		m = find_macro (sc, V);
+		printf ("%s\n", m != NULL ? expand_macro (sc, m, V, NULL) : "");
 		return 0;
 	}
 

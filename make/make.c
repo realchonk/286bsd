@@ -990,11 +990,6 @@ struct expand_ctx *ctx;
 	if (pid == 0) {
 		redirnull (STDIN_FILENO);
 
-		if (q) {
-			redirnull (STDOUT_FILENO);
-			redirnull (STDERR_FILENO);
-		}
-
 		if (chdir (path_to_str (prefix)) != 0)
 			err (1, "chdir()");
 

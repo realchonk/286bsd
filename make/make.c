@@ -996,14 +996,6 @@ char *cmd;
 	return str_release (&data);
 }
 
-redirnull (fd)
-{
-	close (fd);
-	if (open ("/dev/null", O_RDONLY) != fd)
-		warn ("%d: open('/dev/null')", fd);
-	return 0;
-}
-
 runcom (sc, prefix, cmd, ctx, rule)
 struct scope *sc;
 struct path *prefix;
@@ -1037,7 +1029,9 @@ struct expand_ctx *ctx;
 
 	pid = fork ();
 	if (pid == 0) {
-		redirnull (STDIN_FILENO);
+		close (STDIN_FILENO);
+		if (open ("/dev/null", O_RDONLY) != STDIN_FILENO)
+			warn ("%d: open('/dev/null')", STDIN_FILENO);
 
 		if (chdir (path_to_str (prefix)) != 0)
 			err (1, "chdir()");

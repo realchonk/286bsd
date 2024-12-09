@@ -1,6 +1,14 @@
 NAME = make
 NOMAN = 1
 
+clean-extra:
+	rm -f mk.vendor.c
+
 make: make.h
+
+mk.vendor.c: make.c make.h
+	printf '#define NEED_REALLOCARRAY 1\n'	\
+		| cat - make.h make.c		\
+		| sed '/^#include "make.h"/d' >$@
 
 .expand prog

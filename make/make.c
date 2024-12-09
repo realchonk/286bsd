@@ -460,6 +460,53 @@ char *s;
 	return p;
 }
 
+sc_path_into (sc, p)
+struct scope *sc;
+struct path *p;
+{
+	if (sc->parent == NULL)
+		return 0;
+
+	sc_path_into (sc->parent, p - 1);
+	p->type = PATH_NAME;
+	p->name = sc->name;
+	return 0;
+}
+
+struct path *
+sc_path (sc)
+struct scope *sc;
+{
+	struct scope *p;
+	struct path *x;
+	size_t len;
+
+	for (p = sc, len = 0; p->parent != NULL; p = p->parent, ++len);
+
+	x = calloc (len + 2, sizeof (struct path));
+	sc_path_into (sc, &x[len - 1]);
+	if (sc->makefile != NULL) {
+		x[len].type = PATH_NAME;
+		x[len].name = sc->makefile;
+		++len;
+	}
+	x[len].type = PATH_NULL;
+	return x;
+}
+
+char *
+sc_path_str (sc)
+struct scope *sc;
+{
+	struct path *p;
+	char *s;
+
+	p = sc_path (sc);
+	s = path_to_str (p);
+	free (p);
+	return s;
+}
+
 /* MACORS MISC */
 
 /* is macro name */
@@ -658,7 +705,7 @@ struct expand_ctx *ctx;
 
 	if (**s != ':') {
 	invalid:
-		errx (1, "invalid macro expansion: ${%s", orig);
+		errx (1, "%s: invalid macro expansion: ${%s", sc_path_str (sc), orig);
 	}
 	++*s;
 
@@ -726,12 +773,12 @@ struct expand_ctx *ctx;
 		break;
 	case '@':
 		if (ctx == NULL)
-			errx (1, "cannot use $@ here");
+			errx (1, "%s: cannot use $@ here", sc_path_str (sc));
 		str_puts (out, ctx->target);
 		break;
 	case '<':
 		if (ctx == NULL)
-			errx (1, "cannot use $< here");
+			errx (1, "%s: cannot use $< here", sc_path_str (sc));
 
 		if (ctx->dep0 == NULL)
 			break;
@@ -740,7 +787,7 @@ struct expand_ctx *ctx;
 		break;
 	case '^':
 		if (ctx == NULL)
-			errx (1, "cannot use $^ here");
+			errx (1, "%s: cannot use $^ here", sc_path_str (sc));
 
 		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
 			str_putc (out, ' ');
@@ -751,9 +798,9 @@ struct expand_ctx *ctx;
 		subst2 (out, sc, s, ctx);
 		break;
 	case '(':
-		errx (1, "syntax error: $(...) syntax is reserved for future use, please use ${...} instead.");
+		errx (1, "%s: syntax error: $(...) syntax is reserved for future use, please use ${...} instead.", sc_path_str (sc));
 	default:
-		errx (1, "syntax error: invalid escape sequence: $%c%s", ch, *s);
+		errx (1, "%s: syntax error: invalid escape sequence: $%c%s", sc_path_str (sc), ch, *s);
 	}
 
 	return 0;
@@ -1382,10 +1429,10 @@ struct file *f;
 	name[len - 1] = '\0';
 	sub = find_subdir (sc, name);
 	if (sub == NULL)
-		errx (1, "not a subdir: %s", name);
+		errx (1, "%s: not a subdir: %s", sc_path_str (sc), name);
 
 	if (sub->type != SC_CUSTOM)
-		errx (1, "not a custom subdir: %s", name);
+		errx (1, "%s: not a custom subdir: %s", sc_path_str (sc), name);
 
 	if (ch == '?') {
 		sub->custom->test = f;
@@ -2091,14 +2138,14 @@ struct path *prefix;
 				/* try finding an inference rule */
 				f = try_find (sc, prefix, name);
 				if (f == NULL)
-					errx (1, "%s: no such file: %s", path_to_str (prefix), name);
+					errx (1, "%s: no such file: %s", sc_path_str (sc), name);
 			} else {
 				f->mtime = get_mtime (prefix, name);
 			}
 		} else {
 			f = sc->dir->files;
 			if (f == NULL)
-				errx (1, "%s: nothing to build", path_to_str (prefix));
+				errx (1, "%s: nothing to build", sc_path_str (sc));
 			for (; f->next != NULL; f = f->next);
 		}
 
@@ -2115,7 +2162,7 @@ struct path *prefix;
 					t = f->mtime;
 					break;
 				} else {
-					errx (1, "%s: no rule to build: %s", path_to_str (prefix), name);
+					errx (1, "%s: no rule to build: %s", sc_path_str (sc), name);
 				}
 			}
 		}
@@ -2149,7 +2196,7 @@ struct path *prefix;
 		ectx_file (&ctx, f);
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx, name) != 0)
-				errx (1, "%s: command failed: %s", path_to_str (prefix), *s);
+				errx (1, "%s: command failed: %s", sc_path_str (sc), *s);
 		}
 
 		/* update timestamp */
@@ -2193,7 +2240,7 @@ struct path *prefix;
 		/* run the "subdir!" rule */
 		f = sc->custom->exec;
 		if (f == NULL)
-			errx (1, "%s: missing '%s!' rule", path_to_str (new_prefix), sc->name);
+			errx (1, "%s: missing '%s!' rule", sc_path_str (sc->parent), sc->name);
 
 		for (dep = f->deps; dep != NULL; dep = dep->next)
 			build_dir (sc->parent, dep->path, new_prefix);
@@ -2210,7 +2257,7 @@ struct path *prefix;
 
 		for (s = f->rule->code; *s != NULL; ++s) {
 			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
-				errx (1, "%s: command failed: %s", path_to_str (new_prefix), *s);
+				errx (1, "%s: command failed: %s", sc_path_str (sc->parent), *s);
 		}
 		t = now ();
 		free (new_prefix);
@@ -2243,7 +2290,7 @@ struct path *path, *prefix;
 			t = build_file (sc, path[0].name, prefix);
 		} else {
 			if (sc->type != SC_DIR)
-				errx (1, "%s: invalid path", path_to_str (prefix));
+				errx (1, "%s: invalid path", sc_path_str (sc));
 
 			if (sc->dir == NULL)
 				parse_dir (sc, prefix);
@@ -2252,7 +2299,7 @@ struct path *path, *prefix;
 
 			sub = find_subdir (sc, path[0].name);
 			if (sub == NULL)
-				errx (1, "%s: invalid subdir: %s", path_to_str (prefix), path[0].name);
+				errx (1, "%s: invalid subdir: %s", sc_path_str (sc), path[0].name);
 
 			t = build_dir (sub, path + 1, new_prefix);
 			free (new_prefix);
@@ -2373,10 +2420,10 @@ struct scope *sc;
 	char **s;
 
 	if (verbose)
-		printf ("=== %s/%s\n", path_to_str (prefix), sc->makefile);
+		printf ("=== %s\n", sc_path_str (sc));
 
 	if (sc->type != SC_DIR || sc->dir == NULL)
-		errx (1, "print_sc(): must be of type SC_DIR");
+		errx (1, "%s: print_sc(): must be of type SC_DIR", sc_path_str (sc));
 
 	if (sc->dir->default_file != NULL)
 		printf (".DEFAULT: %s\n", sc->dir->default_file);

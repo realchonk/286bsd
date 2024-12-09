@@ -45,6 +45,7 @@
 -k	        keep going, even after an error happened
 -S          opposite of `-k`
 -o obj      specify artifact directory
+-V var      expand var
 
 # Support for artifact directories (IMPORTANT)
 This syntax is not final yet.

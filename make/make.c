@@ -935,7 +935,7 @@ struct expand_ctx *ctx;
 	} else if (strcmp (name, ".OBJDIR") == 0) {
 		if (objdir != NULL) {
 			str_puts (out, objdir);
-			str_putc (out, '.');
+			str_putc (out, '/');
 		}
 
 		sc_path_into (out, sc);

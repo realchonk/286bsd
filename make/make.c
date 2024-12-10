@@ -2260,6 +2260,21 @@ char *name;
 
 /* BUILDING */
 
+struct build {
+	struct timespec t;
+	struct file *f;
+};
+
+build_init (out, t, f)
+struct build *out;
+struct timespec t;
+struct file *f;
+{
+	out->t = t;
+	out->f = f;
+	return 0;
+}
+
 build_deps (sc, dhead, prefix, mt, maxt, needs_update)
 struct scope *sc;
 struct dep *dhead;
@@ -2267,38 +2282,42 @@ struct path *prefix;
 struct timespec *mt, *maxt;
 int *needs_update;
 {
-	extern struct timespec build_dir ();
-	struct timespec t;
+	extern build_dir ();
+	struct build b;
 	struct dep *dep;
 
 	for (dep = dhead; dep != NULL; dep = dep->next) {
-		t = build_dir (sc, dep->path, prefix);
-		if (tv_cmp (&t, mt) >= 0)
+		if (build_dir (&b, sc, dep->path, prefix) != 0)
+			return 1;
+
+		if (tv_cmp (&b.t, mt) >= 0)
 			*needs_update = 1;
-		if (tv_cmp (&t, maxt) > 0)
-			*maxt = t;
+		if (tv_cmp (&b.t, maxt) > 0)
+			*maxt = b.t;
 	}
 
 	return 0;
 }
 
 /* TODO: refactor this function, to be less complicated */
-struct timespec
-build_file (sc, name, prefix)
+build_file (out, sc, name, prefix)
+struct build *out;
 struct scope *sc;
 char *name;
 struct path *prefix;
 {
-	extern struct timespec build_dir ();
+	extern build_dir ();
 	int needs_update;
 	struct scope *sub;
 	struct path *new_prefix, xpath[2];
 	struct file *f;
-	struct timespec t, maxt;
+	struct timespec maxt;
 	struct inference *inf;
 	struct expand_ctx ctx;
 	struct dep *dep;
+	struct build b;
 	char **s;
+	int ec;
 
 	if (verbose >= 2) {
 		printf ("dir %s", path_to_str (prefix));
@@ -2332,9 +2351,9 @@ struct path *prefix;
 				if (sub != NULL) {
 					tmppath.name = name;
 					new_prefix = path_cat (prefix, &tmppath);
-					t = build_file (sub, NULL, new_prefix);
+					ec = build_file (out, sub, NULL, new_prefix);
 					free (new_prefix);
-					break;
+					return ec;
 				}
 
 				/* try finding an inference rule */
@@ -2360,8 +2379,8 @@ struct path *prefix;
 				inf_inst_file (f, inf);
 			} else if (f->rule == NULL) {
 				if (f->mtime.tv_sec > 0) {
-					t = f->mtime;
-					break;
+					build_init (out, f->mtime, f);
+					return 0;
 				} else {
 					errx (1, "%s: no rule to build: %s", sc_path_str (sc), name);
 				}
@@ -2380,16 +2399,16 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			t = f->mtime;
-			break;
+			build_init (out, f->mtime, f);
+			return 0;
 		}
 
 		s = f->rule->code;
 
 		/* rule is a "sum" rule, so doesn't need to be built */
 		if (s == NULL || *s == NULL) {
-			t = maxt;
-			break;
+			build_init (out, maxt, f);
+			return 0;
 		}
 
 		/* run commands */
@@ -2400,8 +2419,9 @@ struct path *prefix;
 		}
 
 		/* update timestamp */
-		t = f->mtime = now ();
-		break;
+		f->mtime = now ();
+		build_init (out, f->mtime, f);
+		return 0;
 	case SC_CUSTOM:
 		/* run the "subdir?" rule, to test if the target needs to be updated */
 		new_prefix = path_cat (prefix, &path_super);
@@ -2415,8 +2435,10 @@ struct path *prefix;
 		if (f != NULL) {
 			assert (f->inf == NULL);
 
-			for (dep = f->dhead; dep != NULL; dep = dep->next)
-				build_dir (sc->parent, dep->path, new_prefix);
+			for (dep = f->dhead; dep != NULL; dep = dep->next) {
+				if (build_dir (&b, sc->parent, dep->path, new_prefix) != 0)
+					return 1;
+			}
 
 			ectx_init (
 				/* ctx    */ &ctx, 
@@ -2438,8 +2460,9 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			t.tv_sec = 0;
-			break;
+			memset (&maxt, 0, sizeof (maxt));
+			build_init (out, maxt, NULL);
+			return 0;
 		}
 
 		/* run the "subdir!" rule */
@@ -2456,70 +2479,70 @@ struct path *prefix;
 			/* infdeps*/ NULL
 		);
 
-		for (dep = f->dhead; dep != NULL; dep = dep->next)
-			build_dir (sc->parent, dep->path, new_prefix);
+		for (dep = f->dhead; dep != NULL; dep = dep->next) {
+			if (build_dir (&b, sc->parent, dep->path, new_prefix) != 0)
+				return 1;
+		}
 
 		for (s = f->rule->code; *s != NULL; ++s) {
 			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
 				errx (1, "%s: command failed: %s", sc_path_str (sc->parent), *s);
 		}
-		t = now ();
+		build_init (out, now (), NULL);
 		free (new_prefix);
-		break;
+		return 0;
 	}
 	
-	return t;
+	abort ();
 }
 
-struct timespec
-build_dir (sc, path, prefix)
+build_dir (out, sc, path, prefix)
+struct build *out;
 struct scope *sc;
 struct path *path, *prefix;
 {
 	struct path *new_prefix;
 	struct scope *sub;
-	struct timespec t;
+	int ec;
 
 	switch (path[0].type) {
 	case PATH_SUPER:
 		new_prefix = path_cat (prefix, &path[0]);
-		t = build_dir (sc->parent, path + 1, new_prefix);
+		ec = build_dir (out, sc->parent, path + 1, new_prefix);
 		free (new_prefix);
-		break;
+		return ec;
 	case PATH_NULL:
-		t =  build_file (sc, NULL, prefix);
-		break;
+		return build_file (out, sc, NULL, prefix);
 	case PATH_NAME:
-		if (path[1].type == PATH_NULL) {
-			t = build_file (sc, path[0].name, prefix);
-		} else {
-			if (sc->type != SC_DIR)
-				errx (1, "%s: invalid path", sc_path_str (sc));
+		if (path[1].type == PATH_NULL)
+			return build_file (out, sc, path[0].name, prefix);
 
-			if (sc->dir == NULL)
-				parse_dir (sc, prefix);
+		if (sc->type != SC_DIR)
+			errx (1, "%s: invalid path", sc_path_str (sc));
 
-			new_prefix = path_cat (prefix, &path[0]);
+		if (sc->dir == NULL)
+			parse_dir (sc, prefix);
 
-			sub = find_subdir (sc, path[0].name);
-			if (sub == NULL)
-				errx (1, "%s: invalid subdir: %s", sc_path_str (sc), path[0].name);
+		new_prefix = path_cat (prefix, &path[0]);
 
-			t = build_dir (sub, path + 1, new_prefix);
-			free (new_prefix);
-		}
-		break;
+		sub = find_subdir (sc, path[0].name);
+		if (sub == NULL)
+			errx (1, "%s: invalid subdir: %s", sc_path_str (sc), path[0].name);
+
+		ec = build_dir (out, sub, path + 1, new_prefix);
+		free (new_prefix);
+		return ec;
 	}
 
-	return t;
+	abort ();
 }
 
-struct timespec
-build (sc, path)
+build (out, sc, path)
+struct build *out;
 struct scope *sc;
 struct path *path;
 {
-	return build_dir (sc, path, &path_null);
+	return build_dir (out, sc, path, &path_null);
 }
 
 /* HELP */
@@ -2715,6 +2738,7 @@ char **argv;
 	struct scope *sc;
 	struct path *path;
 	struct macro *m;
+	struct build b;
 	char *s, *cd = NULL, *makefile = MAKEFILE, *V = NULL;
 	int i, option, pr = 0, n = 0, dohelp = 0;
 
@@ -2810,15 +2834,13 @@ char **argv;
 			continue;
 
 		path = parse_path (argv[i]);
-		build (sc, path);
+		if (build (&b, sc, path) != 0)
+			return 1;
 		free (path);
 		++n;
 	}
 
-	if (n == 0)
-		build (sc, &path_null);
-
-	return 0;
+	return n == 0 ? build (&b, sc, &path_null) : 0;
 }
 
 

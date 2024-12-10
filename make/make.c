@@ -446,9 +446,10 @@ struct scope *sc;
 	if (objdir != NULL) {
 		str_puts (out, objdir);
 		str_putc (out, '/');
+		sc_path_into (out, sc);
+	} else {
+		str_putc (out, '.');
 	}
-
-	sc_path_into (out, sc);
 	return 0;
 }
 
@@ -2508,8 +2509,9 @@ struct path *prefix;
 		}
 
 		/* update timestamp */
-		f->mtime = now ();
-		f->obj = (objdir != NULL);
+		get_mtime (&ft, sc, prefix, f->name);
+		f->mtime = ft.t;
+		f->obj = ft.obj;
 		build_init (out, f->mtime, f, f->obj);
 		return 0;
 	case SC_CUSTOM:

@@ -675,13 +675,13 @@ char *name;
 struct expand_ctx {
 	char *target;
 	struct dep *deps, *infdeps;
-	struct path *dep0;
+	struct dep *dep0;
 };
 
 ectx_init (ctx, target, dep0, deps, infdeps)
 struct expand_ctx *ctx;
 char *target;
-struct path *dep0;
+struct dep *dep0;
 struct dep *deps, *infdeps;
 {
 	ctx->target = target;
@@ -695,12 +695,12 @@ ectx_file (ctx, f)
 struct expand_ctx *ctx;
 struct file *f;
 {
-	struct path *dep0;
+	struct dep *dep0;
 
 	if (f->dhead != NULL) {
-		dep0 = f->dhead->path;
-	} else if (f->inf != NULL && f->inf->dhead != NULL) {
-		dep0 = f->inf->dhead->path;
+		dep0 = f->dhead;
+	} else if (f->inf != NULL) {
+		dep0 = f->inf->dhead;
 	} else {
 		dep0 = NULL;
 	}
@@ -885,7 +885,7 @@ struct expand_ctx *ctx;
 		if (ctx->dep0 == NULL)
 			break;
 
-		path_write (out, ctx->dep0);
+		dep_write (out, sc, ctx->dep0);
 		break;
 	case '^':
 		if (ctx == NULL)
@@ -2374,7 +2374,7 @@ struct path *prefix;
 	struct inference *inf;
 	struct expand_ctx ctx;
 	struct filetime ft;
-	struct dep *dep;
+	struct dep *dep, xdep;
 	struct build b;
 	char **s;
 	int ec;
@@ -2493,6 +2493,10 @@ struct path *prefix;
 			xpath[1].type = PATH_NULL;
 		}
 
+		xdep.next = xdep.prev = NULL;
+		xdep.path = xpath;
+		xdep.obj = 0;
+
 		f = sc->custom->test;
 		if (f != NULL) {
 			assert (f->inf == NULL);
@@ -2505,7 +2509,7 @@ struct path *prefix;
 			ectx_init (
 				/* ctx    */ &ctx, 
 				/* target */ prefix[path_len (prefix) - 1].name,
-				/* dep0   */ name != NULL ? xpath : NULL,
+				/* dep0   */ name != NULL ? &xdep : NULL,
 				/* deps   */ f->dhead,
 				/* infdeps*/ NULL
 			);
@@ -2536,7 +2540,7 @@ struct path *prefix;
 		ectx_init (
 			/* ctx    */ &ctx, 
 			/* target */ prefix[path_len (prefix) - 1].name,
-			/* dep0   */ name != NULL ? xpath : NULL,
+			/* dep0   */ name != NULL ? &xdep : NULL,
 			/* deps   */ f->dhead,
 			/* infdeps*/ NULL
 		);

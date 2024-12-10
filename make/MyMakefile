@@ -2,7 +2,7 @@ NAME = make
 NOMAN = 1
 
 test: make.data
-	echo $^
+	echo $<
 
 clean-extra:
 	rm -f mk.vendor.c

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <time.h>
@@ -60,9 +61,16 @@ static struct macro m_shell = {
 	.name = ".MAKEFLAGS",
 	.value = NULL,
 	.lazy = 0,
+}, m_objdir = {
+	.next = &m_dmakeflags,
+	.enext = &m_dmakeflags,
+	.prepend = NULL,
+	.name = ".OBJDIR",
+	.value = NULL,
+	.lazy = 0,
 };
 
-static struct macro *globals = &m_dmakeflags;
+static struct macro *globals = &m_objdir;
 
 /* STRING BUFFER */
 
@@ -484,6 +492,55 @@ struct scope *sc;
 	return str_get (&tmpstr);
 }
 
+/* MKDIR */
+
+mkdir_p (dir)
+char *dir;
+{
+	struct stat st;
+	char *copy;
+
+	if (verbose >= 2)
+		printf ("mkdir('%s');\n", dir);
+
+	if (mkdir (dir, 0755) == 0)
+		return 0;
+
+	if (errno == EEXIST) {
+		if (stat (dir, &st) != 0)
+			err (1, "mkdir_p('%s'): stat()", dir);
+
+		if (S_ISDIR (st.st_mode))
+			return 0;
+
+		errx (1, "mkdir_p('%s'): Not a directory", dir);
+	}
+
+	if (errno != ENOENT)
+		err (1, "mkdir_p('%s')", dir);
+
+	copy = strdup (dir);
+	mkdir_p (dirname (copy));
+	free (copy);
+
+	return 0;
+}
+
+sc_mkdir_p (sc)
+struct scope *sc;
+{
+	if (m_objdir.value == NULL)
+		return 0;
+
+	str_reset (&tmpstr);
+	str_puts (&tmpstr, m_objdir.value);
+	str_putc (&tmpstr, '/');
+	sc_path_into (&tmpstr, sc);
+
+	mkdir_p (str_get (&tmpstr));
+	return 0;
+}
+
 /* MACORS MISC */
 
 /* is macro name */
@@ -614,7 +671,6 @@ struct file *f;
 	} else {
 		dep0 = NULL;
 	}
-
 
 	return ectx_init (ctx, f->name, dep0, f->dhead, f->inf != NULL ? f->inf->dhead : NULL);
 }
@@ -1350,6 +1406,7 @@ char *name;
 	sub->name = name;
 	sub->parent = parent;
 	sub->makefile = NULL;
+	sub->created = 0;
 	parent->dir->subdirs = sub;
 
 	return sub;
@@ -2250,6 +2307,11 @@ struct path *prefix;
 		printf (" ...\n");
 	}
 
+	if (!sc->created) {
+		sc_mkdir_p (sc);
+		sc->created = 1;
+	}
+
 	switch (sc->type) {
 	case SC_DIR:
 		/* lazily parse subdirectories */
@@ -2642,7 +2704,7 @@ struct scope *sc;
 
 usage (uc)
 {
-	fprintf (stderr, "%s: %s [-hpsv] [-C dir] [-f makefile] [-V var] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
+	fprintf (stderr, "%s: %s [-hpsv] [-C dir] [-f makefile] [-o objdir] [-V var] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
 	return 1;
 }
 
@@ -2659,7 +2721,7 @@ char **argv;
 	m_dmake.value = m_make.value = argv[0];
 
 	str_new (&cmdline);
-	while ((option = getopt (argc, argv, "hpsvC:f:V:")) != -1) {
+	while ((option = getopt (argc, argv, "hpsvC:f:V:o:")) != -1) {
 		switch (option) {
 		case 'h':
 			dohelp = 1;
@@ -2684,6 +2746,9 @@ char **argv;
 			break;
 		case 'V':
 			V = optarg;
+			break;
+		case 'o':
+			m_objdir.value = optarg;
 			break;
 		case '?':
 			return usage (0);

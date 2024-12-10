@@ -28,6 +28,7 @@ struct scope {
 	char *name; /* optional */
 	struct scope *parent; /* optional */
 	char *makefile; /* required */
+	int created;
 	union {
 		struct directory *dir; /* optional */
 		struct custom *custom; /* required */

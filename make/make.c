@@ -581,7 +581,7 @@ char *name;
 {
 	struct file *f;
 
-	for (f = dir->files; f != NULL; f = f->next) {
+	for (f = dir->ftail; f != NULL; f = f->prev) {
 		if (strcmp (name, f->name) == 0)
 			return f;
 	}
@@ -1353,6 +1353,43 @@ char *name;
 	return sub;
 }
 
+struct file *
+new_file (name, rule, time, deps, dtail, help)
+char *name, *help;
+struct rule *rule;
+struct timespec time;
+struct dep *deps, *dtail;
+{
+	struct file *f;
+
+	f = new (struct file);
+	f->next = f->prev = NULL;
+	f->name = name;
+	f->rule = rule;
+	f->deps = deps;
+	f->dtail = dtail;
+	f->mtime = time;
+	f->help = help;
+
+	return f;
+}
+
+dir_add_file (dir, f)
+struct directory *dir;
+struct file *f;
+{
+	assert (f->next == NULL && f->prev == NULL);
+
+	if (dir->fhead != NULL) {
+		f->prev = dir->ftail;
+		dir->ftail->next = f;
+		dir->ftail = f;
+	} else {
+		dir->fhead = dir->ftail = f;
+	}
+	return 0;
+}
+
 /* .SUBDIRS: cc make sys */
 parse_subdirs (sc, dir, s)
 struct scope *sc;
@@ -1560,16 +1597,16 @@ char *s, *t, *help;
 
 			f = find_file (sc->dir, p);
 			if (f == NULL) {
-				f = new (struct file);
-				f->next = sc->dir->files;
-				f->name = strdup (p);
-				f->rule = r;
-				f->deps = deps;
-				f->dtail = dt;
-				f->mtime = get_mtime (dir, f->name);
-				f->help = help;
-				sc->dir->files = f;
-
+				f = new_file (
+					/* name */ strdup (p),
+					/* rule */ r,
+					/* time */ get_mtime (dir, p),
+					/* deps */ deps,
+					/* dtail*/ dt,
+					/* help */ help
+				);
+				/* TODO: maybe first do try_add_custom()? */
+				dir_add_file (sc->dir, f);
 				try_add_custom (sc, f);
 				continue;
 			}
@@ -1877,7 +1914,8 @@ char *path;
 	if (sc->dir == NULL) {
 		sc->dir = new (struct directory);
 		sc->dir->subdirs = NULL;
-		sc->dir->files = NULL;
+		sc->dir->fhead = NULL;
+		sc->dir->ftail = NULL;
 		sc->dir->done = 0;
 	} else if (sc->dir->done) {
 		errx (1, "%s: parsing this file again?", path);
@@ -1982,9 +2020,12 @@ struct scope *sc;
 struct inference *inf;
 char *name;
 {
+	struct timespec tz;
 	struct file *f;
 	struct dep *dep;
 	char *s, *ext;
+
+	memset (&tz, 0, sizeof (tz));
 
 	ext = strrchr (name, '.');
 	if (ext != NULL)
@@ -1993,22 +2034,21 @@ char *name;
 	if (ext != NULL)
 		*ext = '.';
 
-	f = new (struct file);
-	f->next = sc->dir->files;
-	f->name = strdup (name);
-	f->rule = inf->rule;
-	f->deps = inf->deps;
-	memset (&f->mtime, 0, sizeof (f->mtime));
-
 	dep = new (struct dep);
-	dep->next = f->deps;
+	dep->next = inf->deps;
 	dep->path = calloc (2, sizeof (struct path));
 	dep->path[0].type = PATH_NAME;
 	dep->path[0].name = s;
 	dep->path[1].type = PATH_NULL;
-	f->deps = dep;
-	f->dtail = inf->dtail;
-	sc->dir->files = f;
+	f = new_file (
+		/* name */ strdup (name),
+		/* rule */ inf->rule,
+		/* time */ tz,
+		/* deps */ dep,
+		/* dtail*/ inf->dtail,
+		/* help */ NULL
+	);
+	dir_add_file (sc->dir, f);
 
 	return f;
 }
@@ -2096,12 +2136,15 @@ char *name;
 		return inst_inf (sc, inf, name);
 	}
 
-	f = new (struct file);
-	f->next = sc->dir->files;
-	f->name = strdup (name);
-	f->rule = NULL;
-	f->mtime = t;
-	sc->dir->files = f;
+	f = new_file (
+		/* name */ strdup (name),
+		/* rule */ NULL,
+		/* time */ t,
+		/* deps */ NULL,
+		/* dtail*/ NULL,
+		/* help */ NULL
+	);
+	dir_add_file (sc->dir, f);
 
 	return f;
 }
@@ -2166,10 +2209,9 @@ struct path *prefix;
 				f->mtime = get_mtime (prefix, name);
 			}
 		} else {
-			f = sc->dir->files;
+			f = sc->dir->fhead;
 			if (f == NULL)
 				errx (1, "%s: nothing to build", sc_path_str (sc));
-			for (; f->next != NULL; f = f->next);
 		}
 
 		/* if this file has no rule, try to find an inference rule */
@@ -2377,8 +2419,7 @@ struct scope *sc;
 		p += 2; /* skip ./ */
 	}
 
-	/* TODO: this should be sorted from top to down */
-	for (f = sc->dir->files; f != NULL; f = f->next) {
+	for (f = sc->dir->fhead; f != NULL; f = f->next) {
 		if (f->help == NULL)
 			continue;
 
@@ -2459,7 +2500,7 @@ struct scope *sc;
 
 	printf ("\n");
 
-	for (f = sc->dir->files; f != NULL; f = f->next) {
+	for (f = sc->dir->fhead; f != NULL; f = f->next) {
 		if (f->help != NULL)
 			printf ("## %s\n", f->help);
 		printf ("%s:", f->name);

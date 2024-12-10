@@ -36,7 +36,7 @@ struct scope {
 
 struct directory {
 	struct scope *subdirs;
-	struct file *files;
+	struct file *fhead, *ftail;
 	struct macro *macros;
 	struct macro *emacros;	/* exported macros */
 	struct inference *infs;
@@ -55,7 +55,7 @@ struct dep {
 };
 
 struct file {
-	struct file *next;
+	struct file *next, *prev;
 	char *name;
 	struct rule *rule; /* optional */
 	struct dep *deps, *dtail;

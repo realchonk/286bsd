@@ -25,6 +25,7 @@
 
 static char *cpath;
 static int verbose = 0, cline = 0;
+static struct timespec time_zero;
 
 static struct macro m_shell = {
 	.next = NULL,
@@ -2144,18 +2145,15 @@ struct scope *sc;
 struct inference *inf;
 char *name;
 {
-	struct timespec tz;
 	struct file *f;
 	struct dep *dep;
-
-	memset (&tz, 0, sizeof (tz));
 
 	dep = new_dep_name (replace_suffix (name, inf->from));
 
 	f = new_file (
 		/* name */ strdup (name),
 		/* rule */ inf->rule,
-		/* time */ tz,
+		/* time */ time_zero,
 		/* deps */ dep,
 		/* dtail*/ dep,
 		/* help */ NULL,
@@ -2237,7 +2235,7 @@ char *name;
 	struct file *f;
 
 	t = get_mtime (dir, name);
-	if (t.tv_sec == 0) {
+	if (tv_cmp (&t, &time_zero) <= 0) {
 		inf = find_inf (sc, dir, name);
 		if (inf == NULL)
 			return NULL;
@@ -2378,7 +2376,7 @@ struct path *prefix;
 				/* instantiate inference rule */
 				inf_inst_file (f, inf);
 			} else if (f->rule == NULL) {
-				if (f->mtime.tv_sec > 0) {
+				if (tv_cmp (&f->mtime, &time_zero) > 0) {
 					build_init (out, f->mtime, f);
 					return 0;
 				} else {
@@ -2387,7 +2385,7 @@ struct path *prefix;
 			}
 		}
 
-		needs_update = (f->mtime.tv_sec == 0);
+		needs_update = (tv_cmp (&f->mtime, &time_zero) <= 0);
 		maxt = f->mtime;
 
 		/* build dependencies and record timestamps */
@@ -2460,8 +2458,7 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			memset (&maxt, 0, sizeof (maxt));
-			build_init (out, maxt, NULL);
+			build_init (out, time_zero, NULL);
 			return 0;
 		}
 

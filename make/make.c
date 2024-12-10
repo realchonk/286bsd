@@ -2731,6 +2731,29 @@ usage (uc)
 	return 1;
 }
 
+do_V (sc, V)
+struct scope *sc;
+char *V;
+{
+	size_t len;
+	char *s;
+
+	if (strchr (V, '$') != 0) {
+		s = V;
+	} else {
+		len = strlen (V);
+		s = malloc (len + 4);
+		s[0] = '$';
+		s[1] = '{';
+		memcpy (s + 2, V, len);
+		s[len + 2] = '}';
+		s[len + 3] = '\0';
+	}
+
+	puts (expand (sc, s, NULL));
+	return 0;
+}
+
 main (argc, argv)
 char **argv;
 {
@@ -2831,11 +2854,8 @@ char **argv;
 		return 0;
 	}
 
-	if (V != NULL) {
-		m = find_macro (sc, V);
-		printf ("%s\n", m != NULL ? expand_macro (sc, m, V, NULL) : "");
-		return 0;
-	}
+	if (V != NULL)
+		return do_V (sc, V);
 
 	free (path);
 

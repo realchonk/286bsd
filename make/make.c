@@ -607,18 +607,39 @@ char *name;
 
 struct expand_ctx {
 	char *target;
-	struct dep *deps;
+	struct dep *deps, *infdeps;
 	struct path *dep0;
 };
+
+ectx_init (ctx, target, dep0, deps, infdeps)
+struct expand_ctx *ctx;
+char *target;
+struct path *dep0;
+struct dep *deps, *infdeps;
+{
+	ctx->target = target;
+	ctx->dep0 = dep0;
+	ctx->deps = deps;
+	ctx->infdeps = infdeps;
+	return 0;
+}
 
 ectx_file (ctx, f)
 struct expand_ctx *ctx;
 struct file *f;
 {
-	ctx->target = f->name;
-	ctx->deps = f->deps;
-	ctx->dep0 = f->deps != NULL ? f->deps->path : NULL;
-	return 0;
+	struct path *dep0;
+
+	if (f->dhead != NULL) {
+		dep0 = f->dhead->path;
+	} else if (f->inf != NULL && f->inf->dhead != NULL) {
+		dep0 = f->inf->dhead->path;
+	} else {
+		dep0 = NULL;
+	}
+
+
+	return ectx_init (ctx, f->name, dep0, f->dhead, f->inf != NULL ? f->inf->dhead : NULL);
 }
 
 replace_into (out, s, old, new)
@@ -792,6 +813,10 @@ struct expand_ctx *ctx;
 			errx (1, "%s: cannot use $^ here", sc_path_str (sc));
 
 		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
+			str_putc (out, ' ');
+			path_write (out, dep->path);
+		}
+		for (dep = ctx->infdeps; dep != NULL; dep = dep->next) {
 			str_putc (out, ' ');
 			path_write (out, dep->path);
 		}
@@ -1354,11 +1379,12 @@ char *name;
 }
 
 struct file *
-new_file (name, rule, time, deps, dtail, help)
+new_file (name, rule, time, dhead, dtail, help, inf)
 char *name, *help;
 struct rule *rule;
 struct timespec time;
-struct dep *deps, *dtail;
+struct dep *dhead, *dtail;
+struct inference *inf;
 {
 	struct file *f;
 
@@ -1366,12 +1392,40 @@ struct dep *deps, *dtail;
 	f->next = f->prev = NULL;
 	f->name = name;
 	f->rule = rule;
-	f->deps = deps;
+	f->dhead = dhead;
 	f->dtail = dtail;
 	f->mtime = time;
 	f->help = help;
+	f->inf = inf;
 
 	return f;
+}
+
+struct dep *
+new_dep (path)
+struct path *path;
+{
+	struct dep *d;
+
+	d = new (struct dep);
+	d->next = d->prev = NULL;
+	d->path = path;
+
+	return d;
+}
+
+struct dep *
+new_dep_name (name)
+char *name;
+{
+	struct path *p;
+
+	p = calloc (2, sizeof (struct path));
+	p[0].type = PATH_NAME;
+	p[0].name = name;
+	p[1].type = PATH_NULL;
+
+	return new_dep (p);
 }
 
 dir_add_file (dir, f)
@@ -1383,12 +1437,37 @@ struct file *f;
 	if (dir->fhead != NULL) {
 		f->prev = dir->ftail;
 		dir->ftail->next = f;
-		dir->ftail = f;
 	} else {
-		dir->fhead = dir->ftail = f;
+		dir->fhead = f;
 	}
+	dir->ftail = f;
 	return 0;
 }
+
+file_add_deps (file, dhead, dtail)
+struct file *file;
+struct dep *dhead, *dtail;
+{
+	assert (dhead->prev == NULL);
+	assert (dtail->next == NULL);
+
+	if (file->dhead != NULL) {
+		dhead->prev = file->dtail;
+		file->dtail->next = dhead;
+	} else {
+		file->dhead = dhead;
+	}
+	file->dtail = dtail;
+	return 0;
+}
+
+file_add_dep (file, dep)
+struct file *file;
+struct dep *dep;
+{
+	return file_add_deps (file, dep, dep);
+}
+
 
 /* .SUBDIRS: cc make sys */
 parse_subdirs (sc, dir, s)
@@ -1537,13 +1616,13 @@ char *s, *t, *help;
 	struct inference *inf;
 	struct rule *r;
 	struct file *f;
-	struct dep *dep, *deps, *dt;
+	struct dep *dep, *dhead, *dtail;
 	char *u, *v, *p;
 	int flag;
 
 	r = new (struct rule);
 	r->code = NULL;
-	dt = deps = NULL;
+	dhead = dtail = NULL;
 
 	*t = '\0';
 
@@ -1553,16 +1632,14 @@ char *s, *t, *help;
 		if (*p == '\0')
 			continue;
 
-		dep = new (struct dep);
-		dep->next = NULL;
-		dep->path = parse_path (p);
-
-		if (dt != NULL) {
-			dt->next = dep;
-			dt = dep;
+		dep = new_dep (parse_path (p));
+		if (dhead != NULL) {
+			dep->prev = dtail;
+			dtail->next = dep;
 		} else {
-			dt = deps = dep;
+			dhead = dep;
 		}
+		dtail = dep;
 	}	
 	free (u);
 
@@ -1574,8 +1651,8 @@ char *s, *t, *help;
 		inf = new (struct inference);
 		inf->next = sc->dir->infs;
 		inf->rule = r;
-		inf->deps = deps;
-		inf->dtail = dt;
+		inf->dhead = dhead;
+		inf->dtail = dtail;
 
 		if (p != NULL) {
 			*p = '\0';
@@ -1601,9 +1678,10 @@ char *s, *t, *help;
 					/* name */ strdup (p),
 					/* rule */ r,
 					/* time */ get_mtime (dir, p),
-					/* deps */ deps,
-					/* dtail*/ dt,
-					/* help */ help
+					/* dhead*/ dhead,
+					/* dtail*/ dtail,
+					/* help */ help,
+					/* inf  */ NULL
 				);
 				/* TODO: maybe first do try_add_custom()? */
 				dir_add_file (sc->dir, f);
@@ -1616,15 +1694,7 @@ char *s, *t, *help;
 			if (f->help == NULL)
 				f->help = help;
 
-			if (f->deps == NULL) {
-				f->deps = deps;
-				f->dtail = dt;
-				continue;
-			}
-
-			for (dep = f->deps; dep->next != NULL; dep = dep->next);
-			dep->next = deps;
-			f->dtail = dt;
+			file_add_deps (f, dhead, dtail);
 		}
 	}
 	free (u);
@@ -2014,6 +2084,26 @@ struct scope *sub;
 
 /* INFERENCE RULES */
 
+char *
+replace_suffix (name, sufx)
+char *name, *sufx;
+{
+	char *out, *ext;
+	size_t len_name, len_sufx;
+
+	ext = strrchr (name, '.');
+	len_name = ext != NULL ? ext - name : strlen (name);
+	len_sufx = strlen (sufx);
+
+	out = malloc (len_name + len_sufx + 1);
+	memcpy (out, name, len_name);
+	memcpy (out + len_name, sufx, len_sufx);
+	out[len_name + len_sufx] = '\0';
+
+	return out;
+}
+
+/* instantiate a new file from an inference rule */
 struct file *
 inst_inf (sc, inf, name)
 struct scope *sc;
@@ -2023,61 +2113,45 @@ char *name;
 	struct timespec tz;
 	struct file *f;
 	struct dep *dep;
-	char *s, *ext;
 
 	memset (&tz, 0, sizeof (tz));
 
-	ext = strrchr (name, '.');
-	if (ext != NULL)
-		*ext = '\0';
-	s = xstrcat (name, inf->from);
-	if (ext != NULL)
-		*ext = '.';
+	dep = new_dep_name (replace_suffix (name, inf->from));
 
-	dep = new (struct dep);
-	dep->next = inf->deps;
-	dep->path = calloc (2, sizeof (struct path));
-	dep->path[0].type = PATH_NAME;
-	dep->path[0].name = s;
-	dep->path[1].type = PATH_NULL;
 	f = new_file (
 		/* name */ strdup (name),
 		/* rule */ inf->rule,
 		/* time */ tz,
 		/* deps */ dep,
-		/* dtail*/ inf->dtail,
-		/* help */ NULL
+		/* dtail*/ dep,
+		/* help */ NULL,
+		/* inf  */ inf
 	);
 	dir_add_file (sc->dir, f);
 
 	return f;
 }
 
+/* instantiate an inference rule on an existing file */
 inf_inst_file (f, inf)
 struct file *f;
 struct inference *inf;
 {
 	struct dep *dep;
-	char *s, *ext;
 
-	ext = strrchr (f->name, '.');
-	if (ext != NULL)
-		*ext = '\0';
-	s = xstrcat (f->name, inf->from);
-	if (ext != NULL)
-		*ext = '.';
+	assert (f->inf == NULL);
+	/* TODO: this is ugly */
+	assert (f->rule == NULL || f->rule->code == NULL || *f->rule->code == NULL);
 
-	dep = new (struct dep);
-	dep->next = f->deps;
-	dep->path = calloc (2, sizeof (struct path));
-	dep->path[0].type = PATH_NAME;
-	dep->path[0].name = s;
-	dep->path[1].type = PATH_NULL;
-	f->deps = dep;
-	if (f->dtail == NULL)
-		f->dtail = dep;
+	dep = new_dep_name (replace_suffix (f->name, inf->from));
 
-	f->dtail->next = inf->deps;
+	/* prepend dependency to file */
+	if (f->dhead != NULL) {
+		dep->next = f->dhead;
+		f->dhead->prev = dep;
+	}
+	f->dhead = dep;
+	f->inf = inf;
 	f->rule = inf->rule;
 	return 0;
 }
@@ -2142,7 +2216,8 @@ char *name;
 		/* time */ t,
 		/* deps */ NULL,
 		/* dtail*/ NULL,
-		/* help */ NULL
+		/* help */ NULL,
+		/* inf  */ NULL
 	);
 	dir_add_file (sc->dir, f);
 
@@ -2150,6 +2225,28 @@ char *name;
 }
 
 /* BUILDING */
+
+build_deps (sc, dhead, prefix, mt, maxt, needs_update)
+struct scope *sc;
+struct dep *dhead;
+struct path *prefix;
+struct timespec *mt, *maxt;
+int *needs_update;
+{
+	extern struct timespec build_dir ();
+	struct timespec t;
+	struct dep *dep;
+
+	for (dep = dhead; dep != NULL; dep = dep->next) {
+		t = build_dir (sc, dep->path, prefix);
+		if (tv_cmp (&t, mt) >= 0)
+			*needs_update = 1;
+		if (tv_cmp (&t, maxt) > 0)
+			*maxt = t;
+	}
+
+	return 0;
+}
 
 /* TODO: refactor this function, to be less complicated */
 struct timespec
@@ -2236,12 +2333,11 @@ struct path *prefix;
 		maxt = f->mtime;
 
 		/* build dependencies and record timestamps */
-		for (dep = f->deps; dep != NULL; dep = dep->next) {
-			t = build_dir (sc, dep->path, prefix);
-			if (tv_cmp (&t, &f->mtime) >= 0)
-				needs_update = 1;
-			if (tv_cmp (&t, &maxt) > 0)
-				maxt = t;
+		build_deps (sc, f->dhead, prefix, &f->mtime, &maxt, &needs_update);
+
+		/* build dependencies from inference rule */
+		if (f->inf != NULL) {
+			build_deps (sc, f->inf->dhead, prefix, &f->mtime, &maxt, &needs_update);
 		}
 
 		if (!needs_update) {
@@ -2270,22 +2366,27 @@ struct path *prefix;
 	case SC_CUSTOM:
 		/* run the "subdir?" rule, to test if the target needs to be updated */
 		new_prefix = path_cat (prefix, &path_super);
-		ctx.target = prefix[path_len (prefix) - 1].name;
+		if (name != NULL) {
+			xpath[0].type = PATH_NAME;
+			xpath[0].name = name;
+			xpath[1].type = PATH_NULL;
+		}
+
 		f = sc->custom->test;
 		if (f != NULL) {
-			for (dep = f->deps; dep != NULL; dep = dep->next)
-				build_dir (sc->parent, dep->path, new_prefix);
-			
-			if (name != NULL) {
-				xpath[0].type = PATH_NAME;
-				xpath[0].name = name;
-				xpath[1].type = PATH_NULL;
-				ctx.dep0 = xpath;
-			} else {
-				ctx.dep0 = NULL;
-			}
+			assert (f->inf == NULL);
 
-			ctx.deps = f->deps;
+			for (dep = f->dhead; dep != NULL; dep = dep->next)
+				build_dir (sc->parent, dep->path, new_prefix);
+
+			ectx_init (
+				/* ctx    */ &ctx, 
+				/* target */ prefix[path_len (prefix) - 1].name,
+				/* dep0   */ name != NULL ? xpath : NULL,
+				/* deps   */ f->dhead,
+				/* infdeps*/ NULL
+			);
+			
 			needs_update = 0;
 			for (s = f->rule->code; *s != NULL; ++s) {
 				if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0) {
@@ -2306,19 +2407,18 @@ struct path *prefix;
 		f = sc->custom->exec;
 		if (f == NULL)
 			errx (1, "%s: missing '%s!' rule", sc_path_str (sc->parent), sc->name);
+		assert (f->inf == NULL);
 
-		for (dep = f->deps; dep != NULL; dep = dep->next)
+		ectx_init (
+			/* ctx    */ &ctx, 
+			/* target */ prefix[path_len (prefix) - 1].name,
+			/* dep0   */ name != NULL ? xpath : NULL,
+			/* deps   */ f->dhead,
+			/* infdeps*/ NULL
+		);
+
+		for (dep = f->dhead; dep != NULL; dep = dep->next)
 			build_dir (sc->parent, dep->path, new_prefix);
-
-		ctx.deps = f->deps;
-		if (name != NULL) {
-			xpath[0].type = PATH_NAME;
-			xpath[0].name = name;
-			xpath[1].type = PATH_NULL;
-			ctx.dep0 = xpath;
-		} else {
-			ctx.dep0 = NULL;
-		}
 
 		for (s = f->rule->code; *s != NULL; ++s) {
 			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
@@ -2505,8 +2605,12 @@ struct scope *sc;
 			printf ("## %s\n", f->help);
 		printf ("%s:", f->name);
 	
-		for (dep = f->deps; dep != NULL; dep = dep->next)
+		for (dep = f->dhead; dep != NULL; dep = dep->next)
 			printf (" %s", path_to_str (dep->path));
+		if (f->inf != NULL) {
+			for (dep = f->inf->dhead; dep != NULL; dep = dep->next)
+				printf (" %s", path_to_str (dep->path));
+		}
 		printf ("\n");
 
 		r = f->rule;
@@ -2519,7 +2623,7 @@ struct scope *sc;
 
 	for (inf = sc->dir->infs; inf != NULL; inf = inf->next) {
 		printf ("%s%s:", inf->from, inf->to);
-		for (dep = inf->deps; dep != NULL; dep = dep->next)
+		for (dep = inf->dhead; dep != NULL; dep = dep->next)
 			printf (" %s", path_to_str (dep->path));
 		printf ("\n");
 		for (s = inf->rule->code; *s != NULL; ++s)

@@ -50,7 +50,7 @@ struct custom {
 };
 
 struct dep {
-	struct dep *next;
+	struct dep *next, *prev;
 	struct path *path;
 };
 
@@ -58,7 +58,8 @@ struct file {
 	struct file *next, *prev;
 	char *name;
 	struct rule *rule; /* optional */
-	struct dep *deps, *dtail;
+	struct dep *dhead, *dtail;
+	struct inference *inf; /* optional */
 	struct timespec mtime;
 	char *help; /* optional */
 };
@@ -67,7 +68,7 @@ struct inference {
 	struct inference *next;
 	char *from, *to;
 	struct rule *rule;
-	struct dep *deps, *dtail;
+	struct dep *dhead, *dtail;
 };
 
 struct rule {

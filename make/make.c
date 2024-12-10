@@ -23,7 +23,7 @@
 #define MAKEFILE "MyMakefile"
 #define SHELL "sh"
 
-static char *cpath;
+static char *cpath, *objdir = NULL;
 static int verbose = 0, cline = 0;
 static struct timespec time_zero;
 
@@ -62,16 +62,9 @@ static struct macro m_shell = {
 	.name = ".MAKEFLAGS",
 	.value = NULL,
 	.lazy = 0,
-}, m_objdir = {
-	.next = &m_dmakeflags,
-	.enext = &m_dmakeflags,
-	.prepend = NULL,
-	.name = ".OBJDIR",
-	.value = NULL,
-	.lazy = 0,
 };
 
-static struct macro *globals = &m_objdir;
+static struct macro *globals = &m_dmakeflags;
 
 /* STRING BUFFER */
 
@@ -530,11 +523,11 @@ char *dir;
 sc_mkdir_p (sc)
 struct scope *sc;
 {
-	if (m_objdir.value == NULL)
+	if (objdir == NULL)
 		return 0;
 
 	str_reset (&tmpstr);
-	str_puts (&tmpstr, m_objdir.value);
+	str_puts (&tmpstr, objdir);
 	str_putc (&tmpstr, '/');
 	sc_path_into (&tmpstr, sc);
 
@@ -939,6 +932,13 @@ struct expand_ctx *ctx;
 			pr_export (out, sc, m, ctx);
 		}
 
+	} else if (strcmp (name, ".OBJDIR") == 0) {
+		if (objdir != NULL) {
+			str_puts (out, objdir);
+			str_putc (out, '.');
+		}
+
+		sc_path_into (out, sc);
 	}
 	return 0;
 }
@@ -2739,7 +2739,7 @@ char **argv;
 	struct path *path;
 	struct macro *m;
 	struct build b;
-	char *s, *cd = NULL, *makefile = MAKEFILE, *V = NULL;
+	char *s, *cd = NULL, *makefile = MAKEFILE, *V = NULL, *odir = NULL;
 	int i, option, pr = 0, n = 0, dohelp = 0;
 
 	m_dmake.value = m_make.value = argv[0];
@@ -2772,13 +2772,23 @@ char **argv;
 			V = optarg;
 			break;
 		case 'o':
-			m_objdir.value = optarg;
+			odir = optarg;
 			break;
 		case '?':
 			return usage (0);
 		default:
 			errx (1, "unexpected option: -%c", option);
 		}
+	}
+
+	if (odir != NULL) {
+		mkdir_p (odir);
+		objdir = realpath (odir, malloc (PATH_MAX));
+		if (objdir == NULL)
+			err (1, "realpath()");
+
+		if (verbose >= 3)
+			printf ("objdir = '%s'\n", objdir);
 	}
 
 	if (cd != NULL && chdir (cd) != 0)

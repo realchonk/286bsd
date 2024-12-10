@@ -71,6 +71,8 @@ typedef struct string {
 	size_t len, cap;
 } str_t;
 
+static str_t tmpstr;
+
 str_new (s)
 str_t *s;
 {
@@ -392,8 +394,6 @@ struct path *p;
 	return 0;
 }
 
-static str_t tmpstr;
-
 char *
 path_to_str (p)
 struct path *p;
@@ -460,51 +460,28 @@ char *s;
 	return p;
 }
 
-sc_path_into (sc, p)
+sc_path_into (out, sc)
+str_t *out;
 struct scope *sc;
-struct path *p;
 {
-	if (sc->parent == NULL)
+	if (sc->parent == NULL) {
+		str_putc (out, '.');
 		return 0;
-
-	sc_path_into (sc->parent, p - 1);
-	p->type = PATH_NAME;
-	p->name = sc->name;
-	return 0;
-}
-
-struct path *
-sc_path (sc)
-struct scope *sc;
-{
-	struct scope *p;
-	struct path *x;
-	size_t len;
-
-	for (p = sc, len = 0; p->parent != NULL; p = p->parent, ++len);
-
-	x = calloc (len + 2, sizeof (struct path));
-	sc_path_into (sc, &x[len - 1]);
-	if (sc->makefile != NULL) {
-		x[len].type = PATH_NAME;
-		x[len].name = sc->makefile;
-		++len;
 	}
-	x[len].type = PATH_NULL;
-	return x;
+
+	sc_path_into (out, sc->parent);
+	str_putc (out, '/');
+	str_puts (out, sc->name);
+	return 0;
 }
 
 char *
 sc_path_str (sc)
 struct scope *sc;
 {
-	struct path *p;
-	char *s;
-
-	p = sc_path (sc);
-	s = path_to_str (p);
-	free (p);
-	return s;
+	str_reset (&tmpstr);
+	sc_path_into (&tmpstr, sc);
+	return str_get (&tmpstr);
 }
 
 /* MACORS MISC */

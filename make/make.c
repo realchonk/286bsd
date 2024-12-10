@@ -469,11 +469,16 @@ char *name;
 	struct stat st;
 	char *path;
 
+	if (verbose >= 2)
+		printf ("get_mtime('%s'): ", name);
+
 	path = path_cat_str (dir, name);
 
 	if (lstat (path, &st) == 0) {
 		out->t = st.st_mtim;
 		out->obj = 0;
+		if (verbose >= 2)
+			printf ("found\n");
 		return 0;
 	}
 
@@ -483,20 +488,22 @@ char *name;
 	str_reset (&tmpstr);
 	write_objdir (&tmpstr, sc);
 	str_putc (&tmpstr, '/');
-	path_write (&tmpstr, dir);
-	str_putc (&tmpstr, '/');
 	str_puts (&tmpstr, name);
 	path = str_get (&tmpstr);
 
 	if (lstat (path, &st) == 0) {
 		out->t = st.st_mtim;
 		out->obj = 1;
+		if (verbose >= 2)
+			printf ("found in obj\n");
 		return 0;
 	}
 
 enoent:
 	out->t = time_zero;
 	out->obj = 0;
+	if (verbose >= 2)
+		printf ("not found\n");
 	return -1;
 
 }
@@ -676,6 +683,7 @@ struct expand_ctx {
 	char *target;
 	struct dep *deps, *infdeps;
 	struct dep *dep0;
+	int free_target;
 };
 
 ectx_init (ctx, target, dep0, deps, infdeps)
@@ -688,24 +696,43 @@ struct dep *deps, *infdeps;
 	ctx->dep0 = dep0;
 	ctx->deps = deps;
 	ctx->infdeps = infdeps;
+	ctx->free_target = 0;
 	return 0;
 }
 
-ectx_file (ctx, f)
+ectx_file (ctx, sc, f)
 struct expand_ctx *ctx;
+struct scope *sc;
 struct file *f;
 {
-	struct dep *dep0;
+	str_t tmp;
 
-	if (f->dhead != NULL) {
-		dep0 = f->dhead;
-	} else if (f->inf != NULL) {
-		dep0 = f->inf->dhead;
+	if (objdir != NULL) {
+		str_new (&tmp);
+		write_objdir (&tmp, sc);
+		str_putc (&tmp, '/');
+		str_puts (&tmp, f->name);
+		ctx->target = str_release (&tmp);
+		ctx->free_target = 1;
 	} else {
-		dep0 = NULL;
+		ctx->target = f->name;
+		ctx->free_target = 0;
 	}
 
-	return ectx_init (ctx, f->name, dep0, f->dhead, f->inf != NULL ? f->inf->dhead : NULL);
+	ctx->deps = ctx->dep0 = f->dhead;
+	ctx->infdeps = f->inf != NULL ? f->inf->dhead : NULL;
+	if (ctx->dep0 == NULL && ctx->infdeps != NULL)
+		ctx->dep0 = ctx->infdeps;
+
+	return 0;
+}
+
+ectx_free (ctx)
+struct expand_ctx *ctx;
+{
+	if (ctx->free_target)
+		free (ctx->target);
+	return 0;
 }
 
 replace_into (out, s, old, new)
@@ -2474,7 +2501,7 @@ struct path *prefix;
 		}
 
 		/* run commands */
-		ectx_file (&ctx, f);
+		ectx_file (&ctx, sc, f);
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx, name) != 0)
 				errx (1, "%s: command failed: %s", sc_path_str (sc), *s);
@@ -2482,6 +2509,7 @@ struct path *prefix;
 
 		/* update timestamp */
 		f->mtime = now ();
+		f->obj = (objdir != NULL);
 		build_init (out, f->mtime, f, f->obj);
 		return 0;
 	case SC_CUSTOM:

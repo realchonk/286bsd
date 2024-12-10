@@ -263,53 +263,6 @@ char *s, *prefix;
 	return memcmp (s, prefix, len_p) == 0;
 }
 
-/* OTHER MISC */
-
-struct timespec
-get_mtime (dir, name)
-struct path *dir;
-char *name;
-{
-	extern char *path_cat_str ();
-	struct stat st;
-	char *path;
-	struct timespec t;
-
-	path = path_cat_str (dir, name);
-
-	if (lstat (path, &st) == 0) {
-		t = st.st_mtim;
-	} else {
-		memset (&t, 0, sizeof (t));
-	}
-
-	return t;
-}
-
-struct timespec
-now ()
-{
-	struct timespec t;
-	clock_gettime (CLOCK_REALTIME, &t);
-	return t;
-}
-
-tv_cmp (a, b)
-struct timespec *a, *b;
-{
-	if (a->tv_sec < b->tv_sec) {
-		return -1;
-	} else if (a->tv_sec > b->tv_sec) {
-		return 1;
-	} else if (a->tv_nsec < b->tv_nsec) {
-		return -1;
-	} else if (a->tv_nsec > b->tv_nsec) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
 /* PATH LOGIC */
 
 static struct path path_null = { .type = PATH_NULL, .name = NULL };
@@ -484,6 +437,92 @@ struct scope *sc;
 	str_reset (&tmpstr);
 	sc_path_into (&tmpstr, sc);
 	return str_get (&tmpstr);
+}
+
+write_objdir (out, sc)
+str_t *out;
+struct scope *sc;
+{
+	if (objdir != NULL) {
+		str_puts (out, objdir);
+		str_putc (out, '/');
+	}
+
+	sc_path_into (out, sc);
+	return 0;
+}
+
+/* OTHER MISC */
+
+struct filetime {
+	struct timespec t;
+	int obj;
+};
+
+get_mtime (out, sc, dir, name)
+struct filetime *out;
+struct scope *sc;
+struct path *dir;
+char *name;
+{
+	extern char *path_cat_str ();
+	struct stat st;
+	char *path;
+
+	path = path_cat_str (dir, name);
+
+	if (lstat (path, &st) == 0) {
+		out->t = st.st_mtim;
+		out->obj = 0;
+		return 0;
+	}
+
+	if (objdir == NULL)
+		goto enoent;
+
+	str_reset (&tmpstr);
+	write_objdir (&tmpstr, sc);
+	str_putc (&tmpstr, '/');
+	path_write (&tmpstr, dir);
+	str_putc (&tmpstr, '/');
+	str_puts (&tmpstr, name);
+	path = str_get (&tmpstr);
+
+	if (lstat (path, &st) == 0) {
+		out->t = st.st_mtim;
+		out->obj = 1;
+		return 0;
+	}
+
+enoent:
+	out->t = time_zero;
+	out->obj = 0;
+	return -1;
+
+}
+
+struct timespec
+now ()
+{
+	struct timespec t;
+	clock_gettime (CLOCK_REALTIME, &t);
+	return t;
+}
+
+tv_cmp (a, b)
+struct timespec *a, *b;
+{
+	if (a->tv_sec < b->tv_sec) {
+		return -1;
+	} else if (a->tv_sec > b->tv_sec) {
+		return 1;
+	} else if (a->tv_nsec < b->tv_nsec) {
+		return -1;
+	} else if (a->tv_nsec > b->tv_nsec) {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 /* MKDIR */
@@ -800,6 +839,19 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
+dep_write (out, sc, dep)
+str_t *out;
+struct scope *sc;
+struct dep *dep;
+{
+	if (dep->obj && objdir != NULL) {
+		write_objdir (out, sc);
+		str_putc (out, '/');
+	}
+	path_write (out, dep->path);
+	return 0;
+}
+
 subst (out, sc, s, ctx)
 str_t *out;
 struct scope *sc;
@@ -841,11 +893,11 @@ struct expand_ctx *ctx;
 
 		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
 			str_putc (out, ' ');
-			path_write (out, dep->path);
+			dep_write (out, sc, dep);
 		}
 		for (dep = ctx->infdeps; dep != NULL; dep = dep->next) {
 			str_putc (out, ' ');
-			path_write (out, dep->path);
+			dep_write (out, sc, dep);
 		}
 		break;
 	case '{':
@@ -933,12 +985,7 @@ struct expand_ctx *ctx;
 		}
 
 	} else if (strcmp (name, ".OBJDIR") == 0) {
-		if (objdir != NULL) {
-			str_puts (out, objdir);
-			str_putc (out, '/');
-		}
-
-		sc_path_into (out, sc);
+		write_objdir (out, sc);
 	}
 	return 0;
 }
@@ -1417,7 +1464,7 @@ char *name;
 }
 
 struct file *
-new_file (name, rule, time, dhead, dtail, help, inf)
+new_file (name, rule, time, dhead, dtail, help, inf, obj)
 char *name, *help;
 struct rule *rule;
 struct timespec time;
@@ -1435,6 +1482,7 @@ struct inference *inf;
 	f->mtime = time;
 	f->help = help;
 	f->inf = inf;
+	f->obj = obj;
 
 	return f;
 }
@@ -1652,6 +1700,7 @@ struct path *dir;
 char *s, *t, *help;
 {
 	struct inference *inf;
+	struct filetime ft;
 	struct rule *r;
 	struct file *f;
 	struct dep *dep, *dhead, *dtail;
@@ -1712,14 +1761,17 @@ char *s, *t, *help;
 
 			f = find_file (sc->dir, p);
 			if (f == NULL) {
+				get_mtime (&ft, sc, dir, p);
+					
 				f = new_file (
 					/* name */ strdup (p),
 					/* rule */ r,
-					/* time */ get_mtime (dir, p),
+					/* time */ ft.t,
 					/* dhead*/ dhead,
 					/* dtail*/ dtail,
 					/* help */ help,
-					/* inf  */ NULL
+					/* inf  */ NULL,
+					/* obj  */ ft.obj
 				);
 				/* TODO: maybe first do try_add_custom()? */
 				dir_add_file (sc->dir, f);
@@ -2160,7 +2212,8 @@ char *name;
 		/* deps */ dep,
 		/* dtail*/ dep,
 		/* help */ NULL,
-		/* inf  */ inf
+		/* inf  */ inf,
+		/* obj  */ 0
 	);
 	dir_add_file (sc->dir, f);
 
@@ -2234,11 +2287,11 @@ struct path *dir;
 char *name;
 {
 	struct inference *inf;
-	struct timespec t;
+	struct filetime ft;
 	struct file *f;
 
-	t = get_mtime (dir, name);
-	if (tv_cmp (&t, &time_zero) <= 0) {
+	get_mtime (&ft, sc, dir, name);
+	if (tv_cmp (&ft.t, &time_zero) <= 0) {
 		inf = find_inf (sc, dir, name);
 		if (inf == NULL)
 			return NULL;
@@ -2248,11 +2301,12 @@ char *name;
 	f = new_file (
 		/* name */ strdup (name),
 		/* rule */ NULL,
-		/* time */ t,
+		/* time */ ft.t,
 		/* deps */ NULL,
 		/* dtail*/ NULL,
 		/* help */ NULL,
-		/* inf  */ NULL
+		/* inf  */ NULL,
+		/* obj  */ ft.obj
 	);
 	dir_add_file (sc->dir, f);
 
@@ -2264,15 +2318,17 @@ char *name;
 struct build {
 	struct timespec t;
 	struct file *f;
+	int obj;
 };
 
-build_init (out, t, f)
+build_init (out, t, f, obj)
 struct build *out;
 struct timespec t;
 struct file *f;
 {
 	out->t = t;
 	out->f = f;
+	out->obj = obj;
 	return 0;
 }
 
@@ -2290,6 +2346,8 @@ int *needs_update;
 	for (dep = dhead; dep != NULL; dep = dep->next) {
 		if (build_dir (&b, sc, dep->path, prefix) != 0)
 			return 1;
+
+		dep->obj = b.obj;
 
 		if (tv_cmp (&b.t, mt) >= 0)
 			*needs_update = 1;
@@ -2315,6 +2373,7 @@ struct path *prefix;
 	struct timespec maxt;
 	struct inference *inf;
 	struct expand_ctx ctx;
+	struct filetime ft;
 	struct dep *dep;
 	struct build b;
 	char **s;
@@ -2362,7 +2421,9 @@ struct path *prefix;
 				if (f == NULL)
 					errx (1, "%s: no such file: %s", sc_path_str (sc), name);
 			} else {
-				f->mtime = get_mtime (prefix, name);
+				get_mtime (&ft, sc, prefix, name);
+				f->mtime = ft.t;
+				f->obj = ft.obj;
 			}
 		} else {
 			f = sc->dir->fhead;
@@ -2380,7 +2441,7 @@ struct path *prefix;
 				inf_inst_file (f, inf);
 			} else if (f->rule == NULL) {
 				if (tv_cmp (&f->mtime, &time_zero) > 0) {
-					build_init (out, f->mtime, f);
+					build_init (out, f->mtime, f, f->obj);
 					return 0;
 				} else {
 					errx (1, "%s: no rule to build: %s", sc_path_str (sc), name);
@@ -2400,7 +2461,7 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			build_init (out, f->mtime, f);
+			build_init (out, f->mtime, f, f->obj);
 			return 0;
 		}
 
@@ -2408,7 +2469,7 @@ struct path *prefix;
 
 		/* rule is a "sum" rule, so doesn't need to be built */
 		if (s == NULL || *s == NULL) {
-			build_init (out, maxt, f);
+			build_init (out, maxt, f, f->obj);
 			return 0;
 		}
 
@@ -2421,7 +2482,7 @@ struct path *prefix;
 
 		/* update timestamp */
 		f->mtime = now ();
-		build_init (out, f->mtime, f);
+		build_init (out, f->mtime, f, f->obj);
 		return 0;
 	case SC_CUSTOM:
 		/* run the "subdir?" rule, to test if the target needs to be updated */
@@ -2461,7 +2522,8 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			build_init (out, time_zero, NULL);
+			/* TODO: try searching for the artifact */
+			build_init (out, time_zero, NULL, 0);
 			return 0;
 		}
 
@@ -2488,7 +2550,8 @@ struct path *prefix;
 			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
 				errx (1, "%s: command failed: %s", sc_path_str (sc->parent), *s);
 		}
-		build_init (out, now (), NULL);
+		/* TODO: try searching for the artifact */
+		build_init (out, now (), NULL, 0);
 		free (new_prefix);
 		return 0;
 	}

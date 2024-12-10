@@ -53,6 +53,7 @@ struct custom {
 struct dep {
 	struct dep *next, *prev;
 	struct path *path;
+	int obj;
 };
 
 struct file {
@@ -63,6 +64,7 @@ struct file {
 	struct inference *inf; /* optional */
 	struct timespec mtime;
 	char *help; /* optional */
+	int obj;
 };
 
 struct inference {

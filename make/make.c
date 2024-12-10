@@ -958,6 +958,9 @@ struct expand_ctx *ctx;
 		str_putc (out, ' ');
 	}
 
+	if (m->value == NULL)
+		return 0;
+
 	if (m->lazy) {
 		expand_into (out, sc, m->value, ctx);
 	} else {

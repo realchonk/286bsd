@@ -1025,7 +1025,7 @@ struct expand_ctx *ctx;
 				if (u == NULL || strchr (u, '/') != NULL)
 					continue;
 
-				str_puts (&new, w);
+				str_puts (&new, u);
 				str_putc (&new, ' ');
 			}
 

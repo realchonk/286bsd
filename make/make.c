@@ -890,6 +890,8 @@ struct expand_ctx *ctx;
  * ${name:U}		convert all characters to uppercase
  * ${name:L}		convert all characters to lowercase
  * ${name:F}		try searching for files in either ${.OBJDIR} or source directory
+ * ${name:E}		replace every word by it's file suffix
+ * ${name:e}		strip the file suffix for each word
  * ${name:m1:m2...}	multiple modifiers can be combined
  */
 subst2 (out, sc, prefix, s, ctx)
@@ -904,7 +906,7 @@ struct expand_ctx *ctx;
 	extern subst ();
 	struct macro *m;
 	struct filetime ft;
-	char *v, *orig = *s, *t, *w;
+	char *orig = *s, *t, *u, *v, *w;
 	str_t name, old, new;
 
 	/* parse macro name */
@@ -1010,6 +1012,42 @@ struct expand_ctx *ctx;
 			}
 			str_pop (&new);
 
+			free (v);
+			v = str_release (&new);
+		} else if (strcmp (str_get (&old), "E") == 0) {
+			str_new (&new);
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				u = strrchr (w, '.');
+				if (u == NULL || strchr (u, '/') != NULL)
+					continue;
+
+				str_puts (&new, w);
+				str_putc (&new, ' ');
+			}
+
+			str_pop (&new);
+			free (v);
+			v = str_release (&new);
+		} else if (strcmp (str_get (&old), "e") == 0) {
+			str_new (&new);
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				u = strrchr (w, '.');
+				if (u != NULL && strchr (u, '/') == NULL)
+					*u = '\0';
+
+				str_puts (&new, w);
+				str_putc (&new, ' ');
+			}
+
+			str_pop (&new);
 			free (v);
 			v = str_release (&new);
 		} else {

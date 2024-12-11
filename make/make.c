@@ -1084,7 +1084,7 @@ struct expand_ctx *ctx;
 			free (v);
 			v = str_release (&new);
 		} else {
-			errx (1, "%s: invalid modifier: ':%s' in '%s'", sc_path_str (sc), str_get (&old), orig);
+			errx (1, "%s: invalid modifier: ':%s' in '${%s'", sc_path_str (sc), str_get (&old), orig);
 		}
 	}
 

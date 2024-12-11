@@ -777,6 +777,109 @@ char *s, *old, *new;
 	return 0;
 }
 
+pr_export (out, sc, m, ctx)
+str_t *out;
+struct scope *sc;
+struct macro *m;
+struct expand_ctx *ctx;
+{
+	extern expand_macro_into ();
+
+	str_puts (out, m->name);
+	str_puts (out, "='");
+	expand_macro_into (out, sc, m, m->name, ctx);
+	str_putc (out, '\'');
+	return 0;
+}
+
+dep_write (out, sc, dep)
+str_t *out;
+struct scope *sc;
+struct dep *dep;
+{
+	if (dep->obj && objdir != NULL) {
+		write_objdir (out, sc);
+		str_putc (out, '/');
+	}
+	path_write (out, dep->path);
+	return 0;
+}
+
+expand_special_into (out, sc, name, ctx)
+str_t *out;
+struct scope *sc;
+char *name;
+struct expand_ctx *ctx;
+{
+	struct scope *sub;
+	struct macro *m;
+	struct dep *dep;
+
+	/* TODO: .SUBDIRS, .EXPORTS */
+
+	if (strcmp (name, ".SUBDIRS") == 0) {
+		if (sc->type != SC_DIR) {
+		invsc:
+			errx (1, "%s: invalid scope type", sc_path_str (sc));
+		}
+
+		sub = sc->dir->subdirs;
+		if (sub == NULL)
+			return 0;
+
+		str_puts (out, sub->name);
+		for (sub = sub->next; sub != NULL; sub = sub->next) {
+			str_putc (out, ' ');
+			str_puts (out, sub->name);
+		}
+	} else if (strcmp (name, ".EXPORTS") == 0) {
+		if (sc->type != SC_DIR)
+			goto invsc;
+
+		m = sc->dir->emacros;
+		if (m == NULL)
+			return 0;
+
+		pr_export (out, sc, m, ctx);
+		for (m = m->enext; m != NULL; m = m->enext) {
+			str_putc (out, ' ');
+			pr_export (out, sc, m, ctx);
+		}
+
+	} else if (strcmp (name, ".OBJDIR") == 0) {
+		write_objdir (out, sc);
+	} else if (strcmp (name, ".TARGET") == 0) {
+		if (ctx == NULL)
+			errx (1, "%s: cannot use $@ or ${.TARGET} here", sc_path_str (sc));
+		str_puts (out, ctx->target);
+	} else if (strcmp (name, ".IMPSRC") == 0) {
+		if (ctx == NULL)
+			errx (1, "%s: cannot use $< or ${.IMPSRC} here", sc_path_str (sc));
+
+		if (ctx->dep0 == NULL)
+			return 0;
+
+		dep_write (out, sc, ctx->dep0);
+	} else if (strcmp (name, ".ALLSRC") == 0) {
+		if (ctx == NULL)
+			errx (1, "%s: cannot use $^ or ${.ALLSRC} here", sc_path_str (sc));
+
+		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
+			str_putc (out, ' ');
+			dep_write (out, sc, dep);
+		}
+		for (dep = ctx->infdeps; dep != NULL; dep = dep->next) {
+			str_putc (out, ' ');
+			dep_write (out, sc, dep);
+		}
+	} else if (strcmp (name, ".TOPDIR") == 0) {
+		str_putc (out, '.');
+		for (sub = sc->parent; sub != NULL; sub = sub->parent)
+			str_puts (out, "/..");
+	}
+	return 0;
+}
+
 /* ${name}
  * ${name:old_string=new_string}
  * TODO:
@@ -867,27 +970,12 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-dep_write (out, sc, dep)
-str_t *out;
-struct scope *sc;
-struct dep *dep;
-{
-	if (dep->obj && objdir != NULL) {
-		write_objdir (out, sc);
-		str_putc (out, '/');
-	}
-	path_write (out, dep->path);
-	return 0;
-}
-
 subst (out, sc, s, ctx)
 str_t *out;
 struct scope *sc;
 char **s;
 struct expand_ctx *ctx;
 {
-	extern expand_special_into ();
-	struct scope *sc2;
 	int ch;
 
 	ch = **s;
@@ -897,9 +985,7 @@ struct expand_ctx *ctx;
 		str_putc (out, '$');
 		break;
 	case '.':
-		str_putc (out, '.');
-		for (sc2 = sc->parent; sc2 != NULL; sc2 = sc2->parent)
-			str_puts (out, "/..");
+		expand_special_into (out, sc, ".TOPDIR", ctx);
 		break;
 	case '@':
 		expand_special_into (out, sc, ".TARGET", ctx);
@@ -935,92 +1021,6 @@ struct expand_ctx *ctx;
 		}
 		++s;
 		subst (out, sc, &s, ctx);
-	}
-	return 0;
-}
-
-pr_export (out, sc, m, ctx)
-str_t *out;
-struct scope *sc;
-struct macro *m;
-struct expand_ctx *ctx;
-{
-	extern expand_macro_into ();
-
-	str_puts (out, m->name);
-	str_puts (out, "='");
-	expand_macro_into (out, sc, m, m->name, ctx);
-	str_putc (out, '\'');
-	return 0;
-}
-
-expand_special_into (out, sc, name, ctx)
-str_t *out;
-struct scope *sc;
-char *name;
-struct expand_ctx *ctx;
-{
-	struct scope *sub;
-	struct macro *m;
-	struct dep *dep;
-
-	/* TODO: .SUBDIRS, .EXPORTS */
-
-	if (strcmp (name, ".SUBDIRS") == 0) {
-		if (sc->type != SC_DIR) {
-		invsc:
-			errx (1, "%s: invalid scope type", sc_path_str (sc));
-		}
-
-		sub = sc->dir->subdirs;
-		if (sub == NULL)
-			return 0;
-
-		str_puts (out, sub->name);
-		for (sub = sub->next; sub != NULL; sub = sub->next) {
-			str_putc (out, ' ');
-			str_puts (out, sub->name);
-		}
-	} else if (strcmp (name, ".EXPORTS") == 0) {
-		if (sc->type != SC_DIR)
-			goto invsc;
-
-		m = sc->dir->emacros;
-		if (m == NULL)
-			return 0;
-
-		pr_export (out, sc, m, ctx);
-		for (m = m->enext; m != NULL; m = m->enext) {
-			str_putc (out, ' ');
-			pr_export (out, sc, m, ctx);
-		}
-
-	} else if (strcmp (name, ".OBJDIR") == 0) {
-		write_objdir (out, sc);
-	} else if (strcmp (name, ".TARGET") == 0) {
-		if (ctx == NULL)
-			errx (1, "%s: cannot use $@ or ${.TARGET} here", sc_path_str (sc));
-		str_puts (out, ctx->target);
-	} else if (strcmp (name, ".IMPSRC") == 0) {
-		if (ctx == NULL)
-			errx (1, "%s: cannot use $< or ${.IMPSRC} here", sc_path_str (sc));
-
-		if (ctx->dep0 == NULL)
-			return 0;
-
-		dep_write (out, sc, ctx->dep0);
-	} else if (strcmp (name, ".ALLSRC") == 0) {
-		if (ctx == NULL)
-			errx (1, "%s: cannot use $^ or ${.ALLSRC} here", sc_path_str (sc));
-
-		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
-			str_putc (out, ' ');
-			dep_write (out, sc, dep);
-		}
-		for (dep = ctx->infdeps; dep != NULL; dep = dep->next) {
-			str_putc (out, ' ');
-			dep_write (out, sc, dep);
-		}
 	}
 	return 0;
 }

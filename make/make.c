@@ -892,6 +892,8 @@ struct expand_ctx *ctx;
  * ${name:F}		try searching for files in either ${.OBJDIR} or source directory
  * ${name:E}		replace each word with its suffix
  * ${name:R}		replace each word with everything but its suffix
+ * ${name:H}		replace each word with its dirname() equvialent
+ * ${name:T}		replace each word with its basename() equvialent
  * ${name:m1:m2...}	multiple modifiers can be combined
  */
 subst2 (out, sc, prefix, s, ctx)
@@ -1044,6 +1046,34 @@ struct expand_ctx *ctx;
 					*u = '\0';
 
 				str_puts (&new, w);
+				str_putc (&new, ' ');
+			}
+
+			str_pop (&new);
+			free (v);
+			v = str_release (&new);
+		} else if (strcmp (str_get (&old), "H") == 0) {
+			str_new (&new);
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				str_puts (&new, dirname (w));
+				str_putc (&new, ' ');
+			}
+
+			str_pop (&new);
+			free (v);
+			v = str_release (&new);
+		} else if (strcmp (str_get (&old), "T") == 0) {
+			str_new (&new);
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				str_puts (&new, basename (w));
 				str_putc (&new, ' ');
 			}
 

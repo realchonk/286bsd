@@ -2595,8 +2595,11 @@ struct path *prefix;
 		}
 
 		if (!needs_update) {
-			/* TODO: try searching for the artifact */
-			build_init (out, time_zero, NULL, 0);
+			if (name != NULL && get_mtime (&ft, sc, prefix, name) == 0) {
+				build_init (out, ft.t, NULL, ft.obj);
+			} else {
+				build_init (out, time_zero, NULL, 0);
+			}
 			return 0;
 		}
 
@@ -2632,9 +2635,12 @@ struct path *prefix;
 			}
 		}
 
-		/* TODO: try searching for the artifact */
-		build_init (out, now (), NULL, 0);
 		free (new_prefix);
+		if (name != NULL && get_mtime (&ft, sc, prefix, name) == 0) {
+			build_init (out, ft.t, NULL, ft.obj);
+		} else {
+			build_init (out, now (), NULL, 0);
+		}
 		return 0;
 	}
 	

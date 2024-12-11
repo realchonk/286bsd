@@ -898,7 +898,7 @@ struct expand_ctx *ctx;
 	extern expand_macro_into ();
 	extern subst ();
 	struct macro *m;
-	char *v, *orig = *s;
+	char *v, *orig = *s, *t;
 	str_t name, old, new;
 
 	/* parse macro name */
@@ -971,15 +971,34 @@ struct expand_ctx *ctx;
 
 			replace_all_into (out, v, str_get (&old), str_get (&new));
 			str_free (&new);
-			break;
+			goto ret;
+		} else if (strcmp (str_get (&old), "U") == 0) {
+			str_new (&new);
+
+			for (t = v; *t != '\0'; ++t)
+				str_putc (&new, toupper (*t));
+
+			free (v);
+			v = str_release (&new);
+		} else if (strcmp (str_get (&old), "L") == 0) {
+			str_new (&new);
+
+			for (t = v; *t != '\0'; ++t)
+				str_putc (&new, tolower (*t));
+
+			free (v);
+			v = str_release (&new);
 		} else {
-			errx (1, "TODO: modifiers: '${%s'", orig);
+			errx (1, "%s: invalid modifier: ':%s' in '%s'", sc_path_str (sc), str_get (&old), orig);
 		}
 	}
 
+	str_puts (out, v);
+
+ret:
 	if (**s != '}')
 		goto invalid;
-
+	++*s;
 	str_free (&old);
 	free (v);
 	return 0;

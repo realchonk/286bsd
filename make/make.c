@@ -564,6 +564,9 @@ char *dir;
 	mkdir_p (dirname (copy));
 	free (copy);
 
+	if (mkdir (dir, 0755) != 0)
+		err (1, "mkdir('%s')", dir);
+
 	return 0;
 }
 

@@ -684,21 +684,18 @@ char *name;
 /* MACRO EXPANSION */
 
 struct expand_ctx {
-	struct path *prefix;
 	char *target;
 	struct dep *deps, *infdeps;
 	struct dep *dep0;
 	int free_target;
 };
 
-ectx_init (ctx, prefix, target, dep0, deps, infdeps)
+ectx_init (ctx, target, dep0, deps, infdeps)
 struct expand_ctx *ctx;
-struct path *prefix;
 char *target;
 struct dep *dep0;
 struct dep *deps, *infdeps;
 {
-	ctx->prefix = prefix;
 	ctx->target = target;
 	ctx->dep0 = dep0;
 	ctx->deps = deps;
@@ -707,15 +704,13 @@ struct dep *deps, *infdeps;
 	return 0;
 }
 
-ectx_file (ctx, sc, prefix, f)
+ectx_file (ctx, sc, f)
 struct expand_ctx *ctx;
 struct scope *sc;
-struct path *prefix;
 struct file *f;
 {
 	str_t tmp;
 
-	ctx->prefix = prefix;
 	if (objdir != NULL) {
 		str_new (&tmp);
 		write_objdir (&tmp, sc);
@@ -785,9 +780,10 @@ char *s, *old, *new;
 	return 0;
 }
 
-pr_export (out, sc, m, ctx)
+pr_export (out, sc, prefix, m, ctx)
 str_t *out;
 struct scope *sc;
+struct path *prefix;
 struct macro *m;
 struct expand_ctx *ctx;
 {
@@ -795,7 +791,7 @@ struct expand_ctx *ctx;
 
 	str_puts (out, m->name);
 	str_puts (out, "='");
-	expand_macro_into (out, sc, m, m->name, ctx);
+	expand_macro_into (out, sc, prefix, m, m->name, ctx);
 	str_putc (out, '\'');
 	return 0;
 }
@@ -813,9 +809,10 @@ struct dep *dep;
 	return 0;
 }
 
-expand_special_into (out, sc, name, ctx)
+expand_special_into (out, sc, prefix, name, ctx)
 str_t *out;
 struct scope *sc;
+struct path *prefix;
 char *name;
 struct expand_ctx *ctx;
 {
@@ -848,10 +845,10 @@ struct expand_ctx *ctx;
 		if (m == NULL)
 			return 0;
 
-		pr_export (out, sc, m, ctx);
+		pr_export (out, sc, prefix, m, ctx);
 		for (m = m->enext; m != NULL; m = m->enext) {
 			str_putc (out, ' ');
-			pr_export (out, sc, m, ctx);
+			pr_export (out, sc, prefix, m, ctx);
 		}
 
 	} else if (strcmp (name, ".OBJDIR") == 0) {
@@ -895,9 +892,10 @@ struct expand_ctx *ctx;
  * ${name:F}		try searching for files in either ${.OBJDIR} or source directory
  * ${name:m1:m2...}	multiple modifiers can be combined
  */
-subst2 (out, sc, s, ctx)
+subst2 (out, sc, prefix, s, ctx)
 str_t *out;
 struct scope *sc;
+struct path *prefix;
 char **s;
 struct expand_ctx *ctx;
 {
@@ -917,7 +915,7 @@ struct expand_ctx *ctx;
 			++*s;
 		} else if (**s == '$') {
 			++*s;
-			subst (&name, sc, s, ctx);
+			subst (&name, sc, prefix, s, ctx);
 		} else {
 			break;
 		}
@@ -926,12 +924,12 @@ struct expand_ctx *ctx;
 	m = find_macro (sc, str_get (&name));
 	if (**s == '}') {
 		++*s;
-		expand_macro_into (out, sc, m, str_get (&name), ctx);
+		expand_macro_into (out, sc, prefix, m, str_get (&name), ctx);
 		str_free (&name);
 		return 0;
 	}
 
-	v = expand_macro (sc, m, str_get (&name), ctx);
+	v = expand_macro (sc, prefix, m, str_get (&name), ctx);
 	str_free (&name);
 
 	str_new (&old);
@@ -944,7 +942,7 @@ struct expand_ctx *ctx;
 			switch (**s) {
 			case '$':
 				++*s;
-				subst (&old, sc, s, ctx);
+				subst (&old, sc, prefix, s, ctx);
 				break;
 			case '\\':
 				++*s;
@@ -965,7 +963,7 @@ struct expand_ctx *ctx;
 				switch (**s) {
 				case '$':
 					++*s;
-					subst (&new, sc, s, ctx);
+					subst (&new, sc, prefix, s, ctx);
 					break;
 				case '\\':
 					++*s;
@@ -1003,7 +1001,7 @@ struct expand_ctx *ctx;
 				if (*w == '\0')
 					continue;
 
-				if (get_mtime (&ft, sc, ctx->prefix, w) == 0 && ft.obj) {
+				if (get_mtime (&ft, sc, prefix, w) == 0 && ft.obj) {
 					write_objdir (&new, sc);
 					str_putc (&new, '/');
 				}
@@ -1032,9 +1030,10 @@ invalid:
 	errx (1, "%s: invalid macro expansion: '${%s', s = '%s'", sc_path_str (sc), orig, *s);
 }
 
-subst (out, sc, s, ctx)
+subst (out, sc, prefix, s, ctx)
 str_t *out;
 struct scope *sc;
+struct path *prefix;
 char **s;
 struct expand_ctx *ctx;
 {
@@ -1047,19 +1046,19 @@ struct expand_ctx *ctx;
 		str_putc (out, '$');
 		break;
 	case '.':
-		expand_special_into (out, sc, ".TOPDIR", ctx);
+		expand_special_into (out, sc, prefix, ".TOPDIR", ctx);
 		break;
 	case '@':
-		expand_special_into (out, sc, ".TARGET", ctx);
+		expand_special_into (out, sc, prefix, ".TARGET", ctx);
 		break;
 	case '<':
-		expand_special_into (out, sc, ".IMPSRC", ctx);
+		expand_special_into (out, sc, prefix, ".IMPSRC", ctx);
 		break;
 	case '^':
-		expand_special_into (out, sc, ".ALLSRC", ctx);
+		expand_special_into (out, sc, prefix, ".ALLSRC", ctx);
 		break;
 	case '{':
-		subst2 (out, sc, s, ctx);
+		subst2 (out, sc, prefix, s, ctx);
 		break;
 	case '(':
 		errx (1, "%s: syntax error: $(...) syntax is reserved for future use, please use ${...} instead.", sc_path_str (sc));
@@ -1070,9 +1069,10 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-expand_into (out, sc, s, ctx)
+expand_into (out, sc, prefix, s, ctx)
 str_t *out;
 struct scope *sc;
+struct path *prefix;
 char *s;
 struct expand_ctx *ctx;
 {
@@ -1082,23 +1082,24 @@ struct expand_ctx *ctx;
 			continue;
 		}
 		++s;
-		subst (out, sc, &s, ctx);
+		subst (out, sc, prefix, &s, ctx);
 	}
 	return 0;
 }
 
-expand_macro_into (out, sc, m, name, ctx)
+expand_macro_into (out, sc, prefix, m, name, ctx)
 str_t *out;
 struct scope *sc;
+struct path *prefix;
 struct macro *m;
 char *name;
 struct expand_ctx *ctx;
 {
 	if (m == NULL)
-		return expand_special_into (out, sc, name, ctx);
+		return expand_special_into (out, sc, prefix, name, ctx);
 
 	if (m->prepend != NULL) {
-		expand_macro_into (out, sc, m->prepend, m->prepend->name, ctx);
+		expand_macro_into (out, sc, prefix, m->prepend, m->prepend->name, ctx);
 		str_putc (out, ' ');
 	}
 
@@ -1106,7 +1107,7 @@ struct expand_ctx *ctx;
 		return 0;
 
 	if (m->lazy) {
-		expand_into (out, sc, m->value, ctx);
+		expand_into (out, sc, prefix, m->value, ctx);
 	} else {
 		str_puts (out, m->value);
 	}
@@ -1114,8 +1115,9 @@ struct expand_ctx *ctx;
 }
 
 char *
-expand_macro (sc, m, name, ctx)
+expand_macro (sc, prefix, m, name, ctx)
 struct scope *sc;
+struct path *prefix;
 struct macro *m;
 char *name;
 struct expand_ctx *ctx;
@@ -1123,20 +1125,21 @@ struct expand_ctx *ctx;
 	str_t tmp;
 
 	str_new (&tmp);
-	expand_macro_into (&tmp, sc, m, name, ctx);
+	expand_macro_into (&tmp, sc, prefix, m, name, ctx);
 	return str_release (&tmp);
 }
 
 char *
-expand (sc, s, ctx)
+expand (sc, prefix, s, ctx)
 struct scope *sc;
+struct path *prefix;
 char *s;
 struct expand_ctx *ctx;
 {
 	str_t out;
 
 	str_new (&out);
-	expand_into (&out, sc, s, ctx);
+	expand_into (&out, sc, prefix, s, ctx);
 	str_trim (&out);
 	return str_release (&out);
 }
@@ -1152,7 +1155,7 @@ char *cmd;
 	char *args[] = {
 		m_shell.value,
 		"-c",
-		expand (sc, cmd, NULL),
+		expand (sc, dir, cmd, NULL),
 		NULL,
 	};
 	ssize_t i, n;
@@ -1222,7 +1225,7 @@ struct expand_ctx *ctx;
 		q = 1;
 	}
 
-	ecmd = expand (sc, cmd, ctx);
+	ecmd = expand (sc, prefix, cmd, ctx);
 
 	if (!q) {
 		printf ("[%s%s%s] $ %s\n",
@@ -1282,8 +1285,9 @@ char *s;
 	return *endp != '\0' || x != 0;
 }
 
-e_command (sc, s, cmd, arg)
+e_command (sc, prefix, s, cmd, arg)
 struct scope *sc;
+struct path *prefix;
 char **s, *cmd;
 str_t *arg;
 {
@@ -1303,8 +1307,9 @@ str_t *arg;
 	return 0;
 }
 
-e_atom (sc, s, val)
+e_atom (sc, prefix, s, val)
 struct scope *sc;
+struct path *prefix;
 char **s;
 str_t *val;
 {
@@ -1319,7 +1324,7 @@ str_t *val;
 		while (**s != '"') {
 			if (**s == '$') {
 				++*s;
-				subst (val, sc, s, NULL);
+				subst (val, sc, prefix, s, NULL);
 			} else {
 				str_putc (val, **s);
 				++*s;
@@ -1327,13 +1332,13 @@ str_t *val;
 		}
 		++*s;
 	} else if (starts_with (*s, "defined")) {
-		e_command (sc, s, "defined", &arg);
+		e_command (sc, prefix, s, "defined", &arg);
 		x = find_macro (sc, str_get (&arg)) != NULL;
 	comm:
 		str_putc (val, x ? '1' : '0');
 		str_free (&arg);
 	} else if (starts_with (*s, "target")) {
-		e_command (sc, s, "target", &arg);
+		e_command (sc, prefix, s, "target", &arg);
 		x = find_file (sc->dir, str_get (&arg)) != NULL;
 		goto comm;
 	} else {
@@ -1343,17 +1348,18 @@ str_t *val;
 	return 0;
 }
 
-e_unary (sc, s, val)
+e_unary (sc, prefix, s, val)
 struct scope *sc;
+struct path *prefix;
 char **s;
 str_t *val;
 {
 	skip_ws (s);
 	if (**s != '!')
-		return e_atom (sc, s, val);
+		return e_atom (sc, prefix, s, val);
 	++*s;
 
-	e_unary (sc, s, val);
+	e_unary (sc, prefix, s, val);
 
 	if (is_truthy (str_get (val))) {
 		str_reset (val);
@@ -1375,8 +1381,9 @@ enum {
 	COMP_GE,
 };
 
-e_comp (sc, s)
+e_comp (sc, prefix, s)
 struct scope *sc;
+struct path *prefix;
 char **s;
 {
 	str_t left, right;
@@ -1385,7 +1392,7 @@ char **s;
 	int cmp, x, icmp;
 
 	str_new (&left);
-	e_unary (sc, s, &left);
+	e_unary (sc, prefix, s, &left);
 
 	skip_ws (s);
 
@@ -1422,7 +1429,7 @@ char **s;
 
 	skip_ws (s);
 	str_new (&right);
-	e_unary (sc, s, &right);
+	e_unary (sc, prefix, s, &right);
 
 	str_trim (&left);
 	str_trim (&right);
@@ -1461,42 +1468,45 @@ char **s;
 	return x;
 }
 
-e_and (sc, s)
+e_and (sc, prefix, s)
 struct scope *sc;
+struct path *prefix;
 char **s;
 {
 	int x;
 
-	x = e_comp (sc, s);
+	x = e_comp (sc, prefix, s);
 	while (skip_ws (s), starts_with (*s, "&&")) {
 		*s += 2;
-		x &= e_comp (sc, s);
+		x &= e_comp (sc, prefix, s);
 	}
 
 	return x;
 }
 
-e_or (sc, s)
+e_or (sc, prefix, s)
 struct scope *sc;
+struct path *prefix;
 char **s;
 {
 	int x;
 
-	x = e_and (sc, s);
+	x = e_and (sc, prefix, s);
 	while (skip_ws (s), starts_with (*s, "||")) {
 		*s += 2;
-		x |= e_and (sc, s);
+		x |= e_and (sc, prefix, s);
 	}
 
 	return x;
 }
 
-parse_expr (sc, s)
+parse_expr (sc, prefix, s)
 struct scope *sc;
+struct path *prefix;
 char *s;
 {
 	s = trim (s);
-	return e_or (sc, &s);
+	return e_or (sc, prefix, &s);
 }
 
 /* PARSER */
@@ -1812,7 +1822,7 @@ char *s, *t, *help;
 	*t = '\0';
 
 	/* parse deps */
-	v = u = expand (sc, t + 1, NULL);
+	v = u = expand (sc, dir, t + 1, NULL);
 	while ((p = strsep (&v, " \t")) != NULL) {
 		if (*p == '\0')
 			continue;
@@ -1829,7 +1839,7 @@ char *s, *t, *help;
 	free (u);
 
 	/* parse targets */
-	u = expand (sc, s, NULL);
+	u = expand (sc, dir, s, NULL);
 	flag = 1;
 	if (is_inf (u)) {
 		p = strchr (u + 1, '.');
@@ -1919,7 +1929,7 @@ char *s, *t, *help;
 		/* handle both `:=` and `::=` */
 		t[t[-2] == ':' ? -2 : -1] = '\0';
 		m->lazy = 0;
-		m->value = expand (sc, trim (t + 1), NULL);
+		m->value = expand (sc, dir, trim (t + 1), NULL);
 	} else if (t[-1] == '+') {
 		t[-1] = '\0';
 		m->value = strdup (trim (t + 1));
@@ -2022,7 +2032,7 @@ FILE *file;
 	for (; (s = readline (file, &cline)) != NULL; free (s)) {
 		run = walkifstack (ifstack, iflen);
 		if (s[0] == '#' && s[1] == '#') {
-			help = expand (sc, trim (s + 2), NULL);
+			help = expand (sc, dir, trim (s + 2), NULL);
 			continue;
 		} else if (s[0] == '#' || *trim (s) == '\0') {
 			continue;
@@ -2030,7 +2040,7 @@ FILE *file;
 			if (!run)
 				goto cont;
 
-			t = expand (sc, s + 8, NULL);
+			t = expand (sc, dir, s + 8, NULL);
 			if (*t == '/') {
 				u = t;
 			} else {
@@ -2048,7 +2058,7 @@ FILE *file;
 		} else if (is_directive (&t, s, "if")) {
 			if (iflen == MAX_IFSTACK)
 				errx (1, "%s:%d: maximum .if depth of %d reached", path, cline, MAX_IFSTACK);
-			x = parse_expr (sc, t) & 0x01;
+			x = parse_expr (sc, dir, t) & 0x01;
 			ifstack[iflen++] = x * (IF_VAL | IF_HAS);
 		} else if (is_directive (NULL, s, "else")) {
 			if (iflen == 0)
@@ -2058,7 +2068,7 @@ FILE *file;
 		} else if (is_directive (&t, s, "elif")) {
 			if (iflen == 0)
 				errx (1, "%s:%d: not in .if", path, cline);
-			x = parse_expr (sc, t);
+			x = parse_expr (sc, dir, t);
 			t = &ifstack[iflen - 1];
 			*t = ((!(*t & IF_HAS) && x) * (IF_VAL | IF_HAS)) | (*t & IF_HAS);
 		} else if (is_directive (NULL, s, "endif")) {
@@ -2590,7 +2600,7 @@ struct path *prefix;
 		}
 
 		/* run commands */
-		ectx_file (&ctx, sc, prefix, f);
+		ectx_file (&ctx, sc, f);
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx, name) != 0) {
 				fprintf (stderr, "%s: command failed: %s\n", sc_path_str (sc), *s);
@@ -2637,7 +2647,6 @@ struct path *prefix;
 
 			ectx_init (
 				/* ctx    */ &ctx, 
-				/* prefix */ new_prefix,
 				/* target */ prefix[path_len (prefix) - 1].name,
 				/* dep0   */ name != NULL ? &xdep : NULL,
 				/* deps   */ f->dhead,
@@ -2672,7 +2681,6 @@ struct path *prefix;
 
 		ectx_init (
 			/* ctx    */ &ctx, 
-			/* prefix */ new_prefix,
 			/* target */ prefix[path_len (prefix) - 1].name,
 			/* dep0   */ name != NULL ? &xdep : NULL,
 			/* deps   */ f->dhead,
@@ -2963,7 +2971,7 @@ char *V;
 		s[len + 3] = '\0';
 	}
 
-	puts (expand (sc, s, NULL));
+	puts (expand (sc, &path_null, s, NULL));
 	return 0;
 }
 

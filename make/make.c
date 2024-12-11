@@ -895,6 +895,9 @@ struct expand_ctx *ctx;
  * ${name:H}		replace each word with its dirname() equvialent
  * ${name:T}		replace each word with its basename() equvialent
  * ${name:m1:m2...}	multiple modifiers can be combined
+ * TODO:
+ * ${name:Mpattern}	select only words that match pattern
+ * ${name:Npattern}	opposite of :Mpattern
  */
 subst2 (out, sc, prefix, s, ctx)
 str_t *out;
@@ -1105,6 +1108,7 @@ struct path *prefix;
 char **s;
 struct expand_ctx *ctx;
 {
+	char *t;
 	int ch;
 
 	ch = **s;
@@ -1124,6 +1128,10 @@ struct expand_ctx *ctx;
 		break;
 	case '^':
 		expand_special_into (out, sc, prefix, ".ALLSRC", ctx);
+		break;
+	case '*':
+		t = ".IMPSRC:T}";
+		subst2 (out, sc, prefix, &t, ctx);
 		break;
 	case '{':
 		subst2 (out, sc, prefix, s, ctx);

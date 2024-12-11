@@ -50,9 +50,6 @@ Maybe consider something like this too: `.SUBDIRS: maybe-exists?`
 
 
 # Special macros
-## `$*`
-Basename
-
 ## Optional: `${@F}`, `${@D}`, `${<F}`, `${<F}`, `${*F}`, `${*D}`, `${^F}`, `${^D}`
 Filename or Directory portions of the variables.
 

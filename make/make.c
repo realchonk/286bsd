@@ -24,7 +24,7 @@
 #define SHELL "sh"
 
 static char *cpath, *objdir = NULL;
-static int verbose = 0, cline = 0;
+static int verbose = 0, cline = 0, conterr = 0;
 static struct timespec time_zero;
 
 static struct macro m_shell = {
@@ -1518,6 +1518,7 @@ struct inference *inf;
 	f->help = help;
 	f->inf = inf;
 	f->obj = obj;
+	f->err = 0;
 
 	return f;
 }
@@ -2377,20 +2378,24 @@ int *needs_update;
 	extern build_dir ();
 	struct build b;
 	struct dep *dep;
+	int ec = 0;
 
 	for (dep = dhead; dep != NULL; dep = dep->next) {
-		if (build_dir (&b, sc, dep->path, prefix) != 0)
-			return 1;
+		if (build_dir (&b, sc, dep->path, prefix) == 0) {
+			dep->obj = b.obj;
 
-		dep->obj = b.obj;
-
-		if (tv_cmp (&b.t, mt) >= 0)
-			*needs_update = 1;
-		if (tv_cmp (&b.t, maxt) > 0)
-			*maxt = b.t;
+			if (tv_cmp (&b.t, mt) >= 0)
+				*needs_update = 1;
+			if (tv_cmp (&b.t, maxt) > 0)
+				*maxt = b.t;
+		} else {
+			ec = 1;
+			if (!conterr)
+				break;
+		}
 	}
 
-	return 0;
+	return ec;
 }
 
 /* TODO: refactor this function, to be less complicated */
@@ -2487,18 +2492,32 @@ struct path *prefix;
 		needs_update = (tv_cmp (&f->mtime, &time_zero) <= 0);
 		maxt = f->mtime;
 
+		if (f->err)
+			return 1;
+
 		/* build dependencies and record timestamps */
-		build_deps (sc, f->dhead, prefix, &f->mtime, &maxt, &needs_update);
+		if (build_deps (sc, f->dhead, prefix, &f->mtime, &maxt, &needs_update) != 0) {
+			f->err = 1;
+			if (!conterr)
+				return 1;
+		}
 
 		/* build dependencies from inference rule */
 		if (f->inf != NULL) {
-			build_deps (sc, f->inf->dhead, prefix, &f->mtime, &maxt, &needs_update);
+			if (build_deps (sc, f->inf->dhead, prefix, &f->mtime, &maxt, &needs_update) != 0) {
+				f->err = 1;
+				if (!conterr)
+					return 1;
+			}
 		}
 
 		if (!needs_update) {
 			build_init (out, f->mtime, f, f->obj);
 			return 0;
 		}
+
+		if (f->err)
+			return 1;
 
 		s = f->rule->code;
 
@@ -2511,8 +2530,11 @@ struct path *prefix;
 		/* run commands */
 		ectx_file (&ctx, sc, f);
 		for (; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, &ctx, name) != 0)
-				errx (1, "%s: command failed: %s", sc_path_str (sc), *s);
+			if (runcom (sc, prefix, *s, &ctx, name) != 0) {
+				fprintf (stderr, "%s: command failed: %s\n", sc_path_str (sc), *s);
+				f->err = 1;
+				return 1;
+			}
 		}
 
 		/* update timestamp */
@@ -2538,10 +2560,17 @@ struct path *prefix;
 		if (f != NULL) {
 			assert (f->inf == NULL);
 
+			ec = 0;
 			for (dep = f->dhead; dep != NULL; dep = dep->next) {
-				if (build_dir (&b, sc->parent, dep->path, new_prefix) != 0)
-					return 1;
+				if (build_dir (&b, sc->parent, dep->path, new_prefix) != 0) {
+					ec = 1;
+					if (!conterr)
+						return ec;
+				}
 			}
+
+			if (ec != 0)
+				return ec;
 
 			ectx_init (
 				/* ctx    */ &ctx, 
@@ -2582,15 +2611,24 @@ struct path *prefix;
 			/* infdeps*/ NULL
 		);
 
+		ec = 0;
 		for (dep = f->dhead; dep != NULL; dep = dep->next) {
-			if (build_dir (&b, sc->parent, dep->path, new_prefix) != 0)
-				return 1;
+			if (build_dir (&b, sc->parent, dep->path, new_prefix) != 0) {
+				ec = 1;
+				if (!conterr)
+					return ec;
+			}
 		}
+		if (ec != 0)
+			return ec;
 
 		for (s = f->rule->code; *s != NULL; ++s) {
-			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0)
-				errx (1, "%s: command failed: %s", sc_path_str (sc->parent), *s);
+			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0) {
+				fprintf (stderr, "%s: command failed: %s\n", sc_path_str (sc->parent), *s);
+				return 1;
+			}
 		}
+
 		/* TODO: try searching for the artifact */
 		build_init (out, now (), NULL, 0);
 		free (new_prefix);
@@ -2831,7 +2869,7 @@ struct scope *sc;
 
 usage (uc)
 {
-	fprintf (stderr, "%s: %s [-hpsv] [-C dir] [-f makefile] [-o objdir] [-V var] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
+	fprintf (stderr, "%s: %s [-hkpsSv] [-C dir] [-f makefile] [-o objdir] [-V var] [target...]\n", uc ? "USAGE" : "usage", m_make.value);
 	return 1;
 }
 
@@ -2872,7 +2910,7 @@ char **argv;
 	m_dmake.value = m_make.value = argv[0];
 
 	str_new (&cmdline);
-	while ((option = getopt (argc, argv, "hpsvC:f:V:o:")) != -1) {
+	while ((option = getopt (argc, argv, "hpsvkSC:f:V:o:")) != -1) {
 		switch (option) {
 		case 'h':
 			dohelp = 1;
@@ -2900,6 +2938,12 @@ char **argv;
 			break;
 		case 'o':
 			odir = optarg;
+			break;
+		case 'k':
+			conterr = 1;
+			break;
+		case 'S':
+			conterr = 0;
 			break;
 		case '?':
 			return usage (0);

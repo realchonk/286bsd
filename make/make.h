@@ -64,7 +64,7 @@ struct file {
 	struct inference *inf; /* optional */
 	struct timespec mtime;
 	char *help; /* optional */
-	int obj;
+	int obj, err;
 };
 
 struct inference {

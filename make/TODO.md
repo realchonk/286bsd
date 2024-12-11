@@ -42,25 +42,6 @@
 
 # Options
 -q	        check if anythings needs to be built
--k	        keep going, even after an error happened
--S          opposite of `-k`
--o obj      specify artifact directory
-
-# Support for artifact directories (IMPORTANT)
-This syntax is not final yet.
-```make
-# With .OBJ set, make will first search in
-# the obj directory for artifacts, before
-# looking in the current directory.
-# Make will also put generated files into obj,
-# by changing the value of $@.
-.OBJ: obj
-
-all: example
-
-example: example.c
-    ${CC} -o $@ example.c
-```
 
 
 # `-include` or `sinclude`

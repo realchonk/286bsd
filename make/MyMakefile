@@ -1,11 +1,8 @@
 NAME = make
 NOMAN = 1
 
-test: make.data
-	echo $<
-
 clean-extra:
-	rm -f mk.vendor.c
+	rm -f ${.OBJDIR}/mk.vendor.c
 
 make: make.h
 

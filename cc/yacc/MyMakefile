@@ -8,7 +8,7 @@ clean-extra:
 
 install-extra:
 	mkdir -p ${DESTDIR}${PREFIX}/lib
-	cp -f yaccpar ${DESTDIR}${PREFIX}/lib
+	cp -f ${.OBJDIR}/yaccpar ${DESTDIR}${PREFIX}/lib
 
 yacc: y1.c y2.c y3.c y4.c
 	${CC} -o $@ $^ ${CFLAGS} ${CPPFLAGS}

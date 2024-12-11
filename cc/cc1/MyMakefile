@@ -3,8 +3,10 @@ NOMAN = 1
 CFLAGS += -Wno-comment
 YFLAGS = -d -v
 
+# TODO: fix out-of-tree build
+
 clean-extra:
-	rm -f cc1 y.tab.h y.output
+	rm -f y.tab.h y.output
 
 run: cc1 ../irc/irc
 	./cc1 < test.c > test.ir
@@ -17,7 +19,7 @@ cc1: lex.o parse.o gen.o main.o dt.o
 
 parse.o y.tab.h: parse.y
 	${YACC} ${YFLAGS} parse.y
-	${CC} -c -o parse.o y.tab.c ${CFLAGS}
+	${CC} -c -o $@ y.tab.c ${CFLAGS}
 	rm -f y.tab.c
 
 lex.o: cc1.h y.tab.h

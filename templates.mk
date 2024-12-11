@@ -44,7 +44,7 @@ all: all-extra
 . if !target(clean)
 ## Clean build artifacts for ${NAME}
 clean:
-	rm -f ${NAME} *.core *.o
+	rm -f ${.OBJDIR}/${NAME} ${.OBJDIR}/*.core ${.OBJDIR}/*.o
 
 .  if target(clean-extra)
 clean: clean-extra
@@ -58,7 +58,7 @@ install: install-bin
 ## Install ${NAME}'s binary into ${DESTDIR}${BINPREFIX}
 install-bin: ${NAME}
 	mkdir -p ${DESTDIR}${BINPREFIX}/
-	cp -f ${NAME} ${DESTDIR}${BINPREFIX}/
+	cp -f ${.OBJDIR}/${NAME} ${DESTDIR}${BINPREFIX}/
 
 .  if !"${NOMAN}"
 install: install-man

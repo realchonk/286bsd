@@ -9,31 +9,32 @@ install:
 	@echo "'install' rule not suppported for sys"
 
 xxd: ${IMG}
-	xxd ${IMG} | less
+	xxd $< | less
 
 clean:
-	rm -f *.o *.elf *.bin *.img
+	rm -f ${.OBJDIR}/*.o ${.OBJDIR}/*.elf ${.OBJDIR}/*.bin ${.OBJDIR}/*.img
 
 run: ${IMG}
-	qemu-system-i386 -M pc -m 1M -fda ${IMG}
+	qemu-system-i386 -M pc -m 1M -fda $<
 
 floppy1440.img: sys.bin
-	cat sys.bin /dev/zero | dd of=floppy1440.img bs=512 count=2880
+	cat $< /dev/zero | dd of=$@ bs=512 count=2880
 
 sys.img: sys.bin
-	cat sys.bin /dev/zero | dd of=sys.img bs=512 count=128
+	cat $< /dev/zero | dd of=$@ bs=512 count=128
 
 sys.bin: sys.elf
-	objcopy -O binary sys.elf sys.bin
+	objcopy -O binary $< $@
 
+# TODO: fix out of tree build: ${OBJ}
 sys.elf: linker.ld ${OBJ}
 	ld -o $@ -T linker.ld ${OBJ} ${LDFLAGS}
 
 user.bin: user.asm
-	nasm -fbin -o $@ user.asm
+	nasm -fbin -o $@ $<
 
 .asm.o:
-	nasm -felf32 -o $@ $<
+	nasm -felf32 -o $@ $< -I${.OBJDIR}
 
 kernel.o: user.bin
 

@@ -887,11 +887,11 @@ struct expand_ctx *ctx;
 
 /* ${name}		just the value of macro called `name`
  * ${name:old=new}	replace `old` with `new`, must be the last modifier
- * ${name:U}		convert all characters to uppercase
- * ${name:L}		convert all characters to lowercase
+ * ${name:U}		replace each word with its upper case equivalent
+ * ${name:L}		replace each word with its lower case equivalent
  * ${name:F}		try searching for files in either ${.OBJDIR} or source directory
- * ${name:E}		replace every word by it's file suffix
- * ${name:e}		strip the file suffix for each word
+ * ${name:E}		replace each word with its suffix
+ * ${name:R}		replace each word with everything but its suffix
  * ${name:m1:m2...}	multiple modifiers can be combined
  */
 subst2 (out, sc, prefix, s, ctx)
@@ -1032,7 +1032,7 @@ struct expand_ctx *ctx;
 			str_pop (&new);
 			free (v);
 			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "e") == 0) {
+		} else if (strcmp (str_get (&old), "R") == 0) {
 			str_new (&new);
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {

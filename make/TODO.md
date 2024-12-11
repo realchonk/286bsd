@@ -42,6 +42,10 @@
 
 # Options
 -q	        check if anythings needs to be built
+-i          ignore failing commands
+-e          read environment variables
+
+# Print a warning, if a generated file is not placed into `${.OBJDIR}` when building out-of-tree
 
 # Allow leaf-directories to not have a Makefile
 

@@ -2920,11 +2920,15 @@ struct scope *sc;
 	fputs ("\nOPTIONS:\n", stderr);
 	fputs ("-C dir                        - chdir(dir)\n", stderr);
 	fputs ("-f file                       - read `file` instead of \"" MAKEFILE "\"\n", stderr);
+	fputs ("-o objdir                     - put build artifacts into objdir\n", stderr);
+	fputs ("-V var                        - print expanded version of var\n", stderr);
 	fputs ("-h                            - print help page\n", stderr);
 	fputs ("-hv                           - print help page, recursively\n", stderr);
 	fputs ("-p                            - dump tree\n", stderr);
 	fputs ("-pv                           - dump tree, recursively\n", stderr);
 	fputs ("-s                            - do not echo commands\n", stderr);
+	fputs ("-k                            - continue processing after errors are encountered\n", stderr);
+	fputs ("-S                            - stop processing when errors are encountered (default)\n", stderr);
 	fputs ("-v                            - verbose output\n", stderr);
 
 	fputs ("\nMACROS:\n", stderr);

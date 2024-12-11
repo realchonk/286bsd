@@ -819,6 +819,7 @@ struct expand_ctx *ctx;
 	struct scope *sub;
 	struct macro *m;
 	struct dep *dep;
+	int i, j;
 
 	/* TODO: .SUBDIRS, .EXPORTS */
 
@@ -881,6 +882,14 @@ struct expand_ctx *ctx;
 		str_putc (out, '.');
 		for (sub = sc->parent; sub != NULL; sub = sub->parent)
 			str_puts (out, "/..");
+	} else if (strcmp (name, ".MAKEFILES") == 0) {
+		for (i = 0, sub = sc; sub != NULL; ++i, sub = sub->parent) {
+			for (j = 0; j < i; ++j)
+				str_puts (out, "../");
+			str_puts (out, sub->makefile);
+			str_putc (out, ' ');
+		}
+		str_pop (out);
 	}
 	return 0;
 }

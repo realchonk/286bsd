@@ -43,6 +43,7 @@
 # Options
 -q	        check if anythings needs to be built
 
+# Allow leaf-directories to not have a Makefile
 
 # `-include` or `sinclude`
 Just like `include`, but doesn't error if the file doesn't exist.

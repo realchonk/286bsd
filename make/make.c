@@ -886,8 +886,8 @@ struct scope *sc;
 char **s;
 struct expand_ctx *ctx;
 {
+	extern expand_special_into ();
 	struct scope *sc2;
-	struct dep *dep;
 	int ch;
 
 	ch = **s;
@@ -902,31 +902,13 @@ struct expand_ctx *ctx;
 			str_puts (out, "/..");
 		break;
 	case '@':
-		if (ctx == NULL)
-			errx (1, "%s: cannot use $@ here", sc_path_str (sc));
-		str_puts (out, ctx->target);
+		expand_special_into (out, sc, ".TARGET", ctx);
 		break;
 	case '<':
-		if (ctx == NULL)
-			errx (1, "%s: cannot use $< here", sc_path_str (sc));
-
-		if (ctx->dep0 == NULL)
-			break;
-
-		dep_write (out, sc, ctx->dep0);
+		expand_special_into (out, sc, ".IMPSRC", ctx);
 		break;
 	case '^':
-		if (ctx == NULL)
-			errx (1, "%s: cannot use $^ here", sc_path_str (sc));
-
-		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
-			str_putc (out, ' ');
-			dep_write (out, sc, dep);
-		}
-		for (dep = ctx->infdeps; dep != NULL; dep = dep->next) {
-			str_putc (out, ' ');
-			dep_write (out, sc, dep);
-		}
+		expand_special_into (out, sc, ".ALLSRC", ctx);
 		break;
 	case '{':
 		subst2 (out, sc, s, ctx);
@@ -980,6 +962,7 @@ struct expand_ctx *ctx;
 {
 	struct scope *sub;
 	struct macro *m;
+	struct dep *dep;
 
 	/* TODO: .SUBDIRS, .EXPORTS */
 
@@ -1014,6 +997,30 @@ struct expand_ctx *ctx;
 
 	} else if (strcmp (name, ".OBJDIR") == 0) {
 		write_objdir (out, sc);
+	} else if (strcmp (name, ".TARGET") == 0) {
+		if (ctx == NULL)
+			errx (1, "%s: cannot use $@ or ${.TARGET} here", sc_path_str (sc));
+		str_puts (out, ctx->target);
+	} else if (strcmp (name, ".IMPSRC") == 0) {
+		if (ctx == NULL)
+			errx (1, "%s: cannot use $< or ${.IMPSRC} here", sc_path_str (sc));
+
+		if (ctx->dep0 == NULL)
+			return 0;
+
+		dep_write (out, sc, ctx->dep0);
+	} else if (strcmp (name, ".ALLSRC") == 0) {
+		if (ctx == NULL)
+			errx (1, "%s: cannot use $^ or ${.ALLSRC} here", sc_path_str (sc));
+
+		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
+			str_putc (out, ' ');
+			dep_write (out, sc, dep);
+		}
+		for (dep = ctx->infdeps; dep != NULL; dep = dep->next) {
+			str_putc (out, ' ');
+			dep_write (out, sc, dep);
+		}
 	}
 	return 0;
 }

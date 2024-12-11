@@ -684,18 +684,21 @@ char *name;
 /* MACRO EXPANSION */
 
 struct expand_ctx {
+	struct path *prefix;
 	char *target;
 	struct dep *deps, *infdeps;
 	struct dep *dep0;
 	int free_target;
 };
 
-ectx_init (ctx, target, dep0, deps, infdeps)
+ectx_init (ctx, prefix, target, dep0, deps, infdeps)
 struct expand_ctx *ctx;
+struct path *prefix;
 char *target;
 struct dep *dep0;
 struct dep *deps, *infdeps;
 {
+	ctx->prefix = prefix;
 	ctx->target = target;
 	ctx->dep0 = dep0;
 	ctx->deps = deps;
@@ -704,13 +707,15 @@ struct dep *deps, *infdeps;
 	return 0;
 }
 
-ectx_file (ctx, sc, f)
+ectx_file (ctx, sc, prefix, f)
 struct expand_ctx *ctx;
 struct scope *sc;
+struct path *prefix;
 struct file *f;
 {
 	str_t tmp;
 
+	ctx->prefix = prefix;
 	if (objdir != NULL) {
 		str_new (&tmp);
 		write_objdir (&tmp, sc);
@@ -883,10 +888,12 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-/* ${name}
- * ${name:old_string=new_string}
- * TODO:
- * ${name/suffix}	append `suffix` after each word
+/* ${name}		just the value of macro called `name`
+ * ${name:old=new}	replace `old` with `new`, must be the last modifier
+ * ${name:U}		convert all characters to uppercase
+ * ${name:L}		convert all characters to lowercase
+ * ${name:F}		try searching for files in either ${.OBJDIR} or source directory
+ * ${name:m1:m2...}	multiple modifiers can be combined
  */
 subst2 (out, sc, s, ctx)
 str_t *out;
@@ -898,7 +905,8 @@ struct expand_ctx *ctx;
 	extern expand_macro_into ();
 	extern subst ();
 	struct macro *m;
-	char *v, *orig = *s, *t;
+	struct filetime ft;
+	char *v, *orig = *s, *t, *w;
 	str_t name, old, new;
 
 	/* parse macro name */
@@ -985,6 +993,24 @@ struct expand_ctx *ctx;
 
 			for (t = v; *t != '\0'; ++t)
 				str_putc (&new, tolower (*t));
+
+			free (v);
+			v = str_release (&new);
+		} else if (strcmp (str_get (&old), "F") == 0) {
+			str_new (&new);
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				if (get_mtime (&ft, sc, ctx->prefix, w) == 0 && ft.obj) {
+					write_objdir (&new, sc);
+					str_putc (&new, '/');
+				}
+				str_puts (&new, w);
+				str_putc (&new, ' ');
+			}
+			str_pop (&new);
 
 			free (v);
 			v = str_release (&new);
@@ -2564,7 +2590,7 @@ struct path *prefix;
 		}
 
 		/* run commands */
-		ectx_file (&ctx, sc, f);
+		ectx_file (&ctx, sc, prefix, f);
 		for (; *s != NULL; ++s) {
 			if (runcom (sc, prefix, *s, &ctx, name) != 0) {
 				fprintf (stderr, "%s: command failed: %s\n", sc_path_str (sc), *s);
@@ -2572,6 +2598,7 @@ struct path *prefix;
 				return 1;
 			}
 		}
+		ectx_free (&ctx);
 
 		/* update timestamp */
 		get_mtime (&ft, sc, prefix, f->name);
@@ -2610,6 +2637,7 @@ struct path *prefix;
 
 			ectx_init (
 				/* ctx    */ &ctx, 
+				/* prefix */ new_prefix,
 				/* target */ prefix[path_len (prefix) - 1].name,
 				/* dep0   */ name != NULL ? &xdep : NULL,
 				/* deps   */ f->dhead,
@@ -2644,6 +2672,7 @@ struct path *prefix;
 
 		ectx_init (
 			/* ctx    */ &ctx, 
+			/* prefix */ new_prefix,
 			/* target */ prefix[path_len (prefix) - 1].name,
 			/* dep0   */ name != NULL ? &xdep : NULL,
 			/* deps   */ f->dhead,

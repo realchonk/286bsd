@@ -926,51 +926,65 @@ struct expand_ctx *ctx;
 	v = expand_macro (sc, m, str_get (&name), ctx);
 	str_free (&name);
 
-	if (**s != ':') {
-	invalid:
-		errx (1, "%s: invalid macro expansion: ${%s", sc_path_str (sc), orig);
-	}
-	++*s;
-
-	/* TODO: modifiers */
-
 	str_new (&old);
-	str_new (&new);
 
-	while (**s != '\0' && **s != '}' && **s != '=') {
-		if (**s == '$') {
-			++*s;
-			subst (&old, sc, s, ctx);
-		} else {
-			str_putc (&old, **s);
-			++*s;
+	while (**s == ':') {
+		++*s;
+
+		/* parse modifier, TODO: move this into a function */
+		for (str_reset (&old); **s != '\0' && **s != '}' && **s != ':' && **s != '='; ) {
+			switch (**s) {
+			case '$':
+				++*s;
+				subst (&old, sc, s, ctx);
+				break;
+			case '\\':
+				++*s;
+				/* fallthrough */
+			default:
+				str_putc (&old, **s);
+				++*s;
+				break;
+			}
 		}
-	}
 
-	if (**s != '=')
-		goto invalid;
-	++*s;
-
-	while (**s != '\0' && **s != '}') {
-		if (**s == '$') {
+		if (**s == '=') {
 			++*s;
-			subst (&new, sc, s, ctx);
+			str_new (&new);
+
+			/* TODO: move this into a function */
+			for (str_new (&new); **s != '\0' && **s != '}'; ) {
+				switch (**s) {
+				case '$':
+					++*s;
+					subst (&new, sc, s, ctx);
+					break;
+				case '\\':
+					++*s;
+					/* fallthrough */
+				default:
+					str_putc (&new, **s);
+					++*s;
+					break;
+				}
+			}
+
+			replace_all_into (out, v, str_get (&old), str_get (&new));
+			str_free (&new);
+			break;
 		} else {
-			str_putc (&new, **s);
-			++*s;
+			errx (1, "TODO: modifiers: '${%s'", orig);
 		}
 	}
 
 	if (**s != '}')
 		goto invalid;
-	++*s;
-
-	replace_all_into (out, v, str_get (&old), str_get (&new));
 
 	str_free (&old);
-	str_free (&new);
 	free (v);
 	return 0;
+invalid:
+	errx (1, "%s: invalid macro expansion: '${%s', s = '%s'", sc_path_str (sc), orig, *s);
 }
 
 subst (out, sc, s, ctx)

@@ -28,7 +28,7 @@ sys.bin: sys.elf
 
 # TODO: fix out of tree build: ${OBJ}
 sys.elf: linker.ld ${OBJ}
-	ld -o $@ -T linker.ld ${OBJ} ${LDFLAGS}
+	ld -o $@ -T linker.ld ${OBJ:F} ${LDFLAGS}
 
 user.bin: user.asm
 	nasm -fbin -o $@ $<

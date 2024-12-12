@@ -2030,6 +2030,7 @@ struct path *dir;
 char *s, *t, *help;
 {
 	struct macro *m, *m2;
+	char *v;
 
 	m = new (struct macro);
 	m->next = sc->dir->macros;
@@ -2042,12 +2043,14 @@ char *s, *t, *help;
 		m->lazy = 0;
 		m->value = evalcom (sc, dir, trim (t + 1));
 	} else if (t[-1] == '?') {
-		t[-1] = '\0';
-		m2 = find_macro (sc, trim (s));
-		if (m2 != NULL) {
-			m->value = m2->value;
+		if (t[-2] == '?') {
+			t[-2] = '\0';
+			v = getenv (trim (s));
+			m->value = v != NULL ? v : strdup (trim (t + 1));
 		} else {
-			m->value = strdup (trim (t + 1));
+			t[-1] = '\0';
+			m2 = find_macro (sc, trim (s));
+			m->value = m2 != NULL ? m2->value : strdup (trim (t + 1));
 		}
 		m->lazy = 1;
 	} else if (t[-1] == ':') {
@@ -3187,8 +3190,11 @@ char **argv;
 		*s = '\0';
 		m = new (struct macro);
 		m->next = globals;
+		m->enext = NULL;
+		m->prepend = NULL;
 		m->name = trim (argv[i]);
 		m->value = trim (s + 1);
+		m->lazy = 0;
 		globals = m;
 
 		argv[i] = NULL;
@@ -3228,5 +3234,4 @@ char **argv;
 
 	return n == 0 ? build (&b, sc, &path_null) : 0;
 }
-
 

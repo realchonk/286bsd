@@ -129,7 +129,7 @@ init_decl	: declarator			{ $$ = new_decl (&$1); $$->in.type = IN_NONE; }
 
 declarator	: declarator '(' ')'		{ $$.type = DL_FUNC; $$.dl = new (struct declarator); *$$.dl = $1; }
 	   	| declarator '(' ident_list ')'	{ $$.type = DL_FUNCDEF; $$.def.dl = new (struct declarator); *$$.def.dl = $1; $$.def.il = $3; }
-	   	//| declarator '[' const_expr ']'
+	   	/*| declarator '[' const_expr ']' */
 	   	| declarator1			{ $$ = $1; }
 		;
 
@@ -147,8 +147,8 @@ abstdecl	:				{ $$.type = DL_IDENT; $$.ident[0] = '\0'; }
 
 abstdecl1	: '(' abstdecl1 ')'		{ $$ = $2; }
 	  	| '*' abstdecl			{ $$.type = DL_PTR; $$.dl = new (struct declarator); *$$.dl = $2; }
-		//| abstdecl '(' ')'		{ $$.type = DL_FUNC; $$.dl = new (struct declarator); *$$.dl = $1; }
-		//| abstdecl '[' const_expr ']'
+		/*| abstdecl '(' ')'		{ $$.type = DL_FUNC; $$.dl = new (struct declarator); *$$.dl = $1; } */
+		/*| abstdecl '[' const_expr ']' */
 		;
 
 initializer	: '=' expression		{ $$.type = IN_EX; $$.ex = $2; }
@@ -441,7 +441,7 @@ struct stmt **stmts;
 	fn->vhead = vtail = NULL;
 	fn->body = stmts;
 
-	// declare arguments as implicit int
+	/* declare arguments as implicit int */
 	for (il = dl->def.il; il != NULL; il = il->next) {
 		if (find_sym (fscope.vars, il->ident) != NULL)
 			yyerror ("redeclaration of argument");
@@ -464,7 +464,7 @@ struct stmt **stmts;
 		atail = sym;
 	}
 
-	// set the correct data types for arguments
+	/* set the correct data types for arguments */
 	for (dd = args; dd != NULL; dd = dd->next) {
 		if (dd->d.sc != SC_NONE)
 			yyerror ("invalid storage class for function argument");
@@ -481,7 +481,7 @@ struct stmt **stmts;
 		}
 	}
 
-	// declare variables
+	/* declare variables */
 	for (dd = vars; dd != NULL; dd = dd->next) {
 		base = resolve_type (&dd->d.ts);
 		for (di = dd->d.head; di != NULL; di = di->next) {

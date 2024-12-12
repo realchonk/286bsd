@@ -43,7 +43,7 @@ struct dtype *dt;
 		print_dt (dt->inner);
 		break;
 	case DT_FUNC:
-		// TODO
+		/* TODO */
 		abort ();
 		break;
 	}
@@ -61,7 +61,7 @@ struct symbol *sym;
 		break;
 	case SC_EXTERN:
 		ext = 1;
-		// fallthrough
+		/* fallthrough */
 	case SC_STATIC:
 		pub = 0;
 		break;
@@ -87,7 +87,7 @@ struct symbol *sym;
 		switch (sym->init.type) {
 		case IN_EX:
 			printf (" = %d", eval_expr (sym->init.ex));
-			// fallthrough
+			/* fallthrough */
 		case IN_NONE:
 			printf (";\n");
 			break;
@@ -221,7 +221,7 @@ struct function *fn;
 		printf ("\n");
 	}
 
-	// TODO: define static variables
+	/* TODO: define static variables */
 
 	for (st = fn->body; *st != NULL; ++st) {
 		gen_stmt (*st);

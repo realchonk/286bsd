@@ -15,11 +15,11 @@ run: cc1 ../irc/irc
 	(echo '=== IR ==='; cat test.ir; echo '=== ASM ==='; cat test.asm) | less
 
 cc1: lex.o parse.o gen.o main.o dt.o
-	${CC} -o $@ $^ ${CFLAGS}
+	${CC} -o $@ $^ ${CFLAGS} ${CPPFLAGS}
 
 parse.o y.tab.h: parse.y
 	${YACC} ${YFLAGS} parse.y
-	${CC} -c -o ${.OBJDIR}/parse.o y.tab.c ${CFLAGS}
+	${CC} -c -o ${.OBJDIR}/parse.o y.tab.c ${CFLAGS} ${CPPFLAGS}
 	rm -f y.tab.c
 
 lex.o: cc1.h y.tab.h

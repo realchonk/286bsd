@@ -186,10 +186,10 @@ struct function {
 };
 
 enum irc_type {
-	IT_BYTE,	// char
-	IT_WORD,	// short, int
-	IT_DWORD,	// long
-	IT_QWORD,	// (unused for now)
+	IT_BYTE,	/* char */
+	IT_WORD,	/* short, int */
+	IT_DWORD,	/* long */
+	IT_QWORD,	/* (unused for now) */
 };
 
 extern struct scope gscope, fscope;
@@ -197,4 +197,4 @@ extern yyerror (), yylex ();
 extern reg, linenum;
 extern struct expr *cast ();
 
-#endif // FILE_CC1_H
+#endif /* FILE_CC1_H */

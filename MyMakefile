@@ -13,7 +13,7 @@ CFLAGS ?= -O2
 CFLAGS += -ansi -Wall -Wno-deprecated-non-prototype -Wno-implicit-int
 
 ## Default C Preprocssor Flags
-CPPFLAGS ?=
+CPPFLAGS ?= -D_GNU_SOURCE -D_BSD_SOURCE
 
 .EXPORTS: CC YACC CFLAGS CPPFLAGS
 

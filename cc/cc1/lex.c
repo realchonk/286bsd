@@ -9,7 +9,7 @@ int linenum = 1, peekdch = EOF;
 struct token lval;
 struct scope gscope, fscope;
 
-// MISC
+/* MISC */
 
 yyerror (msg)
 char *msg;
@@ -54,7 +54,7 @@ isname (ch)
 	return isalnum (ch) || ch == '_';
 }
 
-// LEXER
+/* LEXER */
 
 yylex ()
 {
@@ -136,7 +136,7 @@ begin:
 				}
 			}
 		}
-		// fallthrough
+		/* fallthrough */
 	default:
 		return yyerror ("invalid input");
 	}

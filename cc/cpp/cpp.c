@@ -108,10 +108,10 @@ char buffer[NCPS+BUFSIZ+BUFSIZ+NCPS];
 # define SBSIZE ((unsigned)0114130)	/* PDP compiler doesn't like 39024 */
 short	sbff[SBSIZE/2];
 # define sbf ((char *)sbff)
-#else // !pdp11
+#else /* !pdp11 */
 # define SBSIZE 60000		/* std = 12000, wnj aug 1979 */
 char	sbf[SBSIZE];
-#endif // pdp11
+#endif /* pdp11 */
 char	*savch	= sbf;
 
 # define DROP 0xFE	/* special character not legal ASCII or EBCDIC */
@@ -144,7 +144,7 @@ STATIC	char	*dirs[10];	/* -I and <> directories */
 char *strdex(), *copy(), *subst(), *trmdir();
 struct symtab *stsym();
 STATIC	int	fin	= STDIN;
-STATIC	FILE	*fout	= stdout;
+STATIC	FILE	*fout;
 STATIC	int	nd	= 1;
 STATIC	int	pflag;	/* don't put out lines "# 12 foo.c" */
 int	passcom;	/* don't delete comments */
@@ -1300,7 +1300,7 @@ char *s; { /* kluge */
 	return sp;
 }
 
-// TODO: this is very ugly, but it works for now
+/* TODO: this is very ugly, but it works for now */
 
 /* VARARGS1 */
 pperror(s, x, y)
@@ -1619,6 +1619,8 @@ char *argv[];
 	register char *p;
 	char *tf,**cp2, obuf[BUFSIZ];
 
+	fout = stdout;
+
 	p = "_$ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 	i = 0;
 	while ((c = *p++) != '\0') {
@@ -1679,10 +1681,10 @@ char *argv[];
 			switch (argv[i][1]) {
 			case 'M':
 				mflag++;
-				// fallthrough
+				/* fallthrough */
 			case 'P':
 				pflag++;
-				// fallthrough
+				/* fallthrough */
 			case 'E':
 				continue;
 				
@@ -1758,14 +1760,14 @@ char *argv[];
 			exit (8);
 		}
 
-		tf = (char *)rindex (infile, '.');
+		tf = strrchr (infile, '.');
 		if (tf == NULL) {
 			fprintf (stderr, "missing component name on %s\n", infile);
 			exit (8);
 		}
 
 		tf[1] = 'o';
-		tf=(char *)rindex(infile, '/');
+		tf=strrchr(infile, '/');
 		if (tf != NULL)
 			infile = tf + 1;
 

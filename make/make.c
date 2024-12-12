@@ -2151,6 +2151,7 @@ FILE *file;
 	FILE *tfile;
 	str_t text;
 
+	assert (sc->type == SC_DIR);
 	cpath = path;
 
 	if (verbose >= 3) {
@@ -2945,6 +2946,9 @@ struct scope *sc;
 		return 0;
 
 	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+		if (sub->type != SC_DIR)
+			continue;
+
 		new_prefix = parse_subdir (prefix, sub);
 		help_files (new_prefix, sub);
 		free (new_prefix);

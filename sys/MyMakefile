@@ -26,7 +26,6 @@ sys.img: sys.bin
 sys.bin: sys.elf
 	objcopy -O binary $< $@
 
-# TODO: fix out of tree build: ${OBJ}
 sys.elf: linker.ld ${OBJ}
 	ld -o $@ -T linker.ld ${OBJ:F} ${LDFLAGS}
 

@@ -1,27 +1,29 @@
+#include <strings.h>
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <ctype.h>
 
-// use an arena to speed up memory allocations
+/* use an arena to speed up memory allocations */
 #define ENABLE_ARENA 1
 
-// enable debugging prints
+/* enable debugging prints */
 #define ENABLE_DEBUG 1
 
-// maximum number of registers per function
+/* maximum number of registers per function */
 #define NREGS 128
 
-// maximum number of arguments for a function/call
+/* maximum number of arguments for a function/call */
 #define MAXARGS 8
 
-// maximum number of PHI values
+/* maximum number of PHI values */
 #define MAXPHI 8
 
 int ignore_nan = 0;
 
-// ERROR HANDLING
+/* ERROR HANDLING */
 
 int linenum;
 
@@ -39,7 +41,7 @@ char *msg;
 	return 0;
 }
 
-// MEMORY
+/* MEMORY */
 
 #if ENABLE_ARENA
 
@@ -56,7 +58,7 @@ size_t num;
 {
 	void *ptr;
 
-	// TODO: consider returning heap memory
+	/* TODO: consider returning heap memory */
 	if (alen + num > sizeof (arena))
 		error ("arena out of memory");
 
@@ -64,7 +66,7 @@ size_t num;
 	alen += num;
 # if ENABLE_DEBUG
 	total_alloc += num;
-# endif // ENABLE_DEBUG
+# endif /* ENABLE_DEBUG */
 	memset (ptr, 0, num);
 	return ptr;
 }
@@ -109,7 +111,7 @@ char *old;
 	return s;
 }
 
-// LEXER
+/* LEXER */
 
 enum {
 	TK_INT = 128,
@@ -243,7 +245,7 @@ begin:
 		len = 0;
 		s = alloc (cap + 1);
 
-		// TODO: implement escape sequences
+		/* TODO: implement escape sequences */
 		while ((ch = nextch ()) != '"') {
 			if (len == cap) {
 				cap *= 2;
@@ -283,13 +285,13 @@ begin:
 	}
 }
 
-// AST DATA TYPES
+/* AST DATA TYPES */
 
 enum dtype_type {
 	DT_NONE,
-	DT_DPTR,	// pointer to data memory (ds)
-	DT_FPTR,	// segment+pointer
-	DT_SPTR,	// pointer to stack memory (ss)
+	DT_DPTR,	/* pointer to data memory (ds) */
+	DT_FPTR,	/* segment+pointer */
+	DT_SPTR,	/* pointer to stack memory (ss) */
 	DT_LABEL,
 	DT_BYTE,
 	DT_WORD,
@@ -321,47 +323,47 @@ struct regimm {
 };
 
 enum expr_type {
-	EX_REG,		// .reg
-	EX_INT,		// .i
-	EX_FLOAT,	// .f
-	EX_ALLOCA,	// .alloca
-	EX_ADD,		// .bin
-	EX_SUB,		// .bin
-	EX_AND,		// .bin
-	EX_OR,		// .bin
-	EX_XOR,		// .bin
-	EX_LSL,		// .bin
-	EX_LSR,		// .bin
-	EX_ASR,		// .bin
-	EX_MUL,		// .bin
-	EX_UDIV,	// .bin
-	EX_SDIV,	// .bin
-	EX_EQ,		// .bin
-	EX_NE,		// .bin
-	EX_ULT,		// .bin
-	EX_UGT,		// .bin
-	EX_ULE,		// .bin
-	EX_UGE,		// .bin
-	EX_SLT,		// .bin
-	EX_SGT,		// .bin
-	EX_SLE,		// .bin
-	EX_SGE,		// .bin
-	EX_FEQ,		// .bin
-	EX_FNE,		// .bin
-	EX_FLT,		// .bin
-	EX_FGT,		// .bin
-	EX_FLE,		// .bin
-	EX_FGE,		// .bin
-	EX_PTRADD,	// .bin
-	EX_READ,	// .read
-	EX_CALL,	// .call
-	EX_PHI,		// .phi
-	EX_PEXT,	// .reg
-	EX_ZEXT,	// .reg
-	EX_SEXT,	// .reg
-	EX_TRUNC,	// .reg
-	EX_PCAST,	// .reg
-	EX_LOOKUP,	// .s
+	EX_REG,		/* .reg */
+	EX_INT,		/* .i */
+	EX_FLOAT,	/* .f */
+	EX_ALLOCA,	/* .alloca */
+	EX_ADD,		/* .bin */
+	EX_SUB,		/* .bin */
+	EX_AND,		/* .bin */
+	EX_OR,		/* .bin */
+	EX_XOR,		/* .bin */
+	EX_LSL,		/* .bin */
+	EX_LSR,		/* .bin */
+	EX_ASR,		/* .bin */
+	EX_MUL,		/* .bin */
+	EX_UDIV,	/* .bin */
+	EX_SDIV,	/* .bin */
+	EX_EQ,		/* .bin */
+	EX_NE,		/* .bin */
+	EX_ULT,		/* .bin */
+	EX_UGT,		/* .bin */
+	EX_ULE,		/* .bin */
+	EX_UGE,		/* .bin */
+	EX_SLT,		/* .bin */
+	EX_SGT,		/* .bin */
+	EX_SLE,		/* .bin */
+	EX_SGE,		/* .bin */
+	EX_FEQ,		/* .bin */
+	EX_FNE,		/* .bin */
+	EX_FLT,		/* .bin */
+	EX_FGT,		/* .bin */
+	EX_FLE,		/* .bin */
+	EX_FGE,		/* .bin */
+	EX_PTRADD,	/* .bin */
+	EX_READ,	/* .read */
+	EX_CALL,	/* .call */
+	EX_PHI,		/* .phi */
+	EX_PEXT,	/* .reg */
+	EX_ZEXT,	/* .reg */
+	EX_SEXT,	/* .reg */
+	EX_TRUNC,	/* .reg */
+	EX_PCAST,	/* .reg */
+	EX_LOOKUP,	/* .s */
 };
 
 struct call {
@@ -383,7 +385,7 @@ struct expr {
 		char *s;
 		struct {
 			struct regimm num;
-			int off;	// only valid if ri.is_imm
+			int off;	/* only valid if ri.is_imm */
 		} alloca;
 		struct {
 			int l;
@@ -399,18 +401,18 @@ struct expr {
 
 enum ir_type {
 	IR_NOP,
-	IR_LET,		// .let
-	IR_WRITE,	// .write
-	IR_RET,		// .ri
-	IR_LABEL,	// .reg
-	IR_GOTO,	// .reg
-	IR_BR,		// .br
+	IR_LET,		/* .let */
+	IR_WRITE,	/* .write */
+	IR_RET,		/* .ri */
+	IR_LABEL,	/* .reg */
+	IR_GOTO,	/* .reg */
+	IR_BR,		/* .br */
 };
 
 struct ir {
-	struct ir *next, *prev;		// next/prev IR in current block
-	struct ir *bnext, *bprev;	// next/prev block of IR
-	struct ir *bhead;		// head of current IR block
+	struct ir *next, *prev;		/* next/prev IR in current block */
+	struct ir *bnext, *bprev;	/* next/prev block of IR */
+	struct ir *bhead;		/* head of current IR block */
 	enum ir_type type;
 	int line;
 
@@ -445,8 +447,8 @@ struct reg {
 	struct dtype dt;
 	struct ir *ir;
 
-	// R_LOCAL/R_PARAM: stack offset
-	// R_LABEL: self-reference
+	/* R_LOCAL/R_PARAM: stack offset */
+	/* R_LABEL: self-reference */
 	int off;
 };
 
@@ -461,8 +463,8 @@ struct func {
 };
 
 enum symbol_type {
-	SYM_FUNC,	// .fn
-	SYM_VAR,	// .dt
+	SYM_FUNC,	/* .fn */
+	SYM_VAR,	/* .dt */
 };
 
 struct symbol {
@@ -481,15 +483,15 @@ struct symbol {
 	};
 };
 
-// (persistent)
+/* (persistent) */
 struct symbol *symhead = NULL;
 
-// MISC
+/* MISC */
 
-// allocate temporary memory (freed after processing current unit)
+/* allocate temporary memory (freed after processing current unit) */
 #define new(T) ((T *)alloc (sizeof (T)))
 
-// allocate persistent memory (not freed across units)
+/* allocate persistent memory (not freed across units) */
 #define pnew(T) ((T *)pmalloc (sizeof (T)))
 
 
@@ -687,7 +689,7 @@ struct dtype *dt;
 	}
 }
 
-// PARSER
+/* PARSER */
 #define expect(exp) (lex () != (exp) ? error ("expected " #exp) : 0)
 #define stalloc(fn, nbytes) ((fn)->stoff -= (((nbytes) + 1) & ~1))
 
@@ -1083,8 +1085,8 @@ struct expr *e;
 		if (tk != ';')
 			error ("invalid phi");
 
-		// TODO: assert_dt_*
-		// TODO: check that there are no instructions (except IR_LABEL) before this
+		/* TODO: assert_dt_* */
+		/* TODO: check that there are no instructions (except IR_LABEL) before this */
 	} else if (strcmp (lval.s, "pcast") == 0) {
 		e->type = EX_PCAST;
 		expect (TK_REG);
@@ -1125,10 +1127,10 @@ struct expr *e;
 	return 0;
 }
 
-// return:
-// 0 = normal IR
-// 1 = end of basic block (e.g. goto)
-// 2 = start of basic block (label)
+/* return: */
+/* 0 = normal IR */
+/* 1 = end of basic block (e.g. goto) */
+/* 2 = start of basic block (label) */
 stmt (fn, ir, tk)
 struct func *fn;
 struct ir *ir;
@@ -1245,7 +1247,7 @@ struct func *fn;
 	sym = sym_new (SYM_FUNC, fn->name, 0);
 	sym->fn.nargs = 0;
 
-	// parse parameter list
+	/* parse parameter list */
 	while (1) {
 		tk = lex ();
 		switch (tk) {
@@ -1285,7 +1287,7 @@ rt:
 		}
 
 		switch (stmt (fn, ir, tk)) {
-		case 0: // normal IR
+		case 0: /* normal IR */
 			if (bhead == NULL)
 				error ("dead instruction");
 
@@ -1298,7 +1300,7 @@ rt:
 
 			prev = ir;
 			break;
-		case 1: // end of basic block
+		case 1: /* end of basic block */
 			if (bhead == NULL)
 				error ("invalid end of a basic block");
 
@@ -1312,7 +1314,7 @@ rt:
 			bhead = NULL;
 			prev = NULL;
 			break;
-		case 2: // start of basic block
+		case 2: /* start of basic block */
 			if (prev != NULL || bhead != NULL)
 				error ("invalid start of a basic block");
 
@@ -1451,7 +1453,7 @@ parse (void)
 	return 0;
 }
 
-// IR PRINTING
+/* IR PRINTING */
 
 print_dt (file, dt)
 FILE *file;
@@ -1718,7 +1720,7 @@ struct ir *ir;
 	return 0;
 }
 
-// ASM MISC
+/* ASM MISC */
 
 int nlbl;
 
@@ -1740,7 +1742,7 @@ enum x86_reg16 {
 char *reg8[] = { "al", "bl", "cl", "dl" };
 char *reg16[] = { "ax", "bx", "cx", "dx", "es" };
 
-// ASM GEN
+/* ASM GEN */
 
 loadb (instr, dest, src)
 char *instr;
@@ -1967,7 +1969,7 @@ long imm;
 	case DT_SPTR:
 		if (imm != 0)
 			error ("it is illegal initialize a pointer to stack memory with anything else than 0");
-		// fallthrough
+		/* fallthrough */
 	case DT_DWORD:
 	case DT_FPTR:
 		loadimmr (instr, "ax", imm & 0xffff);
@@ -2000,7 +2002,7 @@ struct regimm *ri;
 	}
 }
 
-// yes, this function is absolutely ridiculous
+/* yes, this function is absolutely ridiculous */
 loadpwri (fn, instr, dest, src, off)
 struct func *fn;
 char *instr;
@@ -2017,7 +2019,7 @@ int off;
 	return 0;
 }
 
-// constant multiply
+/* constant multiply */
 cmul (reg, i)
 char *reg;
 {
@@ -2113,7 +2115,7 @@ char *instr;
 struct reg *reg;
 struct regimm *shamt;
 {
-	// TODO: optimize byte-aligned shift (eg lsl $0, 8)
+	/* TODO: optimize byte-aligned shift (eg lsl $0, 8) */
 	struct dtype *dt = &reg->dt;
 
 	assert (shamt->dt->type == DT_BYTE);
@@ -2460,7 +2462,7 @@ struct expr *e;
 
 		case DT_LDOUBLE:
 			fprintf (stderr, "%d: warning: loading an ldouble by immediate will cause the result to be truncated", linenum);
-			// fallthrough
+			/* fallthrough */
 
 		case DT_DOUBLE:
 			printf ("\tpush %d\n", (int)((e->i >> 48) & 0xffff));
@@ -2485,7 +2487,7 @@ struct expr *e;
 			break;
 		case DT_LDOUBLE:
 			fprintf (stderr, "%d: warning: loading an ldouble by immediate will cause the result to be truncated", linenum);
-			// fallthrough
+			/* fallthrough */
 		case DT_DOUBLE:
 			dbint.d = e->f;
 			printf ("\tpush %d\n", (int)((dbint.l >> 48) & 0xffff));
@@ -2529,7 +2531,7 @@ struct expr *e;
 		switch (dt->type) {
 		case DT_FPTR:
 			puts ("\tmov dx, ss");
-			// fallthrough
+			/* fallthrough */
 		case DT_SPTR:
 			if (e->alloca.num.is_imm) {
 				printf ("\tlea ax, [bp + %d]\n", e->alloca.off);
@@ -2601,7 +2603,7 @@ struct expr *e;
 			break;
 		case DT_DWORD:
 		case DT_QWORD:
-			// TODO: multiply using FPU
+			/* TODO: multiply using FPU */
 			call_muldiv ("mul", fn, dt, e);
 			break;
 		case DT_FLOAT:
@@ -2793,9 +2795,9 @@ struct expr *e;
 			printf ("\tadd sp, %d\n", cnt);
 		break;
 	case EX_PHI:
-		// TODO: check that all sources actually jump to this phi.
-		// It's correct that this is empty,
-		// since the value is set in the jumping instruction.
+		/* TODO: check that all sources actually jump to this phi. */
+		/* It's correct that this is empty, */
+		/* since the value is set in the jumping instruction. */
 		break;
 	case EX_PEXT:
 		r = &fn->regs[e->reg];
@@ -2910,8 +2912,8 @@ struct expr *e;
 	return 0;
 }
 
-// phi's are crazy. I'm surprised this actually works.
-// You are not expected to understand this.
+/* phi's are crazy. I'm surprised this actually works. */
+/* You are not expected to understand this. */
 check_phi (fn, from, to)
 struct func *fn;
 struct ir *from;
@@ -2921,30 +2923,30 @@ struct reg *to;
 	struct expr *e;
 	int i, mylbl;
 
-	// check for corruption of basic block structure
+	/* check for corruption of basic block structure */
 	assert (from->bhead != NULL && from->bhead->prev == NULL);
 
-	// check that the destination is actually a label
+	/* check that the destination is actually a label */
 	assert_dt_label (&to->dt);
 
-	// check if this jump can be referenced in a phi
+	/* check if this jump can be referenced in a phi */
 	if (from->bhead->type != IR_LABEL) {
 		if (from->bhead->bprev != NULL) {
-			// this should never happen
+			/* this should never happen */
 			error ("broken basic block");
 		} else {
-			// first instruction of a function
+			/* first instruction of a function */
 			return 0;
 		}
 	}
 
-	// origin basic block label
+	/* origin basic block label */
 	mylbl = from->bhead->reg;
 
 	phi = to->ir->next;
 	assert (phi != NULL);
 	
-	// only the first instruction after a label can be a phi
+	/* only the first instruction after a label can be a phi */
 	if (phi->type != IR_LET || phi->let.val.type != EX_PHI)
 		return 0;
 
@@ -3080,11 +3082,11 @@ struct ir *ir;
 		case DT_QWORD:
 			puts ("\tor ax, bx");
 			puts ("\tor ax, cx");
-			// fallthrough
+			/* fallthrough */
 		case DT_DWORD:
 		case DT_FPTR:
 			puts ("\tor ax, dx");
-			// fallthrough
+			/* fallthrough */
 		case DT_WORD:
 		case DT_DPTR:
 		case DT_SPTR:
@@ -3093,7 +3095,7 @@ struct ir *ir;
 		case DT_FLOAT:
 		case DT_DOUBLE:
 		case DT_LDOUBLE:
-			// TODO
+			/* TODO */
 			error ("TODO: IR_BR for floats");
 			break;
 		}
@@ -3202,7 +3204,7 @@ struct symbol *sym;
 	return 0;
 }
 
-// MAIN
+/* MAIN */
 
 main (void)
 {

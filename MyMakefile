@@ -3,7 +3,7 @@
 TOP != pwd
 
 ## Path to the C Compiler
-CC ?= cc
+CC ??= cc
 
 ## Path to Yacc
 YACC ?= $./tools/bin/yacc

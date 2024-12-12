@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <fnmatch.h>
 #include <assert.h>
 #include <unistd.h>
 #include <limits.h>
@@ -904,9 +905,10 @@ struct expand_ctx *ctx;
  * ${name:H}		replace each word with its dirname() equvialent
  * ${name:T}		replace each word with its basename() equvialent
  * ${name:m1:m2...}	multiple modifiers can be combined
- * TODO:
  * ${name:Mpattern}	select only words that match pattern
  * ${name:Npattern}	opposite of :Mpattern
+ * TODO:
+ * somehow make this function shorter
  */
 subst2 (out, sc, prefix, s, ctx)
 str_t *out;
@@ -920,7 +922,7 @@ struct expand_ctx *ctx;
 	extern subst ();
 	struct macro *m;
 	struct filetime ft;
-	char *orig = *s, *t, *u, *v, *w;
+	char *orig = *s, *t, *u, *v, *w, *pattern;
 	str_t name, old, new;
 
 	/* parse macro name */
@@ -1086,6 +1088,44 @@ struct expand_ctx *ctx;
 					continue;
 
 				str_puts (&new, basename (w));
+				str_putc (&new, ' ');
+			}
+
+			str_pop (&new);
+			free (v);
+			v = str_release (&new);
+		} else if (str_get (&old)[0] == 'M') {
+			str_new (&new);
+
+			pattern = str_get (&old) + 1;
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				if (fnmatch (pattern, w, 0) != 0)
+					continue;
+
+				str_puts (&new, w);
+				str_putc (&new, ' ');
+			}
+
+			str_pop (&new);
+			free (v);
+			v = str_release (&new);
+		} else if (str_get (&old)[0] == 'N') {
+			str_new (&new);
+
+			pattern = str_get (&old) + 1;
+
+			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
+				if (*w == '\0')
+					continue;
+
+				if (fnmatch (pattern, w, 0) == 0)
+					continue;
+
+				str_puts (&new, w);
 				str_putc (&new, ' ');
 			}
 

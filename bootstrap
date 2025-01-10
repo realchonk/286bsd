@@ -5,7 +5,7 @@ CFLAGS='-ansi -O0 -g -w'
 
 mkdir -p tools/bin
 
-${CC} -o 'tools/bin/mk' 'make/make.c' ${CFLAGS}
+${CC} -o 'tools/bin/mk' 'make/mk.c' 'make/compats.c' ${CFLAGS} -DHAVE_CONFIG_H
 
 ./tools/bin/mk clean
 ./tools/bin/mk CC="${CC}" PREFIX="${PWD}/tools" cc/yacc/install

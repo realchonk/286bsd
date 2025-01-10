@@ -1,15 +1,23 @@
-#if __linux__
-# define _GNU_SOURCE
-# define _XOPEN_SOURCE 700
+#if HAVE_CONFIG_H
+# include "config.h"
 #endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
-#include <fnmatch.h>
+#if HAVE_SYS_WAIT_H
+# include <sys/wait.h>
+#endif
+#if HAVE_SYS_TIME_H
+# include <sys/time.h>
+#endif
+#if HAVE_FTIME
+# include <sys/timeb.h>
+#endif
 #include <assert.h>
 #include <unistd.h>
-#include <limits.h>
-#include <libgen.h>
+#if HAVE_LIMITS_H
+# include <limits.h>
+#endif
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,52 +25,69 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <time.h>
-#include <err.h>
-#include "make.h"
+#include "compats.h"
+#include "mk.h"
 
 #define new(T) ((T *)calloc (1, sizeof (T)))
-#define MAKEFILE "MyMakefile"
-#define SHELL "sh"
+
+#ifndef MAKEFILE
+# define MAKEFILE "Mkfile"
+#endif
+
+#ifndef SHELL
+# define SHELL "sh"
+#endif
 
 static char *cpath, *objdir = NULL;
 static int verbose = 0, cline = 0, conterr = 0;
 static struct timespec time_zero;
 
+#if HAVE_DESIGNATED_DECLARATORS
+# define FIELD(name, value) .name = value
+#else
+# define FIELD(name, value) value
+#endif
+
 static struct macro m_shell = {
-	.next = NULL,
-	.enext = NULL,
-	.prepend = NULL,
-	.name = "SHELL",
-	.value = SHELL,
-	.lazy = 0,
+	FIELD (next, NULL),
+	FIELD (enext, NULL),
+	FIELD (prepend, NULL),
+	FIELD (name, "SHELL"),
+	FIELD (value, SHELL),
+	FIELD (help, NULL),
+	FIELD (lazy, 0),
 }, m_make = {
-	.next = &m_shell,
-	.enext = &m_shell,
-	.prepend = NULL,
-	.name = "MAKE",
-	.value = NULL,
-	.lazy = 0,
+	FIELD (next, &m_shell),
+	FIELD (enext, &m_shell),
+	FIELD (prepend, NULL),
+	FIELD (name, "MAKE"),
+	FIELD (value, NULL),
+	FIELD (help, NULL),
+	FIELD (lazy, 0),
 }, m_dmake = {
-	.next = &m_make,
-	.enext = &m_make,
-	.prepend = NULL,
-	.name = ".MAKE",
-	.value = NULL,
-	.lazy = 0,
+	FIELD (next, &m_make),
+	FIELD (enext, &m_make),
+	FIELD (prepend, NULL),
+	FIELD (name, ".MAKE"),
+	FIELD (value, NULL),
+	FIELD (help, NULL),
+	FIELD (lazy, 0),
 }, m_makeflags = {
-	.next = &m_dmake,
-	.enext = &m_dmake,
-	.prepend = NULL,
-	.name = "MAKEFLAGS",
-	.value = NULL,
-	.lazy = 0,
+	FIELD (next, &m_dmake),
+	FIELD (enext, &m_dmake),
+	FIELD (prepend, NULL),
+	FIELD (name, "MAKEFLAGS"),
+	FIELD (value, NULL),
+	FIELD (help, NULL),
+	FIELD (lazy, 0),
 }, m_dmakeflags = {
-	.next = &m_makeflags,
-	.enext = &m_makeflags,
-	.prepend = NULL,
-	.name = ".MAKEFLAGS",
-	.value = NULL,
-	.lazy = 0,
+	FIELD (next, &m_makeflags),
+	FIELD (enext, &m_makeflags),
+	FIELD (prepend, NULL),
+	FIELD (name, ".MAKEFLAGS"),
+	FIELD (value, NULL),
+	FIELD (help, NULL),
+	FIELD (lazy, 0),
 };
 
 static struct macro *globals = &m_dmakeflags;
@@ -266,9 +291,9 @@ char *s, *prefix;
 
 /* PATH LOGIC */
 
-static struct path path_null = { .type = PATH_NULL, .name = NULL };
-static struct path path_super = { .type = PATH_SUPER, .name = NULL };
-static struct path tmppath = { .type = PATH_NAME, .name = NULL };
+static struct path path_null = { FIELD (type, PATH_NULL), FIELD (name, NULL) };
+static struct path path_super = { FIELD (type, PATH_SUPER), FIELD (name, NULL) };
+static struct path tmppath = { FIELD (type, PATH_NAME), FIELD (name, NULL) };
 
 /* return the number of path components (excl. PATH_NULL). */
 size_t
@@ -320,6 +345,8 @@ struct path *old, *comp;
 		p = path_cpy (old, len, len + 1);
 		p[len] = *comp;
 		break;
+	default:
+		abort ();
 	}
 
 	return p;
@@ -365,6 +392,7 @@ struct path *p;
 {
 	char *s, *t;
 
+	/* TODO: maybe allocate the buffer beforehand */
 	s = realpath (path_to_str (p), NULL);
 	t = strdup (basename (s));
 	free (s);
@@ -461,6 +489,12 @@ struct filetime {
 	int obj;
 };
 
+#if HAVE_STAT_MTIM
+# define stat_get_mtime(mt, st) mt = st.st_mtim
+#else
+# define stat_get_mtime(mt, st) mt.tv_sec = st.st_mtime, mt.tv_nsec = 0
+#endif
+
 get_mtime (out, sc, dir, name)
 struct filetime *out;
 struct scope *sc;
@@ -477,7 +511,7 @@ char *name;
 	path = path_cat_str (dir, name);
 
 	if (lstat (path, &st) == 0) {
-		out->t = st.st_mtim;
+		stat_get_mtime (out->t, st);
 		out->obj = 0;
 		if (verbose >= 2)
 			printf ("found\n");
@@ -494,7 +528,7 @@ char *name;
 	path = str_get (&tmpstr);
 
 	if (lstat (path, &st) == 0) {
-		out->t = st.st_mtim;
+		stat_get_mtime (out->t, st);
 		out->obj = 1;
 		if (verbose >= 2)
 			printf ("found in obj\n");
@@ -514,7 +548,26 @@ struct timespec
 now ()
 {
 	struct timespec t;
+
+#if HAVE_CLOCK_GETTIME
 	clock_gettime (CLOCK_REALTIME, &t);
+#elif HAVE_GETTIMEOFDAY
+	struct timeval tv;
+	gettimeofday (&tv, NULL);
+	t.tv_sec = tv.tv_sec;
+	t.tv_nsec = tv.tv_sec;
+#elif HAVE_FTIME
+	struct timeb tb;
+	ftime (&tb);
+	t.tv_sec = tb.time;
+	t.tv_nsec = (long)tb.millitm * 1000000;
+#else
+	time_t tx;
+	tx = time (NULL);
+	t.tv_sec = tx;
+	t.tv_nsec = 0;
+#endif
+
 	return t;
 }
 
@@ -534,6 +587,27 @@ struct timespec *a, *b;
 	}
 }
 
+#if NDEBUG
+# define sc_dir(sc) ((sc)->dir)
+# define sc_custom(sc) ((sc)->custom)
+#else
+struct directory *
+sc_dir (sc)
+struct scope *sc;
+{
+	assert (sc->type == SC_DIR);
+	return sc->inner.dir;
+}
+
+struct custom *
+sc_custom (sc)
+struct scope *sc;
+{
+	assert (sc->type == SC_CUSTOM);
+	return sc->inner.custom;
+}
+#endif
+
 /* MKDIR */
 
 mkdir_p (dir)
@@ -552,7 +626,7 @@ char *dir;
 		if (stat (dir, &st) != 0)
 			err (1, "mkdir_p('%s'): stat()", dir);
 
-		if (S_ISDIR (st.st_mode))
+		if ((st.st_mode & S_IFMT) == S_IFDIR)
 			return 0;
 
 		errx (1, "mkdir_p('%s'): Not a directory", dir);
@@ -606,7 +680,7 @@ char *name;
 	if (sc == NULL)
 		return NULL;
 
-	for (m = sc->dir->emacros; m != NULL; m = m->enext) {
+	for (m = sc_dir (sc)->emacros; m != NULL; m = m->enext) {
 		if (strcmp (m->name, name) == 0)
 			return m;
 	}
@@ -621,7 +695,7 @@ char *name;
 {
 	struct macro *m;
 
-	for (m = sc->dir->macros; m != NULL; m = m->next) {
+	for (m = sc_dir (sc)->macros; m != NULL; m = m->next) {
 		if (strcmp (m->name, name) == 0)
 			return m;
 	}
@@ -645,7 +719,7 @@ char *name;
 {
 	struct template *tm;
 
-	for (tm = sc->dir->templates; tm != NULL; tm = tm->next) {
+	for (tm = sc_dir (sc)->templates; tm != NULL; tm = tm->next) {
 		if (strcmp (tm->name, name) == 0)
 			return tm;
 	}
@@ -675,7 +749,7 @@ char *name;
 {
 	struct scope *sub;
 
-	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+	for (sub = sc_dir (sc)->subdirs; sub != NULL; sub = sub->next) {
 		if (strcmp (sub->name, name) == 0)
 			return sub;
 	}
@@ -684,11 +758,21 @@ char *name;
 
 /* MACRO EXPANSION */
 
+#define MAX_EXPAND_DEPTH 64
 struct expand_ctx {
 	char *target;
 	struct dep *deps, *infdeps;
 	struct dep *dep0;
-	int free_target;
+	int free_target, depth;
+};
+
+static struct expand_ctx ctx_null = {
+	FIELD (target, NULL),
+	FIELD (deps, NULL),
+	FIELD (infdeps, NULL),
+	FIELD (dep0, NULL),
+	FIELD (free_target, 0),
+	FIELD (depth, 0),
 };
 
 ectx_init (ctx, target, dep0, deps, infdeps)
@@ -702,7 +786,15 @@ struct dep *deps, *infdeps;
 	ctx->deps = deps;
 	ctx->infdeps = infdeps;
 	ctx->free_target = 0;
+	ctx->depth = 0;
 	return 0;
+}
+
+struct expand_ctx *
+ectx_null ()
+{
+	ctx_null.depth = 0;
+	return &ctx_null;
 }
 
 ectx_file (ctx, sc, f)
@@ -728,6 +820,7 @@ struct file *f;
 	ctx->infdeps = f->inf != NULL ? f->inf->dhead : NULL;
 	if (ctx->dep0 == NULL && ctx->infdeps != NULL)
 		ctx->dep0 = ctx->infdeps;
+	ctx->depth = 0;
 
 	return 0;
 }
@@ -740,9 +833,9 @@ struct expand_ctx *ctx;
 	return 0;
 }
 
-replace_into (out, s, old, new)
+replace_into (out, s, old, new_str)
 str_t *out;
-char *s, *old, *new;
+char *s, *old, *new_str;
 {
 	size_t len_s, len_old;
 
@@ -755,13 +848,13 @@ char *s, *old, *new;
 	}
 
 	str_write (out, s, len_s - len_old);
-	str_puts (out, new);
+	str_puts (out, new_str);
 	return 0;
 }
 
-replace_all_into (out, s, old, new)
+replace_all_into (out, s, old, new_str)
 str_t *out;
-char *s, *old, *new;
+char *s, *old, *new_str;
 {
 	char *t;
 	int x = 0;
@@ -770,7 +863,7 @@ char *s, *old, *new;
 		if (*t == '\0')
 			continue;
 
-		replace_into (out, t, old, new);
+		replace_into (out, t, old, new_str);
 		str_putc (out, ' ');
 		x = 1;
 	}
@@ -823,6 +916,7 @@ struct expand_ctx *ctx;
 	int i, j;
 
 	/* TODO: .SUBDIRS, .EXPORTS */
+	assert (ctx != NULL);
 
 	if (strcmp (name, ".SUBDIRS") == 0) {
 		if (sc->type != SC_DIR) {
@@ -830,7 +924,7 @@ struct expand_ctx *ctx;
 			errx (1, "%s: invalid scope type", sc_path_str (sc));
 		}
 
-		sub = sc->dir->subdirs;
+		sub = sc_dir (sc)->subdirs;
 		if (sub == NULL)
 			return 0;
 
@@ -843,7 +937,7 @@ struct expand_ctx *ctx;
 		if (sc->type != SC_DIR)
 			goto invsc;
 
-		m = sc->dir->emacros;
+		m = sc_dir (sc)->emacros;
 		if (m == NULL)
 			return 0;
 
@@ -856,11 +950,11 @@ struct expand_ctx *ctx;
 	} else if (strcmp (name, ".OBJDIR") == 0) {
 		write_objdir (out, sc);
 	} else if (strcmp (name, ".TARGET") == 0) {
-		if (ctx == NULL)
+		if (ctx->target == NULL)
 			errx (1, "%s: cannot use $@ or ${.TARGET} here", sc_path_str (sc));
 		str_puts (out, ctx->target);
 	} else if (strcmp (name, ".IMPSRC") == 0) {
-		if (ctx == NULL)
+		if (ctx->dep0 == NULL)
 			errx (1, "%s: cannot use $< or ${.IMPSRC} here", sc_path_str (sc));
 
 		if (ctx->dep0 == NULL)
@@ -868,7 +962,7 @@ struct expand_ctx *ctx;
 
 		dep_write (out, sc, ctx->dep0);
 	} else if (strcmp (name, ".ALLSRC") == 0) {
-		if (ctx == NULL)
+		if (ctx->target == NULL)
 			errx (1, "%s: cannot use $^ or ${.ALLSRC} here", sc_path_str (sc));
 
 		for (dep = ctx->deps; dep != NULL; dep = dep->next) {
@@ -923,7 +1017,11 @@ struct expand_ctx *ctx;
 	struct macro *m;
 	struct filetime ft;
 	char *orig = *s, *t, *u, *v, *w, *pattern;
-	str_t name, old, new;
+	str_t name, old_str, new_str;
+
+	++ctx->depth;
+	if (ctx->depth >= MAX_EXPAND_DEPTH)
+		errx (1, "%s: reached maximum expansion depth", path_to_str (prefix));
 
 	/* parse macro name */
 	str_new (&name);
@@ -950,23 +1048,23 @@ struct expand_ctx *ctx;
 	v = expand_macro (sc, prefix, m, str_get (&name), ctx);
 	str_free (&name);
 
-	str_new (&old);
+	str_new (&old_str);
 
 	while (**s == ':') {
 		++*s;
 
 		/* parse modifier, TODO: move this into a function */
-		for (str_reset (&old); **s != '\0' && **s != '}' && **s != ':' && **s != '='; ) {
+		for (str_reset (&old_str); **s != '\0' && **s != '}' && **s != ':' && **s != '='; ) {
 			switch (**s) {
 			case '$':
 				++*s;
-				subst (&old, sc, prefix, s, ctx);
+				subst (&old_str, sc, prefix, s, ctx);
 				break;
 			case '\\':
 				++*s;
 				/* fallthrough */
 			default:
-				str_putc (&old, **s);
+				str_putc (&old_str, **s);
 				++*s;
 				break;
 			}
@@ -974,64 +1072,63 @@ struct expand_ctx *ctx;
 
 		if (**s == '=') {
 			++*s;
-			str_new (&new);
 
 			/* TODO: move this into a function */
-			for (str_new (&new); **s != '\0' && **s != '}'; ) {
+			for (str_new (&new_str); **s != '\0' && **s != '}'; ) {
 				switch (**s) {
 				case '$':
 					++*s;
-					subst (&new, sc, prefix, s, ctx);
+					subst (&new_str, sc, prefix, s, ctx);
 					break;
 				case '\\':
 					++*s;
 					/* fallthrough */
 				default:
-					str_putc (&new, **s);
+					str_putc (&new_str, **s);
 					++*s;
 					break;
 				}
 			}
 
-			replace_all_into (out, v, str_get (&old), str_get (&new));
-			str_free (&new);
+			replace_all_into (out, v, str_get (&old_str), str_get (&new_str));
+			str_free (&new_str);
 			goto ret;
-		} else if (strcmp (str_get (&old), "U") == 0) {
-			str_new (&new);
+		} else if (strcmp (str_get (&old_str), "U") == 0) {
+			str_new (&new_str);
 
 			for (t = v; *t != '\0'; ++t)
-				str_putc (&new, toupper (*t));
+				str_putc (&new_str, toupper (*t));
 
 			free (v);
-			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "L") == 0) {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (strcmp (str_get (&old_str), "L") == 0) {
+			str_new (&new_str);
 
 			for (t = v; *t != '\0'; ++t)
-				str_putc (&new, tolower (*t));
+				str_putc (&new_str, tolower (*t));
 
 			free (v);
-			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "F") == 0) {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (strcmp (str_get (&old_str), "F") == 0) {
+			str_new (&new_str);
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
 					continue;
 
 				if (get_mtime (&ft, sc, prefix, w) == 0 && ft.obj) {
-					write_objdir (&new, sc);
-					str_putc (&new, '/');
+					write_objdir (&new_str, sc);
+					str_putc (&new_str, '/');
 				}
-				str_puts (&new, w);
-				str_putc (&new, ' ');
+				str_puts (&new_str, w);
+				str_putc (&new_str, ' ');
 			}
-			str_pop (&new);
+			str_pop (&new_str);
 
 			free (v);
-			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "E") == 0) {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (strcmp (str_get (&old_str), "E") == 0) {
+			str_new (&new_str);
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
@@ -1041,15 +1138,15 @@ struct expand_ctx *ctx;
 				if (u == NULL || strchr (u, '/') != NULL)
 					continue;
 
-				str_puts (&new, u);
-				str_putc (&new, ' ');
+				str_puts (&new_str, u);
+				str_putc (&new_str, ' ');
 			}
 
-			str_pop (&new);
+			str_pop (&new_str);
 			free (v);
-			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "R") == 0) {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (strcmp (str_get (&old_str), "R") == 0) {
+			str_new (&new_str);
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
@@ -1059,45 +1156,45 @@ struct expand_ctx *ctx;
 				if (u != NULL && strchr (u, '/') == NULL)
 					*u = '\0';
 
-				str_puts (&new, w);
-				str_putc (&new, ' ');
+				str_puts (&new_str, w);
+				str_putc (&new_str, ' ');
 			}
 
-			str_pop (&new);
+			str_pop (&new_str);
 			free (v);
-			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "H") == 0) {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (strcmp (str_get (&old_str), "H") == 0) {
+			str_new (&new_str);
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
 					continue;
 
-				str_puts (&new, dirname (w));
-				str_putc (&new, ' ');
+				str_puts (&new_str, dirname (w));
+				str_putc (&new_str, ' ');
 			}
 
-			str_pop (&new);
+			str_pop (&new_str);
 			free (v);
-			v = str_release (&new);
-		} else if (strcmp (str_get (&old), "T") == 0) {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (strcmp (str_get (&old_str), "T") == 0) {
+			str_new (&new_str);
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
 					continue;
 
-				str_puts (&new, basename (w));
-				str_putc (&new, ' ');
+				str_puts (&new_str, basename (w));
+				str_putc (&new_str, ' ');
 			}
 
-			str_pop (&new);
+			str_pop (&new_str);
 			free (v);
-			v = str_release (&new);
-		} else if (str_get (&old)[0] == 'M') {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (str_get (&old_str)[0] == 'M') {
+			str_new (&new_str);
 
-			pattern = str_get (&old) + 1;
+			pattern = str_get (&old_str) + 1;
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
@@ -1106,17 +1203,17 @@ struct expand_ctx *ctx;
 				if (fnmatch (pattern, w, 0) != 0)
 					continue;
 
-				str_puts (&new, w);
-				str_putc (&new, ' ');
+				str_puts (&new_str, w);
+				str_putc (&new_str, ' ');
 			}
 
-			str_pop (&new);
+			str_pop (&new_str);
 			free (v);
-			v = str_release (&new);
-		} else if (str_get (&old)[0] == 'N') {
-			str_new (&new);
+			v = str_release (&new_str);
+		} else if (str_get (&old_str)[0] == 'N') {
+			str_new (&new_str);
 
-			pattern = str_get (&old) + 1;
+			pattern = str_get (&old_str) + 1;
 
 			for (t = v; (w = strsep (&t, " \t")) != NULL; ) {
 				if (*w == '\0')
@@ -1125,15 +1222,15 @@ struct expand_ctx *ctx;
 				if (fnmatch (pattern, w, 0) == 0)
 					continue;
 
-				str_puts (&new, w);
-				str_putc (&new, ' ');
+				str_puts (&new_str, w);
+				str_putc (&new_str, ' ');
 			}
 
-			str_pop (&new);
+			str_pop (&new_str);
 			free (v);
-			v = str_release (&new);
+			v = str_release (&new_str);
 		} else {
-			errx (1, "%s: invalid modifier: ':%s' in '${%s'", sc_path_str (sc), str_get (&old), orig);
+			errx (1, "%s: invalid modifier: ':%s' in '${%s'", sc_path_str (sc), str_get (&old_str), orig);
 		}
 	}
 
@@ -1143,8 +1240,9 @@ ret:
 	if (**s != '}')
 		goto invalid;
 	++*s;
-	str_free (&old);
+	str_free (&old_str);
 	free (v);
+	--ctx->depth;
 	return 0;
 invalid:
 	errx (1, "%s: invalid macro expansion: '${%s', s = '%s'", sc_path_str (sc), orig, *s);
@@ -1263,6 +1361,9 @@ struct expand_ctx *ctx;
 {
 	str_t out;
 
+	if (ctx == NULL)
+		ctx = ectx_null ();
+
 	str_new (&out);
 	expand_into (&out, sc, prefix, s, ctx);
 	str_trim (&out);
@@ -1277,17 +1378,17 @@ struct scope *sc;
 struct path *dir;
 char *cmd;
 {
-	char *args[] = {
-		m_shell.value,
-		"-c",
-		expand (sc, dir, cmd, NULL),
-		NULL,
-	};
+	char *args[4];
 	ssize_t i, n;
 	str_t data;
 	pid_t pid;
 	int pipefd[2];
 	char buf[64 + 1];
+
+	args[0] = m_shell.value;
+	args[1] = "-c";
+	args[2] = expand (sc, dir, cmd, NULL);
+	args[3] = NULL;
 
 	if (pipe (pipefd) != 0)
 		err (1, "pipe()");
@@ -1336,9 +1437,9 @@ struct path *prefix;
 char *cmd, *rule;
 struct expand_ctx *ctx;
 {
-	char *ecmd;
+	char *ecmd, *args[5];
 	pid_t pid;
-	int q = 0, ws, ign = 0;
+	int i = 0, q = 0, ws, ign = 0;
 
 	if (*cmd == '@') {
 		q = 1;
@@ -1362,27 +1463,33 @@ struct expand_ctx *ctx;
 	}
 
 	pid = fork ();
+	if (pid < 0)
+		err (1, "fork()");
+
+	args[i++] = m_shell.value;
+#ifndef HAVE_BROKEN_SHELL
+	if (!ign)
+		args[i++] = "-e";
+#endif
+	args[i++] = "-c";
+	args[i++] = ecmd;
+	args[i] = NULL;
+
 	if (pid == 0) {
 		close (STDIN_FILENO);
 		if (open ("/dev/null", O_RDONLY) != STDIN_FILENO)
 			warn ("%d: open('/dev/null')", STDIN_FILENO);
 
 		if (chdir (path_to_str (prefix)) != 0)
-			err (1, "chdir()");
+			err (126, "chdir()");
 
-		execlp (
-			m_shell.value,
-			m_shell.value, 
-			ign ? "-c" : "-ec",
-			ecmd,
-			NULL
-		);
-		err (1, "exec('%s')", ecmd);
+		execvp (m_shell.value, args);
+		err (127, "exec('%s')", ecmd);
 	} else {
 		free (ecmd);
-		if (waitpid (pid, &ws, 0) != pid) {
-			warn ("waitpid(%d)", (int)pid);
-			return 255;
+		if (wait (&ws) != pid) {
+			warn ("wait()");
+			return 254;
 		}
 
 		if (!WIFEXITED (ws)) {
@@ -1410,9 +1517,7 @@ char *s;
 	return *endp != '\0' || x != 0;
 }
 
-e_command (sc, prefix, s, cmd, arg)
-struct scope *sc;
-struct path *prefix;
+e_command (s, cmd, arg)
 char **s, *cmd;
 str_t *arg;
 {
@@ -1449,7 +1554,7 @@ str_t *val;
 		while (**s != '"') {
 			if (**s == '$') {
 				++*s;
-				subst (val, sc, prefix, s, NULL);
+				subst (val, sc, prefix, s, ectx_null ());
 			} else {
 				str_putc (val, **s);
 				++*s;
@@ -1457,14 +1562,14 @@ str_t *val;
 		}
 		++*s;
 	} else if (starts_with (*s, "defined")) {
-		e_command (sc, prefix, s, "defined", &arg);
+		e_command (s, "defined", &arg);
 		x = find_macro (sc, str_get (&arg)) != NULL;
 	comm:
 		str_putc (val, x ? '1' : '0');
 		str_free (&arg);
 	} else if (starts_with (*s, "target")) {
-		e_command (sc, prefix, s, "target", &arg);
-		x = find_file (sc->dir, str_get (&arg)) != NULL;
+		e_command (s, "target", &arg);
+		x = find_file (sc_dir (sc), str_get (&arg)) != NULL;
 		goto comm;
 	} else {
 		errx (1, "%s:%d: invalid expression: '%s'", cpath, cline, *s);
@@ -1681,18 +1786,54 @@ new_subdir (parent, name)
 struct scope *parent;
 char *name;
 {
+	struct directory *pdir;
 	struct scope *sub;
+	
+	assert (name != NULL);
+
+	pdir = sc_dir (parent);
 
 	sub = new (struct scope);
-	sub->next = parent->dir->subdirs;
+	sub->next = pdir->subdirs;
 	sub->type = SC_DIR;
 	sub->name = name;
 	sub->parent = parent;
 	sub->makefile = NULL;
 	sub->created = 0;
-	parent->dir->subdirs = sub;
+	pdir->subdirs = sub;
 
 	return sub;
+}
+
+struct macro *
+new_macro (name, value, help, lazy, prepend)
+char *name, *value, *help;
+struct macro *prepend;
+{
+	struct macro *m;
+	char *s;
+
+	assert (name != NULL);
+	assert (value != NULL);
+
+	/* check name */
+	if (*name == '\0')
+		errx (1, "new_macro(): macro name is empty");
+	for (s = name; *s != '\0'; ++s) {
+		if (!ismname (*s))
+			errx (1, "invalid macro name: '%s'", name);
+	}
+
+	m = new (struct macro);
+	m->next = NULL;
+	m->enext = NULL;
+	m->prepend = prepend;
+	m->name = name;
+	m->value = value;
+	m->help = help;
+	m->lazy = lazy;
+
+	return m;
 }
 
 struct file *
@@ -1704,6 +1845,8 @@ struct dep *dhead, *dtail;
 struct inference *inf;
 {
 	struct file *f;
+
+	assert (name != NULL);
 
 	f = new (struct file);
 	f->next = f->prev = NULL;
@@ -1726,6 +1869,8 @@ struct path *path;
 {
 	struct dep *d;
 
+	assert (path != NULL);
+
 	d = new (struct dep);
 	d->next = d->prev = NULL;
 	d->path = path;
@@ -1738,6 +1883,8 @@ new_dep_name (name)
 char *name;
 {
 	struct path *p;
+
+	assert (name != NULL);
 
 	p = calloc (2, sizeof (struct path));
 	p[0].type = PATH_NAME;
@@ -1787,8 +1934,24 @@ struct dep *dep;
 	return file_add_deps (file, dep, dep);
 }
 
+char *
+strip_comment (s)
+char *s;
+{
+	char *t, *o = s;
 
-/* .SUBDIRS: cc make sys */
+	while ((t = strchr (s, '#')) != NULL) {
+		if (t == o || isspace (t[-1])) {
+			*t = '\0';
+			break;
+		}
+		s = t + 1;
+	}
+
+	return o;
+}
+
+/* .SUBDIRS: cc make sys # comment */
 parse_subdirs (sc, dir, s)
 struct scope *sc;
 struct path *dir;
@@ -1796,6 +1959,8 @@ char *s;
 {
 	struct scope *sub;
 	char *subdir, *name, *path;
+
+	strip_comment (s);
 
 	while ((subdir = strsep (&s, " \t")) != NULL) {
 		if (*subdir == '\0')
@@ -1814,14 +1979,16 @@ char *s;
 	return 0;
 }
 
-/* .FOREIGN: libfoo libbar */
-parse_foreign (sc, dir, s)
+/* .FOREIGN: libfoo libbar # comment */
+parse_foreign (sc, s)
 struct scope *sc;
-struct path *dir;
 char *s;
 {
+	struct custom *cs;
 	struct scope *sub;
 	char *subdir, *name;
+
+	strip_comment (s);
 
 	while ((subdir = strsep (&s, " \t")) != NULL) {
 		if (*subdir == '\0')
@@ -1831,29 +1998,31 @@ char *s;
 		sub = new_subdir (sc, name);
 		sub->type = SC_CUSTOM;
 		sub->makefile = NULL;
-		sub->custom = new (struct custom);
-		sub->custom->test = NULL;
-		sub->custom->exec = NULL;
+		cs = new (struct custom);
+		cs->test = NULL;
+		cs->exec = NULL;
+		sub->inner.custom = cs;
 	}
 
 	return 0;
 }
 
-/* .EXPORTS: CC CFLAGS */
-parse_exports (sc, dir, s)
+/* .EXPORTS: CC CFLAGS # comment */
+parse_exports (sc, s)
 struct scope *sc;
-struct path *dir;
 char *s;
 {
 	struct macro *m;
 	char *name;
+
+	strip_comment (s);
 
 	while ((name = strsep (&s, " \t")) != NULL) {
 		if (*name == '\0')
 			continue;
 
 		/* check if the macro is already exported */
-		for (m = sc->dir->emacros; m != NULL; m = m->enext) {
+		for (m = sc_dir (sc)->emacros; m != NULL; m = m->enext) {
 			if (strcmp (m->name, name) == 0)
 				goto cont; /* already exported */
 		}
@@ -1862,8 +2031,8 @@ char *s;
 		if (m == NULL)
 			errx (1, "%s:%d: no such macro: '%s'", cpath, cline, name);
 
-		m->enext = sc->dir->emacros;
-		sc->dir->emacros = m;
+		m->enext = sc_dir (sc)->emacros;
+		sc_dir (sc)->emacros = m;
 
 	cont:;
 	}
@@ -1895,9 +2064,9 @@ struct file *f;
 		errx (1, "%s: not a custom subdir: %s", sc_path_str (sc), name);
 
 	if (ch == '?') {
-		sub->custom->test = f;
+		sub->inner.custom->test = f;
 	} else {
-		sub->custom->exec = f;
+		sub->inner.custom->exec = f;
 	}
 
 	free (name);
@@ -1969,7 +2138,7 @@ char *s, *t, *help;
 	if (is_inf (u)) {
 		p = strchr (u + 1, '.');
 		inf = new (struct inference);
-		inf->next = sc->dir->infs;
+		inf->next = sc_dir (sc)->infs;
 		inf->rule = r;
 		inf->dhead = dhead;
 		inf->dtail = dtail;
@@ -1984,7 +2153,7 @@ char *s, *t, *help;
 			inf->to = "";
 		}
 
-		sc->dir->infs = inf;
+		sc_dir (sc)->infs = inf;
 	} else {
 		v = u;
 		while ((p = strsep (&v, " \t")) != NULL) {
@@ -1992,7 +2161,7 @@ char *s, *t, *help;
 				continue;
 			/* TODO: check name */
 
-			f = find_file (sc->dir, p);
+			f = find_file (sc_dir (sc), p);
 			if (f == NULL) {
 				get_mtime (&ft, sc, dir, p);
 					
@@ -2007,7 +2176,7 @@ char *s, *t, *help;
 					/* obj  */ ft.obj
 				);
 				/* TODO: maybe first do try_add_custom()? */
-				dir_add_file (sc->dir, f);
+				dir_add_file (sc_dir (sc), f);
 				try_add_custom (sc, f);
 				continue;
 			}
@@ -2017,7 +2186,8 @@ char *s, *t, *help;
 			if (f->help == NULL)
 				f->help = help;
 
-			file_add_deps (f, dhead, dtail);
+			if (dhead != NULL)
+				file_add_deps (f, dhead, dtail);
 		}
 	}
 	free (u);
@@ -2029,46 +2199,61 @@ struct scope *sc;
 struct path *dir;
 char *s, *t, *help;
 {
-	struct macro *m, *m2;
-	char *v;
-
-	m = new (struct macro);
-	m->next = sc->dir->macros;
-	m->enext = NULL;
-	m->help = help;
-	m->prepend = NULL;
+	struct macro *m, *prepend = NULL;
+	char *value;
+	int lazy;
 
 	if (t[-1] == '!') {
 		t[-1] = '\0';
-		m->lazy = 0;
-		m->value = evalcom (sc, dir, trim (t + 1));
+		lazy = 0;
+		value = evalcom (sc, dir, trim (t + 1));
 	} else if (t[-1] == '?') {
+		/* handle both `?=` and `??=` */
+		if (s == (t - 1))
+			errx (1, "why are you doing this to me Davids?");
+
 		if (t[-2] == '?') {
 			t[-2] = '\0';
-			v = getenv (trim (s));
-			m->value = v != NULL ? v : strdup (trim (t + 1));
+			value = getenv (trim (s));
+			if (value == NULL) {
+				m = find_macro (sc, trim (s));
+				if (m != NULL)
+					value = m->value;
+			}
+			if (value == NULL)
+				value = strdup (trim (t + 1));
 		} else {
 			t[-1] = '\0';
-			m2 = find_macro (sc, trim (s));
-			m->value = m2 != NULL ? m2->value : strdup (trim (t + 1));
+			m = find_macro (sc, trim (s));
+			value = m != NULL ? m->value : strdup (trim (t + 1));
 		}
-		m->lazy = 1;
+		lazy = 1;
 	} else if (t[-1] == ':') {
 		/* handle both `:=` and `::=` */
+		if (s == (t - 1))
+			errx (1, "why are you doing this to me Davids, again?");
 		t[t[-2] == ':' ? -2 : -1] = '\0';
-		m->lazy = 0;
-		m->value = expand (sc, dir, trim (t + 1), NULL);
+		value = expand (sc, dir, trim (t + 1), NULL);
+		lazy = 0;
 	} else if (t[-1] == '+') {
 		t[-1] = '\0';
-		m->value = strdup (trim (t + 1));
-		m->prepend = find_macro (sc, trim (s));
-		m->lazy = 1;
+		value = strdup (trim (t + 1));
+		prepend = find_macro (sc, trim (s));
+		lazy = 1;
 	} else {
-		m->lazy = 1;
-		m->value = strdup (trim (t + 1));
+		value = strdup (trim (t + 1));
+		lazy = 1;
 	}
-	m->name = strdup (trim (s));
-	sc->dir->macros = m;
+
+	m = new_macro (
+		/* name  */ strdup (trim (s)),
+		/* value */ value,
+		/* help  */ help,
+		/* lazy  */ lazy,
+		/*prepend*/ prepend
+	);
+	m->next = sc_dir (sc)->macros;
+	sc_dir (sc)->macros = m;
 	return 0;
 }
 
@@ -2147,7 +2332,7 @@ FILE *file;
 	size_t len, cap, iflen = 0;
 	char *s, *t, *u, *help = NULL;
 	char ifstack[MAX_IFSTACK];
-	int x, run;
+	int x, run, oldcline;
 	FILE *tfile;
 	str_t text;
 
@@ -2157,6 +2342,8 @@ FILE *file;
 	if (verbose >= 3) {
 		printf ("Parsing dir '%s' ...\n", path_to_str (dir));
 	}
+
+	cline = 1;
 
 	for (; (s = readline (file, &cline)) != NULL; free (s)) {
 		run = walkifstack (ifstack, iflen);
@@ -2169,13 +2356,34 @@ FILE *file;
 			if (!run)
 				goto cont;
 
-			t = expand (sc, dir, s + 8, NULL);
+			strip_comment (s);
+			t = expand (sc, dir, trim (s + 8), NULL);
 			if (*t == '/') {
 				u = t;
 			} else {
 				u = strdup (path_cat_str (dir, t));
 			}
+			oldcline = cline;
 			parse (sc, dir, u);
+			cline = oldcline;
+			if (u != t)
+				free (u);
+			free (t);
+		} else if (starts_with (s, "-include ") || starts_with (s, "sinclude ")) {
+			if (!run)
+				goto cont;
+
+			strip_comment (s);
+			t = expand (sc, dir, trim (s + 9), NULL);
+			if (*t == '/') {
+				u = t;
+			} else {
+				u = strdup (path_cat_str (dir, t));
+			}
+
+			if (access (t, R_OK) == 0)
+				parse (sc, dir, u);
+
 			if (u != t)
 				free (u);
 			free (t);
@@ -2208,8 +2416,8 @@ FILE *file;
 			str_new (&text);
 
 			tm = new (struct template);
-			tm->next = sc->dir->templates;
-			tm->name = strdup (t);
+			tm->next = sc_dir (sc)->templates;
+			tm->name = strdup (strip_comment (t));
 
 			for (free (s); (s = readline (file, &cline)) != NULL; free (s)) {
 				if (is_directive (NULL, s, "endt") || is_directive (NULL, s, "endtemplate"))
@@ -2221,7 +2429,7 @@ FILE *file;
 
 			if (run) {
 				tm->text = str_release (&text);
-				sc->dir->templates = tm;
+				sc_dir (sc)->templates = tm;
 			} else {
 				free (tm);
 				str_free (&text);
@@ -2229,7 +2437,7 @@ FILE *file;
 		} else if (is_directive (&t, s, "expand")) {
 			if (!run)
 				goto cont;
-			tm = find_template (sc, t);
+			tm = find_template (sc, strip_comment (t));
 			if (tm == NULL)
 				errx (1, "%s:%d: no such template: %s", cpath, cline, t);
 			tfile = fmemopen (tm->text, strlen (tm->text), "r");
@@ -2237,7 +2445,7 @@ FILE *file;
 			fclose (tfile);
 		} else if (is_target (&t, s, ".DEFAULT")) {
 			if (run)
-				sc->dir->default_file = strdup (t);
+				sc_dir (sc)->default_file = strdup (strip_comment (t));
 		} else if (is_target (NULL, s, ".POSIX")) {
 			if (run)
 				warnx ("%s:%d: this is not a POSIX-compatible make", path, cline);
@@ -2249,10 +2457,10 @@ FILE *file;
 				parse_subdirs (sc, dir, t);
 		} else if (is_target (&t, s, ".FOREIGN")) {
 			if (run)
-				parse_foreign (sc, dir, t);
+				parse_foreign (sc, t);
 		} else if (is_target (&t, s, ".EXPORTS")) {
 			if (run)
-				parse_exports (sc, dir, t);
+				parse_exports (sc, t);
 		} else if (s[0] == '\t') {
 			if (!run)
 				goto cont;
@@ -2271,7 +2479,9 @@ FILE *file;
 			if (!run)
 				goto cont;
 
-			/* TODO: check name */
+			if (s == t)
+				errx (1, "%s:%d: invalid macro name", path, cline);
+
 			*t = '\0';
 			parse_assign (sc, dir, s, t, help);
 		} else if ((t = strchr (s, ':')) != NULL) {
@@ -2302,24 +2512,34 @@ struct scope *sc;
 struct path *dir;
 char *path;
 {
+	struct directory *dirx;
 	FILE *file;
 
 	file = fopen (path, "r");
-	if (file == NULL)
-		err (1, "open(\"%s\")", path);
+	if (file == NULL) {
+		/* err (1, "fopen(\"%s\")", path); */
+		dirx = new (struct directory);
+		dirx->subdirs = NULL;
+		dirx->fhead = NULL;
+		dirx->ftail = NULL;
+		dirx->done = 0;
+		sc->inner.dir = dirx;
+		return 0;
+	}
 
-	if (sc->dir == NULL) {
-		sc->dir = new (struct directory);
-		sc->dir->subdirs = NULL;
-		sc->dir->fhead = NULL;
-		sc->dir->ftail = NULL;
-		sc->dir->done = 0;
-	} else if (sc->dir->done) {
+	if (sc->inner.dir == NULL) {
+		dirx = new (struct directory);
+		dirx->subdirs = NULL;
+		dirx->fhead = NULL;
+		dirx->ftail = NULL;
+		dirx->done = 0;
+		sc->inner.dir = dirx;
+	} else if (sc_dir (sc)->done) {
 		errx (1, "%s: parsing this file again?", path);
 	}
 
 	do_parse (sc, dir, path, file);
-	sc->dir->done = 1;
+	sc_dir (sc)->done = 1;
 
 	fclose (file);
 	return 0;
@@ -2367,7 +2587,7 @@ char *makefile;
 		if (parent->type != SC_DIR)
 			errx (1, "%s: invalid parent type", path_to_str (mfpath));
 
-		for (sc = parent->dir->subdirs; sc != NULL; sc = sc->next) {
+		for (sc = sc_dir (parent)->subdirs; sc != NULL; sc = sc->next) {
 			if (strcmp (sc->name, name) == 0) {
 				if (sc->type != SC_DIR)
 					errx (1, "%s: invalid type", path_to_str (mfpath));
@@ -2381,7 +2601,7 @@ char *makefile;
 		sc = new (struct scope);
 		sc->type = SC_DIR;
 		sc->name = name;
-		sc->dir = NULL;
+		sc->inner.dir = NULL;
 	}
 
 parse:
@@ -2419,7 +2639,7 @@ char *name, *sufx;
 	size_t len_name, len_sufx;
 
 	ext = strrchr (name, '.');
-	len_name = ext != NULL ? ext - name : strlen (name);
+	len_name = ext != NULL ? (size_t)(ext - name) : strlen (name);
 	len_sufx = strlen (sufx);
 
 	out = malloc (len_name + len_sufx + 1);
@@ -2452,7 +2672,7 @@ char *name;
 		/* inf  */ inf,
 		/* obj  */ 0
 	);
-	dir_add_file (sc->dir, f);
+	dir_add_file (sc_dir (sc), f);
 
 	return f;
 }
@@ -2501,10 +2721,10 @@ char *name;
 		base[ext - name] = '\0';
 	}
 
-	for (inf = sc->dir->infs; inf != NULL; inf = inf->next) {
+	for (inf = sc_dir (sc)->infs; inf != NULL; inf = inf->next) {
 		if (strcmp (inf->to, ext) == 0) {
 			sn = xstrcat (base, inf->from);
-			sf = find_file (sc->dir, sn);
+			sf = find_file (sc_dir (sc), sn);
 			if (sf == NULL)
 				sf = try_find (sc, dir, sn);
 			free (sn);
@@ -2545,7 +2765,7 @@ char *name;
 		/* inf  */ NULL,
 		/* obj  */ ft.obj
 	);
-	dir_add_file (sc->dir, f);
+	dir_add_file (sc_dir (sc), f);
 
 	return f;
 }
@@ -2618,7 +2838,7 @@ struct path *prefix;
 	struct dep *dep, xdep;
 	struct build b;
 	char **s;
-	int ec;
+	int ec, rc;
 
 	if (verbose >= 2) {
 		printf ("dir %s", path_to_str (prefix));
@@ -2635,16 +2855,16 @@ struct path *prefix;
 	switch (sc->type) {
 	case SC_DIR:
 		/* lazily parse subdirectories */
-		if (sc->dir == NULL)
+		if (sc_dir (sc) == NULL)
 			parse_dir (sc, prefix);
 
 		/* if no rule specified to build, use the default rule */
-		if (name == NULL && sc->dir->default_file != NULL)
-			name = sc->dir->default_file;
+		if (name == NULL && sc_dir (sc)->default_file != NULL)
+			name = sc_dir (sc)->default_file;
 
 		if (name != NULL) {
 			/* try finding an explicitly defined file */
-			f = find_file (sc->dir, name);
+			f = find_file (sc_dir (sc), name);
 
 			if (f == NULL) {
 				/* try finding and building a subdirectory */
@@ -2667,7 +2887,7 @@ struct path *prefix;
 				f->obj = ft.obj;
 			}
 		} else {
-			f = sc->dir->fhead;
+			f = sc_dir (sc)->fhead;
 			if (f == NULL)
 				errx (1, "%s: nothing to build", sc_path_str (sc));
 		}
@@ -2731,8 +2951,8 @@ struct path *prefix;
 		/* run commands */
 		ectx_file (&ctx, sc, f);
 		for (; *s != NULL; ++s) {
-			if (runcom (sc, prefix, *s, &ctx, name) != 0) {
-				fprintf (stderr, "%s: command failed: %s\n", sc_path_str (sc), *s);
+			if ((rc = runcom (sc, prefix, *s, &ctx, name)) != 0) {
+				fprintf (stderr, "%s: command failed with %d: %s\n", sc_path_str (sc), rc, *s);
 				f->err = 1;
 				return 1;
 			}
@@ -2758,7 +2978,7 @@ struct path *prefix;
 		xdep.path = xpath;
 		xdep.obj = 0;
 
-		f = sc->custom->test;
+		f = sc_custom (sc)->test;
 		if (f != NULL) {
 			assert (f->inf == NULL);
 
@@ -2803,7 +3023,7 @@ struct path *prefix;
 		}
 
 		/* run the "subdir!" rule */
-		f = sc->custom->exec;
+		f = sc_custom (sc)->exec;
 		if (f == NULL)
 			errx (1, "%s: missing '%s!' rule", sc_path_str (sc->parent), sc->name);
 		assert (f->inf == NULL);
@@ -2828,8 +3048,8 @@ struct path *prefix;
 			return ec;
 
 		for (s = f->rule->code; *s != NULL; ++s) {
-			if (runcom (sc->parent, new_prefix, *s, &ctx, name) != 0) {
-				fprintf (stderr, "%s: command failed: %s\n", sc_path_str (sc->parent), *s);
+			if ((rc = runcom (sc->parent, new_prefix, *s, &ctx, name)) != 0) {
+				fprintf (stderr, "%s: command failed with %d: %s\n", sc_path_str (sc->parent), rc, *s);
 				return 1;
 			}
 		}
@@ -2870,7 +3090,7 @@ struct path *path, *prefix;
 		if (sc->type != SC_DIR)
 			errx (1, "%s: invalid path", sc_path_str (sc));
 
-		if (sc->dir == NULL)
+		if (sc_dir (sc) == NULL)
 			parse_dir (sc, prefix);
 
 		new_prefix = path_cat (prefix, &path[0]);
@@ -2902,9 +3122,9 @@ struct scope *sc;
 {
 	struct macro *m;
 
-	assert (sc->dir != NULL);
+	assert (sc_dir (sc) != NULL);
 
-	for (m = sc->dir->macros; m != NULL; m = m->next) {
+	for (m = sc_dir (sc)->macros; m != NULL; m = m->next) {
 		if (m->help == NULL)
 			continue;
 
@@ -2931,7 +3151,7 @@ struct scope *sc;
 		p += 2; /* skip ./ */
 	}
 
-	for (f = sc->dir->fhead; f != NULL; f = f->next) {
+	for (f = sc_dir (sc)->fhead; f != NULL; f = f->next) {
 		if (f->help == NULL)
 			continue;
 
@@ -2945,7 +3165,7 @@ struct scope *sc;
 	if (!verbose)
 		return 0;
 
-	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+	for (sub = sc_dir (sc)->subdirs; sub != NULL; sub = sub->next) {
 		if (sub->type != SC_DIR)
 			continue;
 
@@ -2966,7 +3186,7 @@ struct scope *sc;
 
 	fputs ("\nOPTIONS:\n", stderr);
 	fputs ("-C dir                        - chdir(dir)\n", stderr);
-	fputs ("-f file                       - read `file` instead of \"" MAKEFILE "\"\n", stderr);
+	fprintf (stderr, "-f file                       - read `file` instead of \"%s\"\n", MAKEFILE);
 	fputs ("-o objdir                     - put build artifacts into objdir\n", stderr);
 	fputs ("-V var                        - print expanded version of var\n", stderr);
 	fputs ("-h                            - print help page\n", stderr);
@@ -3005,13 +3225,13 @@ struct scope *sc;
 	if (verbose)
 		printf ("=== %s\n", sc_path_str (sc));
 
-	if (sc->type != SC_DIR || sc->dir == NULL)
+	if (sc->type != SC_DIR || sc_dir (sc) == NULL)
 		errx (1, "%s: print_sc(): must be of type SC_DIR", sc_path_str (sc));
 
-	if (sc->dir->default_file != NULL)
-		printf (".DEFAULT: %s\n", sc->dir->default_file);
+	if (sc_dir (sc)->default_file != NULL)
+		printf (".DEFAULT: %s\n", sc_dir (sc)->default_file);
 
-	for (m = sc->dir->macros; m != NULL; m = m->next) {
+	for (m = sc_dir (sc)->macros; m != NULL; m = m->next) {
 		if (m->help != NULL)
 			printf ("\n## %s\n", m->help);
 		printf ("%s %s= %s\n", m->name, m->prepend != NULL ? "+" : "", m->value);
@@ -3019,7 +3239,7 @@ struct scope *sc;
 
 	printf ("\n");
 
-	for (f = sc->dir->fhead; f != NULL; f = f->next) {
+	for (f = sc_dir (sc)->fhead; f != NULL; f = f->next) {
 		if (f->help != NULL)
 			printf ("## %s\n", f->help);
 		printf ("%s:", f->name);
@@ -3033,24 +3253,26 @@ struct scope *sc;
 		printf ("\n");
 
 		r = f->rule;
-		if (r != NULL) {
+		if (r != NULL && r->code != NULL) {
 			for (s = r->code; *s != NULL; ++s)
 				printf ("\t%s\n", *s);
 		}
 		printf ("\n");
 	}
 
-	for (inf = sc->dir->infs; inf != NULL; inf = inf->next) {
+	for (inf = sc_dir (sc)->infs; inf != NULL; inf = inf->next) {
 		printf ("%s%s:", inf->from, inf->to);
 		for (dep = inf->dhead; dep != NULL; dep = dep->next)
 			printf (" %s", path_to_str (dep->path));
 		printf ("\n");
-		for (s = inf->rule->code; *s != NULL; ++s)
-			printf ("\t%s\n", *s);
-		printf ("\n");
+		if (inf->rule->code != NULL) {
+			for (s = inf->rule->code; *s != NULL; ++s)
+				printf ("\t%s\n", *s);
+			printf ("\n");
+		}
 	}
 	
-	for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+	for (sub = sc_dir (sc)->subdirs; sub != NULL; sub = sub->next) {
 		switch (sub->type) {
 		case SC_DIR:
 			printf (".include %s, DIR", sub->name);
@@ -3065,7 +3287,7 @@ struct scope *sc;
 	}
 
 	if (verbose) {
-		for (sub = sc->dir->subdirs; sub != NULL; sub = sub->next) {
+		for (sub = sc_dir (sc)->subdirs; sub != NULL; sub = sub->next) {
 			if (sub->type != SC_DIR)
 				continue;
 
@@ -3114,6 +3336,8 @@ char *V;
 main (argc, argv)
 char **argv;
 {
+	extern char *optarg;
+	extern optind;
 	str_t cmdline;
 	struct scope *sc;
 	struct path *path;
@@ -3192,13 +3416,15 @@ char **argv;
 		str_puts (&cmdline, argv[i]);
 
 		*s = '\0';
-		m = new (struct macro);
+
+		m = new_macro (
+			/* name  */ trim (argv[i]),
+			/* value */ trim (s + 1),
+			/* help  */ NULL,
+			/* lazy  */ 0,
+			/*prepend*/ NULL
+		);
 		m->next = globals;
-		m->enext = NULL;
-		m->prepend = NULL;
-		m->name = trim (argv[i]);
-		m->value = trim (s + 1);
-		m->lazy = 0;
 		globals = m;
 
 		argv[i] = NULL;

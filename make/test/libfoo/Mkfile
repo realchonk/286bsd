@@ -1,0 +1,8 @@
+
+all: libfoo.txt
+
+clean:
+	rm -f libfoo.txt
+
+libfoo.txt:
+	echo libfoo >$@

@@ -1,6 +1,5 @@
 #ifndef FILE_MAKE_H
 #define FILE_MAKE_H
-#include <sys/time.h>
 
 enum path_type {
 	PATH_NULL,
@@ -32,7 +31,7 @@ struct scope {
 	union {
 		struct directory *dir; /* optional */
 		struct custom *custom; /* required */
-	};
+	} inner;
 };
 
 struct directory {
@@ -75,14 +74,14 @@ struct inference {
 };
 
 struct rule {
-	char **code;
+	char **code; /* optional */
 };
 
 struct macro {
 	struct macro *next, *enext, *prepend;
-	char *name;
-	char *value;
-	char *help;
+	char *name; /* required */
+	char *value; /* required */
+	char *help; /* optional */
 	int lazy;
 };
 

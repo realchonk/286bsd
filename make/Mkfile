@@ -1,14 +1,16 @@
+CPPFLAGS += -DHAVE_CONFIG_H
 NAME = make
 NOMAN = 1
 
 clean-extra:
 	rm -f ${.OBJDIR}/mk.vendor.c
 
-make: make.h
+make: mk.c mk.h
+	${CC} -o $@ mk.c ${CFLAGS} ${CPPFLAGS}
 
-mk.vendor.c: make.c make.h
+mk.vendor.c: mk.c mk.h
 	printf '#define NEED_REALLOCARRAY 1\n'	\
-		| cat - make.h make.c		\
+		| cat - mk.h mk.c		\
 		| sed '/^#include "make.h"/d' >$@
 
 .expand prog

@@ -1,0 +1,16 @@
+NAME = bcom
+NOMAN = 1
+OBJ = lex.o parse.o gen.o main.o
+
+clean-extra:
+	rm -f y.tab.h y.output
+
+bcom: ${OBJ}
+	${CC} -o $@ ${OBJ:F} ${CFLAGS} ${LDFLAGS}
+
+parse.o: parse.y
+	${YACC} ${YFLAGS} $<
+	${CC} -c -o $@ y.tab.c ${CFLAGS}
+	rm -f y.tab.c
+
+.expand prog

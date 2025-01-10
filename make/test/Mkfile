@@ -1,0 +1,25 @@
+.SUBDIRS: libfoo
+.FOREIGN: libbar
+.EXPORTS: CC
+
+all: libs.txt
+
+clean: libfoo/clean libbar/clean
+	rm -f libs.txt
+
+distclean: clean libbar/distclean
+	rm -f libbar-configure
+
+libs.txt: libfoo/libfoo.txt libbar/libbar.txt
+	cat $^ >$@
+
+libbar-configure:
+	(cd libbar && ./configure)
+	touch $@
+
+libbar?:
+	test -e libbar/Makefile
+	gmake -q -C $@ $<
+
+libbar!: libbar-configure
+	gmake -C $@ ${.EXPORTS} $<

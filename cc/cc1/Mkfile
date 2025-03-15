@@ -1,5 +1,4 @@
 NAME = cc1
-NOMAN = 1
 CFLAGS += -Wno-comment
 YFLAGS = -d -v
 

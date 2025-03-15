@@ -1,6 +1,5 @@
 CPPFLAGS += -DHAVE_CONFIG_H
 NAME = make
-NOMAN = 1
 
 clean-extra:
 	rm -f ${.OBJDIR}/mk.vendor.c

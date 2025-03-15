@@ -1,5 +1,4 @@
 NAME = cpp
-NOMAN = 1
 CFLAGS += -g -O0 -Wno-implicit-function-declaration -Wno-comment -Wno-char-subscripts
 CPPFLAGS += -DFLEXNAMES -DBSD2_86 -Di286=1 -Dunix
 

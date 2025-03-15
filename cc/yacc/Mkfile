@@ -1,5 +1,4 @@
 NAME = yacc
-NOMAN = 1
 CFLAGS += -Wno-return-type -Wno-implicit-function-declaration -Wno-comment
 CPPFLAGS = -DWORD32 -DPARSER=\"${PREFIX}/lib/yaccpar\"
 

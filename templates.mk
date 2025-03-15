@@ -21,10 +21,9 @@ install: ${__INSTALL}
 ## Installation prefix for ${NAME}
 PREFIX ?= /usr
 
-. if !"${NOMAN}"
+. if defined(MAN)
 ## Installation prefix for ${NAME}'s manual
-MANPREFIX ?= ${PREFIX}/man/man${MANSECTION}
-MANSECTION ?= 1
+MANPREFIX ?= ${PREFIX}/man/man${MAN}
 . endif
 
 ## Installation prefix for ${NAME}'s binary
@@ -60,13 +59,13 @@ install-bin: ${NAME}
 	mkdir -p ${DESTDIR}${BINPREFIX}/
 	cp -f ${.OBJDIR}/${NAME} ${DESTDIR}${BINPREFIX}/
 
-.  if !"${NOMAN}"
+.  if defined(MAN)
 install: install-man
 
 ## Install ${NAME}'s manual into ${DESTDIR}${MANPREFIX}
-install-man: ${NAME}.${MANSECTION}
+install-man: ${NAME}.${MAN}
 	mkdir -p ${DESTDIR}${MANPREFIX}
-	cp -f ${NAME}.${MANSECTION} ${DESTDIR}${MANPREFIX}/
+	cp -f ${NAME}.${MAN} ${DESTDIR}${MANPREFIX}/
 
 .  endif
 

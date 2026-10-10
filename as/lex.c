@@ -1,12 +1,13 @@
 #include <ctype.h>
 #include <stdio.h>
 
+#include "y.tab.h"
 #include "lex.h"
 
 #define TOKMAX 100
 
 int lineno = 1, yyleng;
-uint32_t tokval;
+unsigned long tokval;
 char yytext[TOKMAX];
 
 int
@@ -35,13 +36,8 @@ yylex()
 
 	yyleng = 0;
 
-again:	while (c = input(), isspace(c))
-		if (c == '\n') {
-			yytext[yyleng++] = c;
-			yytext[yyleng] = '\0';
-			lineno++;
-			return ('\n');
-		}
+again:	while (c = input(), isblank(c))
+		;
 
 	yytext[yyleng++] = c;
 
@@ -55,7 +51,7 @@ again:	while (c = input(), isspace(c))
 		unput(c);
 		yytext[--yyleng] = '\0';
 
-		return (TOK_NAME);
+		return (NAME);
 	}
 
 	/* hexadecimal or octal number? */
@@ -95,7 +91,7 @@ again:	while (c = input(), isspace(c))
 		unput(c);
 		yytext[--yyleng] = '\0';
 
-		return (TOK_NUM);
+		return (CONSTANT);
 	}	
 
 	/* decimal number? */
@@ -114,7 +110,7 @@ again:	while (c = input(), isspace(c))
 		unput(c);
 		yytext[--yyleng] = '\0';
 
-		return (TOK_NUM);
+		return (CONSTANT);
 	}
 
 	if (c == '\\') {
@@ -128,6 +124,9 @@ again:	while (c = input(), isspace(c))
 
 		unput(c);
 	}
+
+	if (c == '\n')
+		lineno++;
 
 	/* other */
 	yytext[yyleng] = '\0';

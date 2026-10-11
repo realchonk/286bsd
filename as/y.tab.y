@@ -1,3 +1,8 @@
+%{
+#include "nametab.h"
+#include "lex.h"
+%}
+
 %token  NAME
 %token  CONSTANT
 
@@ -26,9 +31,10 @@ nl		: ';'
 		;
 
 operand		: register
-		| expression indices
-		| '$' expression
+		| register ':' register
+		| expression index indices
 		| '$' expression indices
+		| '*' expression indices
 		;
 
 register	: NAME
@@ -49,7 +55,7 @@ symbol		: NAME
 		| CONSTANT
 		;
 
-indices		: index
+indices		:
 		| indices index
 		;
 

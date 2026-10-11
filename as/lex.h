@@ -1,5 +1,11 @@
+#define YYSTYPE union yystype
+union yystype {
+	struct name	*name;
+	unsigned long	 constant;
+};
+
 extern int lineno, yyleng;
-extern unsigned long tokval;
+extern YYSTYPE yylval;
 extern char yytext[];
 
 extern int yylex(), input();

@@ -13,7 +13,7 @@ int name_fill;
 
 static unsigned long
 djbhash(name)
-	char *name;
+	const char *name;
 {
 	unsigned long hash = 5381;
 	int c;
@@ -30,7 +30,7 @@ djbhash(name)
  */
 struct name *
 name_lookup(name)
-	char *name;
+	const char *name;
 {
 	struct name *entry;
 	unsigned long hash;
@@ -67,7 +67,7 @@ char **
 name_next(entry, type)
 	struct name **entry;
 {
-	char *name, **sym;
+	const char *name, **sym;
 
 	for (name = *(*entry)->sym; *entry != NULL; *entry = (*entry)->next) {
 		if (!((*entry)->type & type))
@@ -90,7 +90,7 @@ name_next(entry, type)
 void
 name_put(entry, sym, type)
 	struct name *entry;
-	char **sym;
+	const char **sym;
 {
 	if (entry->type == NAME_DUMMY) {
 		free(entry->sym);

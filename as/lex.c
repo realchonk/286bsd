@@ -2,12 +2,13 @@
 #include <stdio.h>
 
 #include "y.tab.h"
+#include "nametab.h"
 #include "lex.h"
 
 #define TOKMAX 100
 
 int lineno = 1, yyleng;
-unsigned long tokval;
+YYSTYPE yylval;
 char yytext[TOKMAX];
 
 int
@@ -32,6 +33,7 @@ unput(c)
 int
 yylex()
 {
+	unsigned long tokval;
 	int c;
 
 	yyleng = 0;
@@ -50,6 +52,7 @@ again:	while (c = input(), isblank(c))
 
 		unput(c);
 		yytext[--yyleng] = '\0';
+		yylval.name = name_lookup(yytext);
 
 		return (NAME);
 	}
@@ -90,6 +93,7 @@ again:	while (c = input(), isblank(c))
 
 		unput(c);
 		yytext[--yyleng] = '\0';
+		yylval.constant = tokval;
 
 		return (CONSTANT);
 	}	
@@ -109,6 +113,7 @@ again:	while (c = input(), isblank(c))
 
 		unput(c);
 		yytext[--yyleng] = '\0';
+		yylval.constant = tokval;
 
 		return (CONSTANT);
 	}

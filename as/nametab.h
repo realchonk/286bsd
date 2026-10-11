@@ -7,7 +7,7 @@
 
 struct name {
 	struct name	 *next;	/* next symbol of same hash */
-	char		**sym;	/* symbol structure (first member is name pointer) */
+	const char	**sym;	/* symbol structure (first member is name pointer) */
 	unsigned char	  type;
 };
 
